@@ -46,4 +46,8 @@ const (
 	SeparateSymbol        = "-"
 	WorkLoadHashCodeDigit = 10
 	PodHashCodeDigit      = 5
+
+	ResourceGPUMem corev1.ResourceName = "alibabacloud.com/gpu-mem"
+
+	MaxNumNewNode = 100
 )

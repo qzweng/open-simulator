@@ -176,7 +176,7 @@ func (applier *Applier) Run() (err error) {
 	// only support temporarily adding a type of node at present
 	newNode := nodeResource.Nodes[0]
 	var result *simulator.SimulateResult
-	for i := 0; i < 100; i++ {
+	for i := 0; i < simontype.MaxNumNewNode; i++ {
 		newClusterResource := clusterResource
 		// add nodes to get a successful scheduling
 		fmt.Printf(utils.ColorYellow+"add %d node(s)\n"+utils.ColorReset, i)
@@ -309,6 +309,9 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 		"CPU Requests",
 		"Memory Requests",
 	}
+	if containGpu(extendedResources) {
+		header = append(header, "GPU Mem Requests")
+	}
 	if containLocalStorage(extendedResources) {
 		header = append(header, "Volume Request")
 	}
@@ -337,6 +340,14 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 				fmt.Sprintf("%s/%s", pod.Namespace, pod.Name),
 				fmt.Sprintf("%s(%d%%)", cpuReq.String(), int64(fractionCpuReq)),
 				fmt.Sprintf("%s(%d%%)", memoryReq.String(), int64(fractionMemoryReq)),
+			}
+
+			// GPU
+			if containGpu(extendedResources) {
+				req, limit := resourcehelper.PodRequestsAndLimits(pod)
+				gpuMemReq, _ := req[simontype.ResourceGPUMem], limit[simontype.ResourceGPUMem]
+				fractionGpuMemReq := float64(gpuMemReq.Value()) / float64(allocatable.Name(simontype.ResourceGPUMem, resource.BinarySI).Value()) * 100
+				data = append(data, fmt.Sprintf("%s(%d%%)", gpuMemReq.String(), int64(fractionGpuMemReq)))
 			}
 
 			// Storage
@@ -369,15 +380,24 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 	// Step 2: report node info
 	fmt.Println("Node Info")
 	nodeTable := tablewriter.NewWriter(os.Stdout)
-	nodeTable.SetHeader([]string{
+	nodeTableHeader := []string{
 		"Node",
-		"CPU Allocatable",
+		"CPU",
 		"CPU Requests",
-		"Memory Allocatable",
+		"Memory",
 		"Memory Requests",
+	}
+	if containGpu(extendedResources) {
+		nodeTableHeader = append(nodeTableHeader, []string{
+			"GPU Mem",
+			"GPU Mem Requests",
+		}...)
+	}
+	nodeTableHeader = append(nodeTableHeader, []string{
 		"Pod Count",
 		"New Node",
-	})
+	}...)
+	nodeTable.SetHeader(nodeTableHeader)
 
 	var allPods []corev1.Pod
 	for _, status := range nodeStatuses {
@@ -403,9 +423,19 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 			fmt.Sprintf("%s(%d%%)", nodeCpuReq.String(), int64(nodeCpuReqFraction)),
 			allocatable.Memory().String(),
 			fmt.Sprintf("%s(%d%%)", nodeMemoryReq.String(), int64(nodeMemoryReqFraction)),
+		}
+		if containGpu(extendedResources) {
+			nodeGpuMemReq := reqs[simontype.ResourceGPUMem]
+			nodeGpuMemFraction := float64(nodeGpuMemReq.Value()) / float64(allocatable.Name(simontype.ResourceGPUMem, resource.BinarySI).Value()) * 100
+			data = append(data, []string{
+				allocatable.Name(simontype.ResourceGPUMem, resource.BinarySI).String(),
+				fmt.Sprintf("%s(%d%%)", nodeGpuMemReq.String(), int64(nodeGpuMemFraction)),
+			}...)
+		}
+		data = append(data, []string{
 			fmt.Sprintf("%d", len(status.Pods)),
 			newNode,
-		}
+		}...)
 		nodeTable.Append(data)
 	}
 	nodeTable.SetRowLine(true)
@@ -563,6 +593,15 @@ func satisfyResourceSetting(nodeStatuses []simulator.NodeStatus) (bool, string, 
 func containLocalStorage(extendedResources []string) bool {
 	for _, res := range extendedResources {
 		if res == "open-local" {
+			return true
+		}
+	}
+	return false
+}
+
+func containGpu(extendedResources []string) bool {
+	for _, res := range extendedResources {
+		if res == "gpu" {
 			return true
 		}
 	}
