@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Node
+metadata:
+  labels:
+    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/os: linux
+    ip: 11.180.135.77
+    kubernetes.io/arch: amd64
+    kubernetes.io/hostname: paib-node-4
+    kubernetes.io/os: linux
+    node-role.kubernetes.io/master: ''
+  name: paib-node-4
+status:
+  allocatable:
+    alibabacloud.com/gpu-mem: 32560Mi
+    cpu: 64
+    memory: 257279Mi
+    pods: '110'
+  capacity:
+    alibabacloud.com/gpu-mem: 32560Mi
+    cpu: 64
+    memory: 257279Mi
+    pods: '110'

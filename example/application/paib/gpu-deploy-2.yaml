@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: gpu-deploy-2
+  name: gpu-deploy-2
+  namespace: paib-gpu
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: gpu-deploy-2
+  template:
+    metadata:
+      labels:
+        app: gpu-deploy-2
+    spec:
+      containers:
+      - image: tensorflow:1.13
+        name: main
+        resources:
+          limits:
+            alibabacloud.com/gpu-mem: 11019Mi
+            cpu: 12
+            memory: 17920Mi
+          requests:
+            alibabacloud.com/gpu-mem: 11019Mi
+            cpu: 12
+            memory: 17920Mi
+      hostNetwork: true
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+        operator: Exists
