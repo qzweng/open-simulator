@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -900,4 +901,18 @@ func SetDaemonSetPodNodeNameByNodeAffinity(affinity *corev1.Affinity, nodename s
 	affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms = nodeSelectorTerms
 
 	return affinity
+}
+
+func GetGpuNodeInfoFromAnnotation(node *corev1.Node) (*gpusharecache.NodeGpuInfo, error) {
+	nodeGpuInfoStr, exist := node.Annotations[simontype.AnnoNodeGpuShare]
+	if !exist {
+		return nil, nil
+	}
+
+	nodeGpuInfo := new(gpusharecache.NodeGpuInfo)
+	if err := ffjson.Unmarshal([]byte(nodeGpuInfoStr), gpusharecache.NodeGpuInfo{}); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal GPU info of node %s: %s ", node.Name, err.Error())
+	}
+
+	return nodeGpuInfo, nil
 }

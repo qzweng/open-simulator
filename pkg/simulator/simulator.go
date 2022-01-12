@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/scheduler"
-	framework "k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
 
@@ -130,6 +130,9 @@ func New(opts ...Option) (Interface, error) {
 		},
 		simontype.OpenLocalPluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewLocalPlugin(fakeClient, storagev1Informers, configuration, f)
+		},
+		simontype.OpenGpuSharePluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuSharePlugin(fakeClient, configuration, f)
 		},
 	}
 	sim.scheduler, err = scheduler.New(

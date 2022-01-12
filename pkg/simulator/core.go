@@ -67,7 +67,6 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*Simul
 		return nil, err
 	}
 	defer sim.Close()
-
 	cluster.Pods, err = GetValidPodExcludeDaemonSet(cluster)
 	if err != nil {
 		return nil, err
@@ -79,7 +78,6 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*Simul
 		}
 		cluster.Pods = append(cluster.Pods, validPods...)
 	}
-
 	var failedPods []UnscheduledPod
 	// run cluster
 	result, err := sim.RunCluster(cluster)

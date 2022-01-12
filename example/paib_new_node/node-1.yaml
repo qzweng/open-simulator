@@ -22,7 +22,8 @@ status:
     hugepages-2Mi: "0"
     memory: 64Gi
     pods: "110"
-    alibabacloud.com/gpu-mem: 16Gi
+    alibabacloud.com/gpu-mem: 32Gi
+    alibabacloud.com/gpu-count: 2
   capacity:
     cpu: "4"
     ephemeral-storage: 61255492Ki
@@ -30,7 +31,8 @@ status:
     hugepages-2Mi: "0"
     memory: 8Gi
     pods: "110"
-    alibabacloud.com/gpu-mem: 16Gi
+    alibabacloud.com/gpu-mem: 32Gi
+    alibabacloud.com/gpu-count: 2
   conditions:
   - lastHeartbeatTime: "2021-06-01T03:59:14Z"
     lastTransitionTime: "2021-05-31T23:48:32Z"

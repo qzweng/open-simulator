@@ -1,15 +1,13 @@
 package apply
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 
-	"sigs.k8s.io/yaml"
-
+	"encoding/json"
 	survey "github.com/AlecAivazis/survey/v2"
+	"github.com/alibaba/open-gpu-share/pkg/cache"
 	localcache "github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
 	"github.com/alibaba/open-simulator/pkg/chart"
@@ -19,10 +17,13 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/pquerna/ffjson/ffjson"
 	log "github.com/sirupsen/logrus"
+	"io/ioutil"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
+	"sigs.k8s.io/yaml"
 )
 
 type Options struct {
@@ -498,6 +499,42 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 			nodeStorageTable.SetRowLine(true)
 			nodeStorageTable.SetAlignment(tablewriter.ALIGN_LEFT)
 			nodeStorageTable.Render() // Send output
+		}
+		if containGpu(extendedResources) {
+			fmt.Println("Node GPU Resource")
+			nodeGpuTable := tablewriter.NewWriter(os.Stdout)
+			nodeGpuTable.SetHeader([]string{"Node", "GPU ID", "GPU Allocatable", "GPU Requests"})
+			for _, status := range nodeStatuses {
+				node := status.Node
+				reqs, _ := utils.GetPodsTotalRequestsAndLimitsByNodeName(allPods, node.Name)
+				if nodeGpuInfoStr, exist := node.Annotations[simontype.AnnoNodeGpuShare]; exist {
+					var nodeGpuInfo cache.NodeGpuInfo
+					if err := ffjson.Unmarshal([]byte(nodeGpuInfoStr), &nodeGpuInfo); err != nil {
+						klog.Errorf("failed to unmarshal storage information of node(%s: %v", node.Name, err)
+						continue
+					}
+					nodeGpuMemReq := reqs[simontype.ResourceGPUMem]
+					nodeOutputLine := []string{node.Name, fmt.Sprintf("%d", nodeGpuInfo.GpuCount), fmt.Sprintf("%d", nodeGpuInfo.GpuTotalMemory), nodeGpuMemReq.String()}
+					nodeGpuTable.Append(nodeOutputLine)
+
+					for idx, deviceInfo := range nodeGpuInfo.Devs {
+						if deviceInfo == nil {
+							continue
+						}
+						devTotalGpuMem := deviceInfo.GetTotalGPUMemory()
+						if devTotalGpuMem <= 0 {
+							continue // either no GPU or not allocated
+						}
+						devUsedGpuMem := deviceInfo.GetUsedGPUMemory()
+						nodeOutputLineDev := []string{node.Name, fmt.Sprintf("%d", idx), fmt.Sprintf("%d", devTotalGpuMem), fmt.Sprintf("%d", devUsedGpuMem)}
+						nodeGpuTable.Append(nodeOutputLineDev)
+					}
+				}
+			}
+			//nodeGpuTable.SetAutoMergeCellsByColumnIndex([]int{0})
+			nodeGpuTable.SetRowLine(true)
+			nodeGpuTable.SetAlignment(tablewriter.ALIGN_LEFT)
+			nodeGpuTable.Render() // Send output
 		}
 	}
 }

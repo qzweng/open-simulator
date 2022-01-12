@@ -2,18 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: gpu-deploy-0
-  name: gpu-deploy-0
+    app: gpu-deploy-00
+  name: gpu-deploy-00
   namespace: paib-gpu
 spec:
-  replicas: 8
+  replicas: 1
   selector:
     matchLabels:
-      app: gpu-deploy-0
+      app: gpu-deploy-00
   template:
     metadata:
       labels:
-        app: gpu-deploy-0
+        app: gpu-deploy-00
     spec:
       containers:
       - image: tensorflow:1.13

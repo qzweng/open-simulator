@@ -12,11 +12,13 @@ metadata:
   name: paib-node-34
 status:
   allocatable:
+    alibabacloud.com/gpu-count: '2'
     alibabacloud.com/gpu-mem: 32560Mi
     cpu: 16
     memory: 120325Mi
     pods: '110'
   capacity:
+    alibabacloud.com/gpu-count: '2'
     alibabacloud.com/gpu-mem: 32560Mi
     cpu: 16
     memory: 120325Mi
