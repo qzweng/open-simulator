@@ -3,6 +3,7 @@ package cache
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"log"
 	"strconv"
 	"strings"
@@ -354,11 +355,20 @@ func (n *GpuNodeInfo) getUnhealthyGPUs() (unhealthyGPUs map[int]bool) {
 //}
 
 type NodeGpuInfo struct {
-	Devs           map[int]*DeviceInfo
+	DevsBrief      map[int]*DeviceInfoBrief
 	GpuCount       int
-	GpuTotalMemory int
+	GpuTotalMemory resource.Quantity
+	NumPods        int
 }
 
 func (n *GpuNodeInfo) ExportGpuNodeInfoAsNodeGpuInfo() *NodeGpuInfo {
-	return &NodeGpuInfo{n.devs, n.gpuCount, n.gpuTotalMemory}
+	var numPods int
+	devsBrief := map[int]*DeviceInfoBrief{}
+	for idx, d := range n.devs {
+		dib := d.ExportDeviceInfoBrief()
+		devsBrief[idx] = dib
+		numPods += len(dib.PodList)
+	}
+	gpuTotalMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", n.gpuTotalMemory/(1024*1024)))
+	return &NodeGpuInfo{devsBrief, n.gpuCount, gpuTotalMem, numPods}
 }

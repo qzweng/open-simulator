@@ -146,21 +146,21 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
-	devId, found := gpuNodeInfo.AllocateGPUID(pod)
-	if found {
-		//klog.Infof("Allocate() Allocate GPU ID %d to pod %s in ns %s.----", devId, pod.Name, pod.Namespace)
-		if patchedAnnotationBytes, err := gpushareutils.PatchPodAnnotationSpec(pod, devId, gpuNodeInfo.GetTotalGPUMemory()/gpuNodeInfo.GetGPUCount()); err != nil {
-			return framework.NewStatus(framework.Error, fmt.Sprintf("failed to generate patched annotations,reason: %v", err))
-		} else {
-			metav1.SetMetaDataAnnotation(&pod.ObjectMeta, simontype.AnnoPodGpuShare, string(patchedAnnotationBytes))
-		}
+	// update Pod
+	var podCopy *corev1.Pod
+	if devId, found := gpuNodeInfo.AllocateGPUID(pod); found {
+		podCopy = gpushareutils.GetUpdatedPodAnnotationSpec(pod, devId, gpuNodeInfo.GetTotalGPUMemory()/gpuNodeInfo.GetGPUCount())
+		////klog.Infof("Allocate() Allocate GPU ID %d to pod %s in ns %s.----", devId, pod.Name, pod.Namespace)
+		//if patchedAnnotationBytes, err := gpushareutils.PatchPodAnnotationSpec(pod, devId, gpuNodeInfo.GetTotalGPUMemory()/gpuNodeInfo.GetGPUCount()); err != nil {
+		//	return framework.NewStatus(framework.Error, fmt.Sprintf("failed to generate patched annotations,reason: %v", err))
+		//} else {
+		//	metav1.SetMetaDataAnnotation(&pod.ObjectMeta, simontype.AnnoPodGpuShare, string(patchedAnnotationBytes))
+		//}
 	} else {
 		err = fmt.Errorf("The node %s can't place the pod %s in ns %s,and the pod spec is %v", pod.Spec.NodeName, pod.Name, pod.Namespace, pod)
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
-	// update Pod
-	podCopy := pod.DeepCopy()
 	podCopy.Spec.NodeName = nodeName
 	podCopy.Status.Phase = corev1.PodRunning
 	_, err = plugin.fakeclient.CoreV1().Pods(podCopy.Namespace).Update(context.TODO(), podCopy, metav1.UpdateOptions{})

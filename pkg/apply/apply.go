@@ -503,7 +503,7 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 		if containGpu(extendedResources) {
 			fmt.Println("Node GPU Resource")
 			nodeGpuTable := tablewriter.NewWriter(os.Stdout)
-			nodeGpuTable.SetHeader([]string{"Node", "GPU ID", "GPU Allocatable", "GPU Requests"})
+			nodeGpuTable.SetHeader([]string{"Node", "GPU ID", "GPU Request/Capacity", "Pod List"})
 			for _, status := range nodeStatuses {
 				node := status.Node
 				reqs, _ := utils.GetPodsTotalRequestsAndLimitsByNodeName(allPods, node.Name)
@@ -514,24 +514,24 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 						continue
 					}
 					nodeGpuMemReq := reqs[simontype.ResourceGPUMem]
-					nodeOutputLine := []string{node.Name, fmt.Sprintf("%d", nodeGpuInfo.GpuCount), fmt.Sprintf("%d", nodeGpuInfo.GpuTotalMemory), nodeGpuMemReq.String()}
+					nodeOutputLine := []string{node.Name, fmt.Sprintf("%d GPUs", nodeGpuInfo.GpuCount), fmt.Sprintf("%s/%s", nodeGpuMemReq.String(), nodeGpuInfo.GpuTotalMemory.String()), fmt.Sprintf("%d Pods", nodeGpuInfo.NumPods)}
 					nodeGpuTable.Append(nodeOutputLine)
 
-					for idx, deviceInfo := range nodeGpuInfo.Devs {
-						if deviceInfo == nil {
+					for idx, deviceInfoBrief := range nodeGpuInfo.DevsBrief {
+						if deviceInfoBrief == nil {
 							continue
 						}
-						devTotalGpuMem := deviceInfo.GetTotalGPUMemory()
-						if devTotalGpuMem <= 0 {
+						devTotalGpuMem := deviceInfoBrief.GpuTotalMemory
+						if devTotalGpuMem.Value() <= 0 {
 							continue // either no GPU or not allocated
 						}
-						devUsedGpuMem := deviceInfo.GetUsedGPUMemory()
-						nodeOutputLineDev := []string{node.Name, fmt.Sprintf("%d", idx), fmt.Sprintf("%d", devTotalGpuMem), fmt.Sprintf("%d", devUsedGpuMem)}
+						devUsedGpuMem := deviceInfoBrief.GpuUsedMemory
+						nodeOutputLineDev := []string{node.Name, fmt.Sprintf("%d", idx), fmt.Sprintf("%s/%s", devUsedGpuMem.String(), devTotalGpuMem.String()), fmt.Sprintf("%s", deviceInfoBrief.PodList)}
 						nodeGpuTable.Append(nodeOutputLineDev)
 					}
 				}
 			}
-			//nodeGpuTable.SetAutoMergeCellsByColumnIndex([]int{0})
+			nodeGpuTable.SetAutoMergeCellsByColumnIndex([]int{0})
 			nodeGpuTable.SetRowLine(true)
 			nodeGpuTable.SetAlignment(tablewriter.ALIGN_LEFT)
 			nodeGpuTable.Render() // Send output

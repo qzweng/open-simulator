@@ -1,6 +1,8 @@
 package cache
 
 import (
+	"fmt"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"log"
 	"sync"
 
@@ -67,4 +69,21 @@ func (d *DeviceInfo) removePod(pod *v1.Pod) {
 	defer d.rwmu.Unlock()
 	delete(d.podMap, pod.UID)
 	//log.Printf("debug: dev.removePod() after updated is %v, and its address is %p", d.podMap, d)
+}
+
+type DeviceInfoBrief struct {
+	idx            int
+	PodList        []string
+	GpuTotalMemory resource.Quantity
+	GpuUsedMemory  resource.Quantity
+}
+
+func (d *DeviceInfo) ExportDeviceInfoBrief() *DeviceInfoBrief {
+	var podList []string
+	for _, pod := range d.podMap {
+		podList = append(podList, fmt.Sprintf("%s:%s", pod.Namespace, pod.Name))
+	}
+	gpuUsedMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", d.GetUsedGPUMemory()/(1024*1024)))
+	gpuTotalMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", d.totalGPUMem/(1024*1024)))
+	return &DeviceInfoBrief{d.idx, podList, gpuTotalMem, gpuUsedMem}
 }
