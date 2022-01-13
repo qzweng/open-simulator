@@ -23,9 +23,9 @@ import (
 // GpuSharePlugin is a plugin for scheduling framework
 type GpuSharePlugin struct {
 	sync.RWMutex
-	fakeclient  externalclientset.Interface
-	cache       *gpusharecache.SchedulerCache
-	podToUpdate *corev1.Pod
+	fakeclient          externalclientset.Interface
+	cache               *gpusharecache.SchedulerCache
+	podToUpdateCacheMap map[string]*corev1.Pod // key: getPodMapKey(): return pod.Namespace+pod.Name
 }
 
 // Just to check whether the implemented struct fits the interface
@@ -37,7 +37,7 @@ var _ framework.BindPlugin = &GpuSharePlugin{}
 //var _ framework.BindPlugin = &GpuSharePlugin{}
 
 func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
-	gpuSharePlugin := &GpuSharePlugin{fakeclient: fakeclient}
+	gpuSharePlugin := &GpuSharePlugin{fakeclient: fakeclient, podToUpdateCacheMap: make(map[string]*corev1.Pod)}
 	gpuSharePlugin.InitSchedulerCache()
 	return gpuSharePlugin, nil
 }
@@ -143,16 +143,16 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 	}
 
 	// get PodCopy but not update it; the same func will be called in Bind.
-	var err error
-	plugin.podToUpdate, err = plugin.MakePodCopyReadyForBindUpdate(pod, nodeName)
+	podCopy, err := plugin.MakePodCopyReadyForBindUpdate(pod, nodeName)
 	if err != nil {
 		klog.Errorf("The node %s can't place the pod %s in ns %s,and the pod spec is %v. err: %s", pod.Spec.NodeName, pod.Name, pod.Namespace, pod, err)
 		return framework.NewStatus(framework.Error, err.Error())
 	}
+	plugin.podToUpdateCacheMap[getPodMapKey(pod)] = podCopy // shallow copy is enough
 
 	// get node from fakeclient and update Node
 	node, _ := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err := plugin.cache.AddOrUpdatePod(plugin.podToUpdate); err != nil { // requires pod.Spec.NodeName specified
+	if err := plugin.cache.AddOrUpdatePod(podCopy); err != nil { // requires pod.Spec.NodeName specified
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 	nodeGpuInfo, err := plugin.ExportGpuNodeInfoAsNodeGpuInfo(nodeName)
@@ -178,14 +178,17 @@ func (plugin *GpuSharePlugin) Bind(ctx context.Context, state *framework.CycleSt
 		return framework.NewStatus(framework.Skip) // non-GPU pods are skipped
 	}
 
-	if plugin.podToUpdate == nil {
-		panic(struct{}{}) // should not happen, it should be already blocked by Reserve
+	podCopy, ok := plugin.podToUpdateCacheMap[getPodMapKey(pod)]
+	if !ok {
+		klog.Errorf("No podToUpdate found, which should not happen since it should have failed in ReservePlugin")
+		return framework.NewStatus(framework.Error, fmt.Sprintf("No podToUpdate found"))
 	}
-	_, err := plugin.fakeclient.CoreV1().Pods(plugin.podToUpdate.Namespace).Update(context.TODO(), plugin.podToUpdate, metav1.UpdateOptions{})
+	_, err := plugin.fakeclient.CoreV1().Pods(podCopy.Namespace).Update(context.TODO(), podCopy, metav1.UpdateOptions{})
 	if err != nil {
 		klog.Errorf("fake update error %v", err)
 		return framework.NewStatus(framework.Error, fmt.Sprintf("Unable to add new pod: %v", err))
 	}
+	delete(plugin.podToUpdateCacheMap, getPodMapKey(pod)) // avoid memory leakage
 	//klog.Infof("Allocate() ---- pod %s in ns %s is allocated to node %s ----", podCopy.Name, podCopy.Namespace, podCopy.Spec.NodeName)
 	return nil
 }
@@ -229,4 +232,8 @@ func (plugin *GpuSharePlugin) MakePodCopyReadyForBindUpdate(pod *corev1.Pod, nod
 	podCopy.Spec.NodeName = nodeName
 	podCopy.Status.Phase = corev1.PodRunning
 	return podCopy, nil
+}
+
+func getPodMapKey(pod *corev1.Pod) string {
+	return pod.Namespace + pod.Name
 }
