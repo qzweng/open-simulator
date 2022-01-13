@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sync"
 
 	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
 	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
@@ -21,14 +22,17 @@ import (
 
 // GpuSharePlugin is a plugin for scheduling framework
 type GpuSharePlugin struct {
-	fakeclient externalclientset.Interface
-	cache      *gpusharecache.SchedulerCache
+	sync.RWMutex
+	fakeclient  externalclientset.Interface
+	cache       *gpusharecache.SchedulerCache
+	podToUpdate *corev1.Pod
 }
 
 // Just to check whether the implemented struct fits the interface
 var _ framework.FilterPlugin = &GpuSharePlugin{}
 var _ framework.ScorePlugin = &GpuSharePlugin{}
 var _ framework.ReservePlugin = &GpuSharePlugin{}
+var _ framework.BindPlugin = &GpuSharePlugin{}
 
 //var _ framework.BindPlugin = &GpuSharePlugin{}
 
@@ -57,6 +61,7 @@ func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.Cycle
 	//klog.Infof("[Filter] Pod: %v/%v, podGpuMem: %v", pod.GetNamespace(), pod.GetName(), podGpuMem)
 
 	// check if the node have GPU resources
+	// TODO: Check each GPU
 	node := nodeInfo.Node()
 	nodeGpuMem := gpushareutils.GetTotalGPUMemory(node)
 	if nodeGpuMem < podGpuMem {
@@ -137,41 +142,17 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 		return framework.NewStatus(framework.Success) // non-GPU pods are skipped
 	}
 
-	// get node from fakeclient
+	// get PodCopy but not update it; the same func will be called in Bind.
+	var err error
+	plugin.podToUpdate, err = plugin.MakePodCopyReadyForBindUpdate(pod, nodeName)
+	if err != nil {
+		klog.Errorf("The node %s can't place the pod %s in ns %s,and the pod spec is %v. err: %s", pod.Spec.NodeName, pod.Name, pod.Namespace, pod, err)
+		return framework.NewStatus(framework.Error, err.Error())
+	}
+
+	// get node from fakeclient and update Node
 	node, _ := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-
-	gpuNodeInfo, err := plugin.cache.GetGpuNodeInfo(nodeName)
-	if err != nil {
-		klog.Errorf("warn: Failed to handle pod %s in ns %s due to error %v", pod.Name, pod.Namespace, err)
-		return framework.NewStatus(framework.Error, err.Error())
-	}
-
-	// update Pod
-	var podCopy *corev1.Pod
-	if devId, found := gpuNodeInfo.AllocateGPUID(pod); found {
-		podCopy = gpushareutils.GetUpdatedPodAnnotationSpec(pod, devId, gpuNodeInfo.GetTotalGPUMemory()/gpuNodeInfo.GetGPUCount())
-		////klog.Infof("Allocate() Allocate GPU ID %d to pod %s in ns %s.----", devId, pod.Name, pod.Namespace)
-		//if patchedAnnotationBytes, err := gpushareutils.PatchPodAnnotationSpec(pod, devId, gpuNodeInfo.GetTotalGPUMemory()/gpuNodeInfo.GetGPUCount()); err != nil {
-		//	return framework.NewStatus(framework.Error, fmt.Sprintf("failed to generate patched annotations,reason: %v", err))
-		//} else {
-		//	metav1.SetMetaDataAnnotation(&pod.ObjectMeta, simontype.AnnoPodGpuShare, string(patchedAnnotationBytes))
-		//}
-	} else {
-		err = fmt.Errorf("The node %s can't place the pod %s in ns %s,and the pod spec is %v", pod.Spec.NodeName, pod.Name, pod.Namespace, pod)
-		return framework.NewStatus(framework.Error, err.Error())
-	}
-
-	podCopy.Spec.NodeName = nodeName
-	podCopy.Status.Phase = corev1.PodRunning
-	_, err = plugin.fakeclient.CoreV1().Pods(podCopy.Namespace).Update(context.TODO(), podCopy, metav1.UpdateOptions{})
-	if err != nil {
-		klog.Errorf("fake update error %v", err)
-		return framework.NewStatus(framework.Error, fmt.Sprintf("Unable to add new pod: %v", err))
-	}
-	//klog.Infof("Allocate() ---- pod %s in ns %s is allocated to node %s ----", podCopy.Name, podCopy.Namespace, podCopy.Spec.NodeName)
-
-	// update Node
-	if err := plugin.cache.AddOrUpdatePod(podCopy); err != nil { // requires pod.Spec.NodeName specified
+	if err := plugin.cache.AddOrUpdatePod(plugin.podToUpdate); err != nil { // requires pod.Spec.NodeName specified
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 	nodeGpuInfo, err := plugin.ExportGpuNodeInfoAsNodeGpuInfo(nodeName)
@@ -180,7 +161,6 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 	} else {
 		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
 	}
-
 	if _, err := plugin.fakeclient.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
 	}
@@ -189,6 +169,25 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 
 // TODO
 func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) {
+	panic(struct{}{})
+}
+
+// Bind Plugin
+func (plugin *GpuSharePlugin) Bind(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	if gpushareutils.GetGPUMemoryFromPodResource(pod) <= 0 {
+		return framework.NewStatus(framework.Skip) // non-GPU pods are skipped
+	}
+
+	if plugin.podToUpdate == nil {
+		panic(struct{}{}) // should not happen, it should be already blocked by Reserve
+	}
+	_, err := plugin.fakeclient.CoreV1().Pods(plugin.podToUpdate.Namespace).Update(context.TODO(), plugin.podToUpdate, metav1.UpdateOptions{})
+	if err != nil {
+		klog.Errorf("fake update error %v", err)
+		return framework.NewStatus(framework.Error, fmt.Sprintf("Unable to add new pod: %v", err))
+	}
+	//klog.Infof("Allocate() ---- pod %s in ns %s is allocated to node %s ----", podCopy.Name, podCopy.Namespace, podCopy.Spec.NodeName)
+	return nil
 }
 
 // Util Functions
@@ -212,4 +211,22 @@ func (plugin *GpuSharePlugin) PodGet(name string, namespace string) (*corev1.Pod
 
 func (plugin *GpuSharePlugin) InitSchedulerCache() {
 	plugin.cache = gpusharecache.NewSchedulerCache(plugin) // here `plugin` implements the NodePodGetter interface
+}
+
+func (plugin *GpuSharePlugin) MakePodCopyReadyForBindUpdate(pod *corev1.Pod, nodeName string) (*corev1.Pod, error) {
+	gpuNodeInfo, err := plugin.cache.GetGpuNodeInfo(nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	devId, found := gpuNodeInfo.AllocateGPUID(pod)
+	if !found {
+		err := fmt.Errorf("Cannot find a GPU to allocate pod %s at ns %s", pod.Name, pod.Namespace)
+		return nil, err
+	}
+
+	podCopy := gpushareutils.GetUpdatedPodAnnotationSpec(pod, devId, gpuNodeInfo.GetTotalGPUMemory()/gpuNodeInfo.GetGPUCount())
+	podCopy.Spec.NodeName = nodeName
+	podCopy.Status.Phase = corev1.PodRunning
+	return podCopy, nil
 }

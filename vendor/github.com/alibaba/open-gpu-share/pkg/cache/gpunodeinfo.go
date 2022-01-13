@@ -266,7 +266,8 @@ func (n *GpuNodeInfo) AllocateGPUID(pod *v1.Pod) (candidateDevID int, found bool
 		if found {
 			//log.Printf("info: Find candidate dev id %d for pod %s in ns %s successfully.", candidateDevID, pod.Name, pod.Namespace)
 		} else {
-			log.Printf("warn: Failed to find available GPUs %d for the pod %s in the namespace %s", reqGPU, pod.Name, pod.Namespace)
+			//log.Printf("warn: Failed to find available GPUs %d for the pod %s in the namespace %s", reqGPU, pod.Name, pod.Namespace)
+			return -1, false
 		}
 	}
 

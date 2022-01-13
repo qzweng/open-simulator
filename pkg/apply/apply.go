@@ -517,17 +517,16 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 					nodeOutputLine := []string{node.Name, fmt.Sprintf("%d GPUs", nodeGpuInfo.GpuCount), fmt.Sprintf("%s/%s", nodeGpuMemReq.String(), nodeGpuInfo.GpuTotalMemory.String()), fmt.Sprintf("%d Pods", nodeGpuInfo.NumPods)}
 					nodeGpuTable.Append(nodeOutputLine)
 
-					for idx, deviceInfoBrief := range nodeGpuInfo.DevsBrief {
-						if deviceInfoBrief == nil {
-							continue
+					for idx := 0; idx < len(nodeGpuInfo.DevsBrief); idx += 1 {
+						if deviceInfoBrief, ok := nodeGpuInfo.DevsBrief[idx]; ok {
+							devTotalGpuMem := deviceInfoBrief.GpuTotalMemory
+							if devTotalGpuMem.Value() <= 0 {
+								continue // either no GPU or not allocated
+							}
+							devUsedGpuMem := deviceInfoBrief.GpuUsedMemory
+							nodeOutputLineDev := []string{node.Name, fmt.Sprintf("%d", idx), fmt.Sprintf("%s/%s", devUsedGpuMem.String(), devTotalGpuMem.String()), fmt.Sprintf("%s", deviceInfoBrief.PodList)}
+							nodeGpuTable.Append(nodeOutputLineDev)
 						}
-						devTotalGpuMem := deviceInfoBrief.GpuTotalMemory
-						if devTotalGpuMem.Value() <= 0 {
-							continue // either no GPU or not allocated
-						}
-						devUsedGpuMem := deviceInfoBrief.GpuUsedMemory
-						nodeOutputLineDev := []string{node.Name, fmt.Sprintf("%d", idx), fmt.Sprintf("%s/%s", devUsedGpuMem.String(), devTotalGpuMem.String()), fmt.Sprintf("%s", deviceInfoBrief.PodList)}
-						nodeGpuTable.Append(nodeOutputLineDev)
 					}
 				}
 			}

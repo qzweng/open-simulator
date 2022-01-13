@@ -262,6 +262,9 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 				Name: simontype.OpenLocalPluginName,
 			},
 			{
+				Name: simontype.OpenGpuSharePluginName,
+			},
+			{
 				Name: simontype.SimonPluginName,
 			},
 		},

@@ -99,16 +99,10 @@ func GetGPUMemoryFromPodAnnotation(pod *v1.Pod) (gpuMemory uint) {
 			if s < 0 {
 				s = 0
 			}
-
 			gpuMemory += uint(s)
 		}
 	}
-
-	log.Printf("debug: pod %s in ns %s with status %v has GPU Mem %d",
-		pod.Name,
-		pod.Namespace,
-		pod.Status.Phase,
-		gpuMemory)
+	//log.Printf("debug: pod %s in ns %s with status %v has GPU Mem %d", pod.Name, pod.Namespace, pod.Status.Phase, gpuMemory)
 	return gpuMemory
 }
 
