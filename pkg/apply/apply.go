@@ -204,6 +204,9 @@ func (applier *Applier) Run() (err error) {
 			}
 		} else {
 			fmt.Printf(utils.ColorRed+"there are %d unscheduled pods\n"+utils.ColorReset, len(result.UnscheduledPods))
+			//for ind, pod := range result.UnscheduledPods {
+			//	fmt.Printf("[%d] %s\n", ind, pod.Reason)
+			//}
 			allDaemonSets := newClusterResource.DaemonSets
 			for _, app := range selectedResourceList {
 				allDaemonSets = append(allDaemonSets, app.Resource.DaemonSets...)
@@ -540,12 +543,13 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 
 			fmt.Println("\nPod -> Node Map")
 			podGpuTable := tablewriter.NewWriter(os.Stdout)
-			podGpuTable.SetHeader([]string{"Pod", "GPU Request", "Host Node"})
+			podGpuTable.SetHeader([]string{"Pod", "CPU Req", "Mem Req", "GPU Req", "Host Node"})
 			sort.Slice(podList, func(i, j int) bool { return podList[i].Name < podList[j].Name })
 			for _, pod := range podList {
 				req, limit := resourcehelper.PodRequestsAndLimits(pod)
 				gpuMemReq, _ := req[simontype.ResourceGPUMem], limit[simontype.ResourceGPUMem]
-				podOutputLine := []string{pod.Name, gpuMemReq.String(), pod.Spec.NodeName}
+				cpuReq, _, memoryReq, _ := req[corev1.ResourceCPU], limit[corev1.ResourceCPU], req[corev1.ResourceMemory], limit[corev1.ResourceMemory]
+				podOutputLine := []string{pod.Name, cpuReq.String(), memoryReq.String(), gpuMemReq.String(), pod.Spec.NodeName}
 				podGpuTable.Append(podOutputLine)
 			}
 			podGpuTable.SetRowLine(true)
