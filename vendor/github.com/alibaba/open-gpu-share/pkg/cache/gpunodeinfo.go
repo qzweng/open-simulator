@@ -27,6 +27,7 @@ type GpuNodeInfo struct {
 	devs           map[int]*DeviceInfo
 	gpuCount       int
 	gpuTotalMemory int
+	model          string
 	rwmu           *sync.RWMutex
 }
 
@@ -34,9 +35,10 @@ type GpuNodeInfo struct {
 func NewGpuNodeInfo(node *v1.Node) *GpuNodeInfo {
 	//log.Printf("debug: NewGpuNodeInfo() creates nodeInfo for %s", node.Name)
 
+	cardModel := utils.GetGPUModel(node)
 	devMap := map[int]*DeviceInfo{}
 	for i := 0; i < utils.GetGPUCountInNode(node); i++ {
-		devMap[i] = newDeviceInfo(i, uint(utils.GetTotalGPUMemory(node)/utils.GetGPUCountInNode(node)))
+		devMap[i] = newDeviceInfo(i, uint(utils.GetTotalGPUMemory(node)/utils.GetGPUCountInNode(node)), cardModel)
 	}
 
 	//if len(devMap) == 0 {
@@ -49,6 +51,7 @@ func NewGpuNodeInfo(node *v1.Node) *GpuNodeInfo {
 		devs:           devMap,
 		gpuCount:       utils.GetGPUCountInNode(node),
 		gpuTotalMemory: utils.GetTotalGPUMemory(node),
+		model:          cardModel,
 		rwmu:           new(sync.RWMutex),
 	}
 }
@@ -67,9 +70,10 @@ func (n *GpuNodeInfo) Reset(node *v1.Node) {
 	//}
 
 	if len(n.devs) == 0 && n.gpuCount > 0 {
+		cardModel := utils.GetGPUModel(node)
 		devMap := map[int]*DeviceInfo{}
 		for i := 0; i < utils.GetGPUCountInNode(node); i++ {
-			devMap[i] = newDeviceInfo(i, uint(n.gpuTotalMemory/n.gpuCount))
+			devMap[i] = newDeviceInfo(i, uint(n.gpuTotalMemory/n.gpuCount), cardModel)
 		}
 		n.devs = devMap
 	}
@@ -358,6 +362,7 @@ func (n *GpuNodeInfo) getUnhealthyGPUs() (unhealthyGPUs map[int]bool) {
 type NodeGpuInfo struct {
 	DevsBrief      map[int]*DeviceInfoBrief
 	GpuCount       int
+	GpuModel       string
 	GpuTotalMemory resource.Quantity
 	NumPods        int
 }
@@ -371,5 +376,5 @@ func (n *GpuNodeInfo) ExportGpuNodeInfoAsNodeGpuInfo() *NodeGpuInfo {
 		numPods += len(dib.PodList)
 	}
 	gpuTotalMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", n.gpuTotalMemory/(1024*1024)))
-	return &NodeGpuInfo{devsBrief, n.gpuCount, gpuTotalMem, numPods}
+	return &NodeGpuInfo{devsBrief, n.gpuCount, n.model, gpuTotalMem, numPods}
 }

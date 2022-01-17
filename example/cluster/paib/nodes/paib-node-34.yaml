@@ -9,6 +9,7 @@ metadata:
     kubernetes.io/hostname: paib-node-34
     kubernetes.io/os: linux
     node-role.kubernetes.io/master: ''
+    alibabacloud.com/gpu-card-model: V100
   name: paib-node-34
 status:
   allocatable:

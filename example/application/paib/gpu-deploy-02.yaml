@@ -6,7 +6,7 @@ metadata:
   name: gpu-deploy-02
   namespace: paib-gpu
 spec:
-  replicas: 12
+  replicas: 4
   selector:
     matchLabels:
       app: gpu-deploy-02
@@ -20,11 +20,11 @@ spec:
         name: main
         resources:
           limits:
-            alibabacloud.com/gpu-mem: 11019Mi
+            alibabacloud.com/gpu-mem: 10Gi
             cpu: 12
             memory: 17920Mi
           requests:
-            alibabacloud.com/gpu-mem: 11019Mi
+            alibabacloud.com/gpu-mem: 10Gi
             cpu: 12
             memory: 17920Mi
       hostNetwork: true

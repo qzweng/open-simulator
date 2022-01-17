@@ -12,9 +12,9 @@ import (
 )
 
 type DeviceInfo struct {
-	idx    int
-	podMap map[types.UID]*v1.Pod
-	// usedGPUMem  uint
+	idx         int
+	podMap      map[types.UID]*v1.Pod
+	model       string
 	totalGPUMem uint
 	rwmu        *sync.RWMutex
 }
@@ -27,11 +27,12 @@ func (d *DeviceInfo) GetPods() []*v1.Pod {
 	return pods
 }
 
-func newDeviceInfo(index int, totalGPUMem uint) *DeviceInfo {
+func newDeviceInfo(index int, totalGPUMem uint, cardModel string) *DeviceInfo {
 	return &DeviceInfo{
 		idx:         index,
 		totalGPUMem: totalGPUMem,
 		podMap:      map[types.UID]*v1.Pod{},
+		model:       cardModel,
 		rwmu:        new(sync.RWMutex),
 	}
 }
@@ -73,6 +74,7 @@ func (d *DeviceInfo) removePod(pod *v1.Pod) {
 
 type DeviceInfoBrief struct {
 	idx            int
+	model          string
 	PodList        []string
 	GpuTotalMemory resource.Quantity
 	GpuUsedMemory  resource.Quantity
@@ -85,5 +87,5 @@ func (d *DeviceInfo) ExportDeviceInfoBrief() *DeviceInfoBrief {
 	}
 	gpuUsedMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", d.GetUsedGPUMemory()/(1024*1024)))
 	gpuTotalMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", d.totalGPUMem/(1024*1024)))
-	return &DeviceInfoBrief{d.idx, podList, gpuTotalMem, gpuUsedMem}
+	return &DeviceInfoBrief{d.idx, d.model, podList, gpuTotalMem, gpuUsedMem}
 }

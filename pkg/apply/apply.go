@@ -3,6 +3,7 @@ package apply
 import (
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 
 	"encoding/json"
@@ -501,11 +502,13 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 			nodeStorageTable.Render() // Send output
 		}
 		if containGpu(extendedResources) {
-			fmt.Println("Node GPU Resource")
+			var podList []*corev1.Pod
+			fmt.Println("GPU Node Resource")
 			nodeGpuTable := tablewriter.NewWriter(os.Stdout)
 			nodeGpuTable.SetHeader([]string{"Node", "GPU ID", "GPU Request/Capacity", "Pod List"})
 			for _, status := range nodeStatuses {
 				node := status.Node
+				podList = append(podList, status.Pods...)
 				reqs, _ := utils.GetPodsTotalRequestsAndLimitsByNodeName(allPods, node.Name)
 				if nodeGpuInfoStr, exist := node.Annotations[simontype.AnnoNodeGpuShare]; exist {
 					var nodeGpuInfo cache.NodeGpuInfo
@@ -514,7 +517,7 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 						continue
 					}
 					nodeGpuMemReq := reqs[simontype.ResourceGPUMem]
-					nodeOutputLine := []string{node.Name, fmt.Sprintf("%d GPUs", nodeGpuInfo.GpuCount), fmt.Sprintf("%s/%s", nodeGpuMemReq.String(), nodeGpuInfo.GpuTotalMemory.String()), fmt.Sprintf("%d Pods", nodeGpuInfo.NumPods)}
+					nodeOutputLine := []string{fmt.Sprintf("%s (%s)", node.Name, nodeGpuInfo.GpuModel), fmt.Sprintf("%d GPUs", nodeGpuInfo.GpuCount), fmt.Sprintf("%s/%s", nodeGpuMemReq.String(), nodeGpuInfo.GpuTotalMemory.String()), fmt.Sprintf("%d Pods", nodeGpuInfo.NumPods)}
 					nodeGpuTable.Append(nodeOutputLine)
 
 					for idx := 0; idx < len(nodeGpuInfo.DevsBrief); idx += 1 {
@@ -524,7 +527,7 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 								continue // either no GPU or not allocated
 							}
 							devUsedGpuMem := deviceInfoBrief.GpuUsedMemory
-							nodeOutputLineDev := []string{node.Name, fmt.Sprintf("%d", idx), fmt.Sprintf("%s/%s", devUsedGpuMem.String(), devTotalGpuMem.String()), fmt.Sprintf("%s", deviceInfoBrief.PodList)}
+							nodeOutputLineDev := []string{fmt.Sprintf("%s (%s)", node.Name, nodeGpuInfo.GpuModel), fmt.Sprintf("%d", idx), fmt.Sprintf("%s/%s", devUsedGpuMem.String(), devTotalGpuMem.String()), fmt.Sprintf("%s", deviceInfoBrief.PodList)}
 							nodeGpuTable.Append(nodeOutputLineDev)
 						}
 					}
@@ -534,6 +537,20 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 			nodeGpuTable.SetRowLine(true)
 			nodeGpuTable.SetAlignment(tablewriter.ALIGN_LEFT)
 			nodeGpuTable.Render() // Send output
+
+			fmt.Println("\nPod -> Node Map")
+			podGpuTable := tablewriter.NewWriter(os.Stdout)
+			podGpuTable.SetHeader([]string{"Pod", "GPU Request", "Host Node"})
+			sort.Slice(podList, func(i, j int) bool { return podList[i].Name < podList[j].Name })
+			for _, pod := range podList {
+				req, limit := resourcehelper.PodRequestsAndLimits(pod)
+				gpuMemReq, _ := req[simontype.ResourceGPUMem], limit[simontype.ResourceGPUMem]
+				podOutputLine := []string{pod.Name, gpuMemReq.String(), pod.Spec.NodeName}
+				podGpuTable.Append(podOutputLine)
+			}
+			podGpuTable.SetRowLine(true)
+			podGpuTable.SetAlignment(tablewriter.ALIGN_LEFT)
+			podGpuTable.Render() // Send output
 		}
 	}
 }

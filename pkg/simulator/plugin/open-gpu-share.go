@@ -61,7 +61,6 @@ func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.Cycle
 	//klog.Infof("[Filter] Pod: %v/%v, podGpuMem: %v", pod.GetNamespace(), pod.GetName(), podGpuMem)
 
 	// check if the node have GPU resources
-	// TODO: Check each GPU
 	node := nodeInfo.Node()
 	nodeGpuMem := gpushareutils.GetTotalGPUMemory(node)
 	if nodeGpuMem < podGpuMem {
@@ -69,6 +68,16 @@ func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.Cycle
 		return framework.NewStatus(framework.Unschedulable, "Node:"+nodeInfo.Node().Name)
 	}
 	//klog.Infof("[Filter] Schedulable, Node: %v, nodeGpuMem: %v", node.GetName(), nodeGpuMem)
+
+	// check if any of the GPU has such resources
+	gpuNodeInfo, err := plugin.cache.GetGpuNodeInfo(node.Name)
+	if err != nil {
+		return framework.NewStatus(framework.Unschedulable, "Node:"+nodeInfo.Node().Name)
+	}
+	_, found := gpuNodeInfo.AllocateGPUID(pod)
+	if !found {
+		return framework.NewStatus(framework.Unschedulable, "Node:"+nodeInfo.Node().Name)
+	}
 
 	return framework.NewStatus(framework.Success)
 }
@@ -169,7 +178,24 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 
 // TODO
 func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) {
-	panic(struct{}{})
+	node, _ := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	if podCopy, ok := plugin.podToUpdateCacheMap[getPodMapKey(pod)]; !ok {
+		//klog.Errorf("Cannot find pod to update in cache")
+		return
+	} else {
+		plugin.cache.RemovePod(podCopy)
+	}
+	nodeGpuInfo, _ := plugin.ExportGpuNodeInfoAsNodeGpuInfo(nodeName)
+	if data, err := ffjson.Marshal(nodeGpuInfo); err != nil {
+		klog.Errorf("Marshal nodeGpuInfo failed")
+		return
+	} else {
+		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
+	}
+	if _, err := plugin.fakeclient.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
+		klog.Errorf("Failed to Update node")
+		return
+	}
 }
 
 // Bind Plugin

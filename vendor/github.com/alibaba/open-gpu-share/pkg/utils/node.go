@@ -24,3 +24,11 @@ func GetGPUCountInNode(node *v1.Node) int {
 	}
 	return int(val.Value())
 }
+
+func GetGPUModel(node *v1.Node) string {
+	val, ok := node.ObjectMeta.Labels[ModelName]
+	if !ok {
+		return "N/A"
+	}
+	return val
+}

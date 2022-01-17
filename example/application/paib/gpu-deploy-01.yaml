@@ -6,7 +6,7 @@ metadata:
   name: gpu-deploy-01
   namespace: paib-gpu
 spec:
-  replicas: 8
+  replicas: 2
   selector:
     matchLabels:
       app: gpu-deploy-01

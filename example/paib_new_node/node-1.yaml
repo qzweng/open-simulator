@@ -13,6 +13,7 @@ metadata:
     kubernetes.io/hostname: minikube
     kubernetes.io/os: linux
     node-role.kubernetes.io/worker: ""
+    alibabacloud.com/gpu-card-model: P100
   name: node-1
 status:
   allocatable:
