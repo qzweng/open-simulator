@@ -386,14 +386,14 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 	nodeTable := tablewriter.NewWriter(os.Stdout)
 	nodeTableHeader := []string{
 		"Node",
-		"CPU Allocatable",
+		"CPU",
 		"CPU Requests",
-		"Memory Allocatable",
+		"Memory",
 		"Memory Requests",
 	}
 	if containGpu(extendedResources) {
 		nodeTableHeader = append(nodeTableHeader, []string{
-			"GPU Mem Allocatable",
+			"GPU Mem",
 			"GPU Mem Requests",
 		}...)
 	}
