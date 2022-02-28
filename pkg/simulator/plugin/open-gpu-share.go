@@ -6,18 +6,20 @@ import (
 	"math"
 	"sync"
 
-	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
-	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
-	"github.com/alibaba/open-simulator/pkg/algo"
-	simontype "github.com/alibaba/open-simulator/pkg/type"
 	"github.com/pquerna/ffjson/ffjson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	externalclientset "k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+
+	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
+	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
+	"github.com/alibaba/open-simulator/pkg/algo"
+	simontype "github.com/alibaba/open-simulator/pkg/type"
 )
 
 // GpuSharePlugin is a plugin for scheduling framework
@@ -37,6 +39,14 @@ var _ framework.BindPlugin = &GpuSharePlugin{}
 func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
 	gpuSharePlugin := &GpuSharePlugin{fakeclient: fakeclient, podToUpdateCacheMap: make(map[string]*corev1.Pod)}
 	gpuSharePlugin.InitSchedulerCache()
+	f.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
+		cache.ResourceEventHandlerFuncs{
+			DeleteFunc: func(obj interface{}) {
+				if pod, ok := obj.(*corev1.Pod); ok {
+					_ = gpuSharePlugin.removePod(pod)
+					fmt.Printf("GPU SHARE PLUGIN delete pod %s/%s (nodeName: %s)\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
+				}
+			}})
 	return gpuSharePlugin, nil
 }
 
@@ -141,6 +151,59 @@ func (plugin *GpuSharePlugin) NormalizeScore(ctx context.Context, state *framewo
 	return framework.NewStatus(framework.Success)
 }
 
+func (plugin *GpuSharePlugin) updateNode(node *corev1.Node) error {
+	nodeGpuInfo, err := plugin.ExportGpuNodeInfoAsNodeGpuInfo(node.Name)
+	if err != nil {
+		return err
+	}
+	if data, err := ffjson.Marshal(nodeGpuInfo); err != nil {
+		return err
+	} else {
+		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
+	}
+	fmt.Printf("updateNode: %v with anno: %s\n", nodeGpuInfo, node.ObjectMeta.Annotations)
+
+	if _, err := plugin.fakeclient.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("failed to Update node %s", node.Name)
+	}
+	return nil
+}
+
+func (plugin *GpuSharePlugin) addOrUpdatePod(pod *corev1.Pod) error {
+	if err := plugin.cache.AddOrUpdatePod(pod); err != nil { // requires pod.Spec.NodeName specified
+		return err
+	}
+	if pod.Spec.NodeName == "" {
+		return fmt.Errorf("pod unscheduled: %s/%s", pod.Namespace, pod.Name)
+	}
+	node, err := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), pod.Spec.NodeName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	fmt.Printf("addOrUpdatePod: %s\n", pod.Name)
+	if err = plugin.updateNode(node); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod) error {
+	nodeName := pod.Spec.NodeName
+	if nodeName == "" {
+		return fmt.Errorf("pod not scheduled when removed: %s/%s", pod.Namespace, pod.Name)
+	}
+	node, err := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	plugin.cache.RemovePod(pod)
+	fmt.Printf("removePod: %s\n", pod.Name)
+	if err = plugin.updateNode(node); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Reserve Plugin
 // Reserve updates the GPU resource of the given node, according to the pod's request.
 func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
@@ -159,27 +222,10 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 	plugin.podToUpdateCacheMap[getPodMapKey(pod)] = podCopy
 
 	// get node from fakeclient and update Node
-	node, _ := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err := plugin.cache.AddOrUpdatePod(podCopy); err != nil { // requires pod.Spec.NodeName specified
+	if err = plugin.addOrUpdatePod(podCopy); err != nil {
 		return framework.NewStatus(framework.Error, err.Error())
-	}
-	nodeGpuInfo, err := plugin.ExportGpuNodeInfoAsNodeGpuInfo(nodeName)
-	if data, err := ffjson.Marshal(nodeGpuInfo); err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
-	} else {
-		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
 	}
 
-	infoValue := int64(nodeGpuInfo.GpuAllocatable)
-	allocValue := node.Status.Allocatable[gpushareutils.CountName]
-	if allocValue.Value() != infoValue {
-		//klog.Infof("node %s: number of full GPU allocatable updated: %s -> %d", node.Name, allocValue.String(), infoValue)
-		allocValue.Set(infoValue)
-	}
-
-	if _, err := plugin.fakeclient.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
-		return framework.NewStatus(framework.Error, err.Error())
-	}
 	return framework.NewStatus(framework.Success)
 }
 
@@ -187,32 +233,9 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) {
 	plugin.Lock()
 	defer plugin.Unlock()
-	node, _ := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 
-	if podCopy, ok := plugin.podToUpdateCacheMap[getPodMapKey(pod)]; !ok {
-		//klog.Errorf("Cannot find pod to update in cache")
-		return
-	} else {
-		plugin.cache.RemovePod(podCopy)
-	}
-	nodeGpuInfo, _ := plugin.ExportGpuNodeInfoAsNodeGpuInfo(nodeName)
-	if data, err := ffjson.Marshal(nodeGpuInfo); err != nil {
-		klog.Errorf("Marshal nodeGpuInfo failed")
-		return
-	} else {
-		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
-	}
-
-	infoValue := int64(nodeGpuInfo.GpuAllocatable)
-	allocValue := node.Status.Allocatable[gpushareutils.CountName]
-	if allocValue.Value() != infoValue {
-		//klog.Infof("node %s: number of full GPU allocatable updated: %s -> %d", node.Name, allocValue.String(), infoValue)
-		allocValue.Set(infoValue)
-	}
-
-	if _, err := plugin.fakeclient.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
-		klog.Errorf("Failed to Update node")
-		return
+	if err := plugin.removePod(pod); err != nil {
+		klog.Errorf(err.Error())
 	}
 }
 

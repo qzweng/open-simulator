@@ -48,5 +48,5 @@ const (
 	SeparateSymbol        = "-"
 	WorkLoadHashCodeDigit = 10
 	PodHashCodeDigit      = 5
-	MaxNumNewNode         = 100
+	MaxNumNewNode         = 0
 )

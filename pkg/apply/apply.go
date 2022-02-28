@@ -180,7 +180,7 @@ func (applier *Applier) Run() (err error) {
 	// only support temporarily adding a type of node at present
 	newNode := nodeResource.Nodes[0]
 	var result *simulator.SimulateResult
-	for i := 0; i < simontype.MaxNumNewNode; i++ {
+	for i := 0; i <= simontype.MaxNumNewNode; i++ {
 		newClusterResource := clusterResource
 		// add nodes to get a successful scheduling
 		fmt.Printf(utils.ColorYellow+"add %d node(s)\n"+utils.ColorReset, i)
@@ -532,7 +532,7 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 							nodeGpuMemReq.Add(*gpuMemReq)
 						}
 					}
-					gpuReqCapFraction := float64(nodeGpuMemReq.Value())/float64(nodeGpuInfo.GpuTotalMemory.Value()) * 100
+					gpuReqCapFraction := float64(nodeGpuMemReq.Value()) / float64(nodeGpuInfo.GpuTotalMemory.Value()) * 100
 					gpuReqCapStr := fmt.Sprintf("%s/%s(%d%%)", nodeGpuMemReq.String(), nodeGpuInfo.GpuTotalMemory.String(), int(gpuReqCapFraction))
 					nodeOutputLine := []string{fmt.Sprintf("%s (%s)", node.Name, nodeGpuInfo.GpuModel), fmt.Sprintf("%d GPUs", nodeGpuInfo.GpuCount), gpuReqCapStr, fmt.Sprintf("%d Pods", nodeGpuInfo.NumPods)}
 					nodeGpuTable.Append(nodeOutputLine)
@@ -544,8 +544,8 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 								continue // either no GPU or not allocated
 							}
 							devUsedGpuMem := deviceInfoBrief.GpuUsedMemory
-							devReqCapFraction := float64(devUsedGpuMem.Value())/float64(devTotalGpuMem.Value()) * 100
-							devReqCapStr :=  fmt.Sprintf("%s/%s(%d%%)", devUsedGpuMem.String(), devTotalGpuMem.String(), int(devReqCapFraction))
+							devReqCapFraction := float64(devUsedGpuMem.Value()) / float64(devTotalGpuMem.Value()) * 100
+							devReqCapStr := fmt.Sprintf("%s/%s(%d%%)", devUsedGpuMem.String(), devTotalGpuMem.String(), int(devReqCapFraction))
 							nodeOutputLineDev := []string{fmt.Sprintf("%s (%s)", node.Name, nodeGpuInfo.GpuModel), fmt.Sprintf("%d", idx), devReqCapStr, fmt.Sprintf("%s", deviceInfoBrief.PodList)}
 							nodeGpuTable.Append(nodeOutputLineDev)
 						}
