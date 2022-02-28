@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
+	"github.com/pquerna/ffjson/ffjson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -19,6 +19,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
+	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
 	"github.com/alibaba/open-simulator/pkg/algo"
 	simonplugin "github.com/alibaba/open-simulator/pkg/simulator/plugin"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
@@ -110,8 +111,15 @@ func New(opts ...Option) (Interface, error) {
 				// },
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					if pod, ok := newObj.(*corev1.Pod); ok {
-						// fmt.Printf("test update pod %s/%s\n", pod.Namespace, pod.Name)
-						sim.update(pod)
+						fmt.Printf("test update pod %s/%s\n", pod.Namespace, pod.Name)
+						//sim.update(pod)
+						sim.simulatorStop <- struct{}{}
+					}
+				},
+				DeleteFunc: func(obj interface{}) {
+					if pod, ok := obj.(*corev1.Pod); ok {
+						fmt.Printf("test delete pod %s/%s\n", pod.Namespace, pod.Name)
+						sim.simulatorStop <- struct{}{}
 					}
 				},
 			},
@@ -178,10 +186,27 @@ func (sim *Simulator) ScheduleApp(apps AppResource) (*SimulateResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &SimulateResult{
 		UnscheduledPods: failedPod,
 		NodeStatus:      sim.getClusterNodeStatus(),
 	}, nil
+}
+
+func (sim *Simulator) ClusterAnalysis() {
+
+}
+
+func (sim *Simulator) nodeAnalysis(node corev1.Node) {
+
+}
+
+func (sim *Simulator) Deschedule() {
+
+}
+
+func (sim *Simulator) AddParaSet() {
+
 }
 
 func (sim *Simulator) getClusterNodeStatus() []NodeStatus {
@@ -215,32 +240,60 @@ func (sim *Simulator) runScheduler() {
 	}()
 }
 
+func (sim *Simulator) createPod(pod *corev1.Pod) error {
+	if _, err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
+		return fmt.Errorf("%s %s/%s: %s", simontype.CreatePodError, pod.Namespace, pod.Name, err.Error())
+	}
+
+	<-sim.simulatorStop
+	return nil
+}
+
+func (sim *Simulator) deletePod(pod *corev1.Pod) error {
+	if err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{}); err != nil {
+		return fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
+	}
+
+	<-sim.simulatorStop
+	return nil
+}
+
 // Run starts to schedule pods
 func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]UnscheduledPod, error) {
 	var failedPods []UnscheduledPod
 	for _, pod := range pods {
-		if _, err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
-			return nil, fmt.Errorf("%s %s/%s: %s", simontype.CreatePodError, pod.Namespace, pod.Name, err.Error())
-		}
+		sim.createPod(pod)
 
-		// we send value into sim.simulatorStop channel in update() function only,
-		// update() is triggered when pod without nodename is handled.
-		if pod.Spec.NodeName == "" {
-			<-sim.simulatorStop
-		}
+		//sim.deletePod(pod)
 
-		if strings.Contains(sim.status.stopReason, "failed") {
-			if err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{}); err != nil {
-				return nil, fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
-			}
-			failedPods = append(failedPods, UnscheduledPod{
-				Pod:    pod,
-				Reason: sim.status.stopReason,
-			})
-			sim.status.stopReason = ""
-		}
+		sim.status.stopReason = ""
 	}
 	return failedPods, nil
+}
+
+func (sim *Simulator) DeletePod(pod *corev1.Pod) error {
+	nodeName := pod.Spec.NodeName
+	if nodeName == "" {
+		return fmt.Errorf("Empty pod.Spec.NodeName")
+	}
+	node, err := sim.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+	if err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{}); err != nil {
+		return fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
+	}
+	nodeGpuInfoStr, found := node.ObjectMeta.Annotations[simontype.AnnoNodeGpuShare]
+	if !found {
+		return fmt.Errorf("GPU annotation not found in node")
+	}
+	var nodeGpuInfo gpusharecache.NodeGpuInfo
+	err = ffjson.Unmarshal([]byte(nodeGpuInfoStr), &nodeGpuInfo)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (sim *Simulator) Close() {

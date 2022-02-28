@@ -50,6 +50,9 @@ type AppResource struct {
 type Interface interface {
 	RunCluster(cluster ResourceTypes) (*SimulateResult, error)
 	ScheduleApp(AppResource) (*SimulateResult, error)
+	ClusterAnalysis()
+	Deschedule()
+	AddParaSet()
 	Close()
 }
 
@@ -98,17 +101,18 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*Simul
 		failedPods = append(failedPods, result.UnscheduledPods...)
 	}
 	result.UnscheduledPods = failedPods
-	resultAnalysis(result)
 
-	if flagDeschedule {
-		sim.Deschedule()
-		resultAnalysis(result)
-	}
+	sim.ClusterAnalysis()
 
-	if flagParaSet {
-		sim.ParaSet()
-		resultAnalysis(result)
-	}
+	// if flagDeschedule {
+	sim.Deschedule()
+	sim.ClusterAnalysis()
+	// }
+
+	// if flagParaSet {
+	sim.AddParaSet()
+	sim.ClusterAnalysis()
+	// }
 
 	return result, nil
 }
