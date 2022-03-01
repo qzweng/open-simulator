@@ -127,13 +127,15 @@ func New(opts ...Option) (Interface, error) {
 							}
 
 							podFoundInNode := false
-							if pod.Spec.NodeName != "" {
-								if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 { // GPU pod
-									podFoundInNode = sim.isPodFoundInNodeGpuAnno(pod)
+							curPod, _ := sim.fakeclient.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
+							if curPod.Spec.NodeName != "" {
+								if gpushareutils.GetGpuMemoryFromPodAnnotation(curPod) > 0 { // GPU pod
+									podFoundInNode = sim.isPodFoundInNodeGpuAnno(curPod)
 								} else {
 									podFoundInNode = true
 								}
 							}
+							fmt.Printf("update_sim: pod %s/%s, node %s, podFoundInNode %v, podFoundInCache %v\n", namespace, name, curPod.Spec.NodeName, podFoundInNode, podFoundInCache)
 
 							if podFoundInNode && podFoundInCache {
 								break
@@ -173,16 +175,24 @@ func New(opts ...Option) (Interface, error) {
 		},
 	)
 
-	//sim.informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
-	//	cache.ResourceEventHandlerFuncs{
-	//		UpdateFunc: func(oldObj, newObj interface{}) {
-	//			if node, ok := newObj.(*corev1.Node); ok {
-	//				fmt.Printf("NODE UPDATE %s\n", node.Name)
-	//				sim.updateBarrier <- struct{}{}
-	//			}
-	//		},
-	//	},
-	//)
+	sim.informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				if node, ok := obj.(*corev1.Node); ok {
+					fmt.Printf("add_node_bgn %s\n", node.Name)
+					for {
+						curNode, _ := sim.fakeclient.CoreV1().Nodes().Get(context.Background(), node.Name, metav1.GetOptions{})
+						if curNode != nil {
+							break
+						}
+						time.Sleep(2 * time.Millisecond)
+					}
+					fmt.Printf("add_node_end %s\n", node.Name)
+					sim.updateBarrier[simontype.SimulatorName] <- struct{}{}
+				}
+			},
+		},
+	)
 
 	// Step 6: create scheduler for fake cluster
 	kubeSchedulerConfig.Client = fakeClient
@@ -259,22 +269,22 @@ func (sim *Simulator) nodeAnalysis(node corev1.Node) {
 
 }
 
-func (sim *Simulator) Deschedule(apps AppResource) (*SimulateResult, error) {
-	appPods, _ := GenerateValidPodsFromAppResources(sim.fakeclient, apps.Name, apps.Resource)
-	appPodsMap := make(map[string]*corev1.Pod)
-	for _, pod := range appPods {
-		appPodsMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
+func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*SimulateResult, error) {
+	podsMap := make(map[string]*corev1.Pod)
+	for _, pod := range pods {
+		podsMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
 	}
 
 	nodeStatus := sim.getClusterNodeStatus()
 	for _, ns := range nodeStatus {
 		for _, pod := range ns.Pods {
 			sim.deletePod(pod) // delete all pods
-			podCopy := appPodsMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
+			podCopy := podsMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
 			sim.createPod(podCopy)
 			sim.deletePod(podCopy)
-			podCopy = appPodsMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
+			podCopy = podsMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
 			sim.createPod(podCopy)
+			sim.deletePod(podCopy)
 		}
 	}
 
@@ -412,6 +422,7 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*Simu
 		if _, err := sim.fakeclient.CoreV1().Nodes().Create(context.TODO(), item, metav1.CreateOptions{}); err != nil {
 			return nil, fmt.Errorf("unable to copy node: %v", err)
 		}
+		<-sim.updateBarrier[simontype.SimulatorName]
 	}
 
 	//sync pdb
