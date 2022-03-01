@@ -42,10 +42,12 @@ func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration run
 	f.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
-				if pod, ok := obj.(*corev1.Pod); ok {
+				if pod, ok := obj.(*corev1.Pod); ok && (gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0) {
+					fmt.Printf("GpuSharePlugin DeleteFunc: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
 					_ = gpuSharePlugin.removePod(pod)
-					fmt.Printf("GPU SHARE PLUGIN delete pod %s/%s (nodeName: %s)\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
+					// fmt.Printf("This print step is buggy since the pointer to pod is null, which is quite weird: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
 				}
+
 			}})
 	return gpuSharePlugin, nil
 }
@@ -234,9 +236,10 @@ func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.Cy
 	plugin.Lock()
 	defer plugin.Unlock()
 
-	if err := plugin.removePod(pod); err != nil {
-		klog.Errorf(err.Error())
-	}
+	panic(fmt.Errorf("unreserve would lead to extra pod/node Updates, causing sim.updateBarrier not equal"))
+	//if err := plugin.removePod(pod); err != nil {
+	//	klog.Errorf(err.Error())
+	//}
 }
 
 // Bind Plugin

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/pquerna/ffjson/ffjson"
 	corev1 "k8s.io/api/core/v1"
@@ -20,6 +21,7 @@ import (
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
+	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/algo"
 	simonplugin "github.com/alibaba/open-simulator/pkg/simulator/plugin"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
@@ -37,7 +39,7 @@ type Simulator struct {
 	scheduler *scheduler.Scheduler
 
 	// stopCh
-	simulatorStop chan struct{}
+	updateBarrier chan struct{}
 
 	// context
 	ctx        context.Context
@@ -88,7 +90,7 @@ func New(opts ...Option) (Interface, error) {
 	sim := &Simulator{
 		// externalclient:  kubeClient,
 		fakeclient:      fakeClient,
-		simulatorStop:   make(chan struct{}),
+		updateBarrier:   make(chan struct{}, 1000),
 		informerFactory: sharedInformerFactory,
 		ctx:             ctx,
 		cancelFunc:      cancel,
@@ -112,16 +114,27 @@ func New(opts ...Option) (Interface, error) {
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					if pod, ok := newObj.(*corev1.Pod); ok {
 						fmt.Printf("test update pod %s/%s\n", pod.Namespace, pod.Name)
-						//sim.update(pod)
-						sim.simulatorStop <- struct{}{}
+						sim.update(pod)
+						//sim.updateBarrier <- struct{}{}
 					}
 				},
 				DeleteFunc: func(obj interface{}) {
 					if pod, ok := obj.(*corev1.Pod); ok {
 						fmt.Printf("test delete pod %s/%s\n", pod.Namespace, pod.Name)
-						sim.simulatorStop <- struct{}{}
+						sim.updateBarrier <- struct{}{}
 					}
 				},
+			},
+		},
+	)
+
+	sim.informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
+		cache.ResourceEventHandlerFuncs{
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				if node, ok := newObj.(*corev1.Node); ok {
+					fmt.Printf("NODE UPDATE %s\n", node.Name)
+					sim.updateBarrier <- struct{}{}
+				}
 			},
 		},
 	)
@@ -201,8 +214,20 @@ func (sim *Simulator) nodeAnalysis(node corev1.Node) {
 
 }
 
-func (sim *Simulator) Deschedule() {
+func (sim *Simulator) Deschedule() (*SimulateResult, error) {
+	nodeStatus := sim.getClusterNodeStatus()
+	for _, ns := range nodeStatus {
+		for _, pod := range ns.Pods {
+			sim.deletePod(pod) // delete all pods
+		}
+	}
 
+	//sim.createPod()
+	//time.Sleep(60 * time.Second)
+	return &SimulateResult{
+		UnscheduledPods: nil,
+		NodeStatus:      sim.getClusterNodeStatus(),
+	}, nil
 }
 
 func (sim *Simulator) AddParaSet() {
@@ -245,7 +270,11 @@ func (sim *Simulator) createPod(pod *corev1.Pod) error {
 		return fmt.Errorf("%s %s/%s: %s", simontype.CreatePodError, pod.Namespace, pod.Name, err.Error())
 	}
 
-	<-sim.simulatorStop
+	<-sim.updateBarrier
+
+	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
+		<-sim.updateBarrier
+	}
 	return nil
 }
 
@@ -254,7 +283,10 @@ func (sim *Simulator) deletePod(pod *corev1.Pod) error {
 		return fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
 	}
 
-	<-sim.simulatorStop
+	<-sim.updateBarrier
+	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
+		<-sim.updateBarrier
+	}
 	return nil
 }
 
@@ -266,7 +298,15 @@ func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]UnscheduledPod, error)
 
 		//sim.deletePod(pod)
 
-		sim.status.stopReason = ""
+		//sim.status.stopReason = ""
+		if strings.Contains(sim.status.stopReason, "failed") {
+			sim.deletePod(pod)
+			failedPods = append(failedPods, UnscheduledPod{
+				Pod:    pod,
+				Reason: sim.status.stopReason,
+			})
+			sim.status.stopReason = ""
+		}
 	}
 	return failedPods, nil
 }
@@ -298,7 +338,7 @@ func (sim *Simulator) DeletePod(pod *corev1.Pod) error {
 
 func (sim *Simulator) Close() {
 	sim.cancelFunc()
-	close(sim.simulatorStop)
+	close(sim.updateBarrier)
 }
 
 func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*SimulateResult, error) {
@@ -402,7 +442,7 @@ func (sim *Simulator) update(pod *corev1.Pod) {
 	if stop {
 		sim.status.stopReason = fmt.Sprintf("failed to schedule pod (%s/%s): %s: %s", pod.Namespace, pod.Name, stopReason, stopMessage)
 	}
-	sim.simulatorStop <- struct{}{}
+	sim.updateBarrier <- struct{}{}
 }
 
 // WithKubeConfig sets kubeconfig for Simulator, the default value is ""

@@ -307,3 +307,15 @@ func MatchAndSetLocalStorageAnnotationOnNode(nodes []*corev1.Node, dir string) {
 		}
 	}
 }
+
+func resultAnalysis(apps []AppResource, result *SimulateResult) {
+	fmt.Printf("Num of unscheduled pods: %d\n", len(result.UnscheduledPods))
+	for _, status := range result.NodeStatus {
+		node := status.Node
+		for _, pod := range status.Pods {
+			if pod.Spec.NodeName != node.Name {
+				fmt.Printf("%v -> %v\n", pod, node)
+			}
+		}
+	}
+}

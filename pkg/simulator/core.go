@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	"fmt"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -51,7 +52,7 @@ type Interface interface {
 	RunCluster(cluster ResourceTypes) (*SimulateResult, error)
 	ScheduleApp(AppResource) (*SimulateResult, error)
 	ClusterAnalysis()
-	Deschedule()
+	Deschedule() (*SimulateResult, error)
 	AddParaSet()
 	Close()
 }
@@ -105,7 +106,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*Simul
 	sim.ClusterAnalysis()
 
 	// if flagDeschedule {
-	sim.Deschedule()
+	result, _ = sim.Deschedule()
 	sim.ClusterAnalysis()
 	// }
 
@@ -113,6 +114,10 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*Simul
 	sim.AddParaSet()
 	sim.ClusterAnalysis()
 	// }
+
+	for _, ns := range result.NodeStatus {
+		fmt.Printf("%v\n", ns)
+	}
 
 	return result, nil
 }
