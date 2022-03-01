@@ -3,6 +3,10 @@ package simulator
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
+	"time"
+
 	"github.com/pquerna/ffjson/ffjson"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,9 +20,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
-	"sort"
-	"strings"
-	"time"
 
 	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
 	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
