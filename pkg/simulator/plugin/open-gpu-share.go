@@ -49,9 +49,9 @@ func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration run
 					if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
 						//fmt.Printf("GpuSharePlugin DeleteFunc: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
 						namespace, name := pod.Namespace, pod.Name
-						fmt.Printf("delete2: pod %s/%s\n", namespace, name)
+						fmt.Printf("delete_gpu_bgn: pod %s/%s\n", namespace, name)
 						_ = gpuSharePlugin.removePod(pod)
-						fmt.Printf("delete3: pod %s/%s\n", namespace, name)
+						fmt.Printf("delete_gpu_end: pod %s/%s\n", namespace, name)
 						// fmt.Printf("This print step is buggy since the pointer to pod is null, which is quite weird: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
 					}
 				}
