@@ -37,14 +37,21 @@ var _ framework.ReservePlugin = &GpuSharePlugin{}
 var _ framework.BindPlugin = &GpuSharePlugin{}
 
 func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
-	gpuSharePlugin := &GpuSharePlugin{fakeclient: fakeclient, podToUpdateCacheMap: make(map[string]*corev1.Pod)}
+	gpuSharePlugin := &GpuSharePlugin{
+		fakeclient:          fakeclient,
+		podToUpdateCacheMap: make(map[string]*corev1.Pod),
+	}
 	gpuSharePlugin.InitSchedulerCache()
 	f.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
 				if pod, ok := obj.(*corev1.Pod); ok {
-					_ = gpuSharePlugin.removePod(pod)
-					fmt.Printf("GPU SHARE PLUGIN delete pod %s/%s (nodeName: %s)\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
+					if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
+						namespace, name := pod.Namespace, pod.Name
+						fmt.Printf("delete_gpu_bgn: pod %s/%s\n", namespace, name)
+						_ = gpuSharePlugin.removePod(pod)
+						fmt.Printf("delete_gpu_end: pod %s/%s\n", namespace, name)
+					}
 				}
 			}})
 	return gpuSharePlugin, nil
@@ -58,6 +65,7 @@ func (plugin *GpuSharePlugin) Name() string {
 // Filter Plugin
 // Filter filters out non-allocatable nodes
 func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+	fmt.Printf("filter_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeInfo.Node().Name)
 	// check if the pod requires GPU resources
 	podGpuMem := gpushareutils.GetGpuMemoryFromPodAnnotation(pod)
 	if podGpuMem <= 0 {
@@ -92,6 +100,7 @@ func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.Cycle
 // Score Plugin
 // Score invoked at the score extension point.
 func (plugin *GpuSharePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+	fmt.Printf("score_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
 	podReq, _ := resourcehelper.PodRequestsAndLimits(pod)
 	if len(podReq) == 0 {
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
@@ -161,7 +170,7 @@ func (plugin *GpuSharePlugin) updateNode(node *corev1.Node) error {
 	} else {
 		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
 	}
-	fmt.Printf("updateNode: %v with anno: %s\n", nodeGpuInfo, node.ObjectMeta.Annotations)
+	//fmt.Printf("updateNode: %v with anno: %s\n", nodeGpuInfo, node.ObjectMeta.Annotations)
 
 	if _, err := plugin.fakeclient.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
 		return fmt.Errorf("failed to Update node %s", node.Name)
@@ -180,7 +189,7 @@ func (plugin *GpuSharePlugin) addOrUpdatePod(pod *corev1.Pod) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("addOrUpdatePod: %s\n", pod.Name)
+	//fmt.Printf("addOrUpdatePod: %s\n", pod.Name)
 	if err = plugin.updateNode(node); err != nil {
 		return err
 	}
@@ -197,7 +206,7 @@ func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod) error {
 		return err
 	}
 	plugin.cache.RemovePod(pod)
-	fmt.Printf("removePod: %s\n", pod.Name)
+	//fmt.Printf("removePod: %s\n", pod.Name)
 	if err = plugin.updateNode(node); err != nil {
 		return err
 	}
@@ -207,6 +216,7 @@ func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod) error {
 // Reserve Plugin
 // Reserve updates the GPU resource of the given node, according to the pod's request.
 func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	fmt.Printf("reserve_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
 	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Success) // non-GPU pods are skipped
 	}
@@ -223,6 +233,7 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 
 	// get node from fakeclient and update Node
 	if err = plugin.addOrUpdatePod(podCopy); err != nil {
+		fmt.Printf("addOrUpdatePod: pod %s/%s, nodeName %s, error %v\n", pod.Namespace, pod.Name, nodeName, err)
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
@@ -234,19 +245,19 @@ func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.Cy
 	plugin.Lock()
 	defer plugin.Unlock()
 
-	if err := plugin.removePod(pod); err != nil {
-		klog.Errorf(err.Error())
-	}
+	panic(fmt.Errorf("unreserve would lead to extra pod/node Updates, causing sim.updateBarrier not equal"))
+	//if err := plugin.removePod(pod); err != nil {
+	//	klog.Errorf(err.Error())
+	//}
 }
 
 // Bind Plugin
 // Bind updates the GPU resources of the pod.
 func (plugin *GpuSharePlugin) Bind(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+	fmt.Printf("bind_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
 	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Skip) // non-GPU pods are skipped
 	}
-	plugin.Lock()
-	defer plugin.Unlock()
 
 	podCopy, ok := plugin.podToUpdateCacheMap[getPodMapKey(pod)]
 	if !ok {

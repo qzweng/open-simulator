@@ -10,6 +10,7 @@ const (
 	OpenLocalPluginName    = "Open-Local"
 	OpenGpuSharePluginName = "Open-Gpu-Share"
 	NewNodeNamePrefix      = "simon"
+	SimulatorName          = "Main"
 	DefaultSchedulerName   = corev1.DefaultSchedulerName
 
 	StopReasonSuccess   = "everything is ok"
