@@ -37,15 +37,23 @@ var _ framework.ReservePlugin = &GpuSharePlugin{}
 var _ framework.BindPlugin = &GpuSharePlugin{}
 
 func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
-	gpuSharePlugin := &GpuSharePlugin{fakeclient: fakeclient, podToUpdateCacheMap: make(map[string]*corev1.Pod)}
+	gpuSharePlugin := &GpuSharePlugin{
+		fakeclient:          fakeclient,
+		podToUpdateCacheMap: make(map[string]*corev1.Pod),
+	}
 	gpuSharePlugin.InitSchedulerCache()
 	f.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
-				if pod, ok := obj.(*corev1.Pod); ok && (gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0) {
-					fmt.Printf("GpuSharePlugin DeleteFunc: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
-					_ = gpuSharePlugin.removePod(pod)
-					// fmt.Printf("This print step is buggy since the pointer to pod is null, which is quite weird: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
+				if pod, ok := obj.(*corev1.Pod); ok {
+					if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
+						//fmt.Printf("GpuSharePlugin DeleteFunc: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
+						namespace, name := pod.Namespace, pod.Name
+						fmt.Printf("delete2: pod %s/%s\n", namespace, name)
+						_ = gpuSharePlugin.removePod(pod)
+						fmt.Printf("delete3: pod %s/%s\n", namespace, name)
+						// fmt.Printf("This print step is buggy since the pointer to pod is null, which is quite weird: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
+					}
 				}
 			}})
 	return gpuSharePlugin, nil
@@ -162,7 +170,7 @@ func (plugin *GpuSharePlugin) updateNode(node *corev1.Node) error {
 	} else {
 		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
 	}
-	fmt.Printf("updateNode: %v with anno: %s\n", nodeGpuInfo, node.ObjectMeta.Annotations)
+	//fmt.Printf("updateNode: %v with anno: %s\n", nodeGpuInfo, node.ObjectMeta.Annotations)
 
 	if _, err := plugin.fakeclient.CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
 		return fmt.Errorf("failed to Update node %s", node.Name)
@@ -181,7 +189,7 @@ func (plugin *GpuSharePlugin) addOrUpdatePod(pod *corev1.Pod) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("addOrUpdatePod: %s\n", pod.Name)
+	//fmt.Printf("addOrUpdatePod: %s\n", pod.Name)
 	if err = plugin.updateNode(node); err != nil {
 		return err
 	}
@@ -198,7 +206,7 @@ func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod) error {
 		return err
 	}
 	plugin.cache.RemovePod(pod)
-	fmt.Printf("removePod: %s\n", pod.Name)
+	//fmt.Printf("removePod: %s\n", pod.Name)
 	if err = plugin.updateNode(node); err != nil {
 		return err
 	}
