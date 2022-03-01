@@ -21,7 +21,6 @@ import (
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
-	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/algo"
 	simonplugin "github.com/alibaba/open-simulator/pkg/simulator/plugin"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
@@ -128,16 +127,16 @@ func New(opts ...Option) (Interface, error) {
 		},
 	)
 
-	sim.informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
-		cache.ResourceEventHandlerFuncs{
-			UpdateFunc: func(oldObj, newObj interface{}) {
-				if node, ok := newObj.(*corev1.Node); ok {
-					fmt.Printf("NODE UPDATE %s\n", node.Name)
-					sim.updateBarrier <- struct{}{}
-				}
-			},
-		},
-	)
+	//sim.informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
+	//	cache.ResourceEventHandlerFuncs{
+	//		UpdateFunc: func(oldObj, newObj interface{}) {
+	//			if node, ok := newObj.(*corev1.Node); ok {
+	//				fmt.Printf("NODE UPDATE %s\n", node.Name)
+	//				sim.updateBarrier <- struct{}{}
+	//			}
+	//		},
+	//	},
+	//)
 
 	// Step 6: create scheduler for fake cluster
 	kubeSchedulerConfig.Client = fakeClient
@@ -271,10 +270,9 @@ func (sim *Simulator) createPod(pod *corev1.Pod) error {
 	}
 
 	<-sim.updateBarrier
-
-	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
-		<-sim.updateBarrier
-	}
+	//if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
+	//	<-sim.updateBarrier
+	//}
 	return nil
 }
 
@@ -283,10 +281,10 @@ func (sim *Simulator) deletePod(pod *corev1.Pod) error {
 		return fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
 	}
 
-	<-sim.updateBarrier
-	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
-		<-sim.updateBarrier
-	}
+	<-sim.updateBarrier // wait for pod update
+	//if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
+	//	<-sim.updateBarrier // wait for node update
+	//}
 	return nil
 }
 

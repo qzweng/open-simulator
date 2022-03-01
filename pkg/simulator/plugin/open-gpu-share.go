@@ -47,7 +47,6 @@ func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration run
 					_ = gpuSharePlugin.removePod(pod)
 					// fmt.Printf("This print step is buggy since the pointer to pod is null, which is quite weird: pod: %s/%s, node: %s\n", pod.Namespace, pod.Name, pod.Spec.NodeName)
 				}
-
 			}})
 	return gpuSharePlugin, nil
 }
