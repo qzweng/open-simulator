@@ -305,7 +305,7 @@ func (plugin *GpuSharePlugin) MakePodCopyReadyForBindUpdate(pod *corev1.Pod, nod
 
 	devId, found := gpuNodeInfo.AllocateGpuId(pod)
 	if !found {
-		err := fmt.Errorf("Cannot find a GPU to allocate pod %s at ns %s", pod.Name, pod.Namespace)
+		err := fmt.Errorf("cannot find a GPU to allocate pod %s at node %s", getPodMapKey(pod), nodeName)
 		return nil, err
 	}
 
