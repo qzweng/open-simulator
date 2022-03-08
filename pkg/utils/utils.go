@@ -905,16 +905,16 @@ func SetDaemonSetPodNodeNameByNodeAffinity(affinity *corev1.Affinity, nodename s
 	return affinity
 }
 
-func GetGpuNodeInfoFromAnnotation(node *corev1.Node) (*gpusharecache.NodeGpuInfo, error) {
-	nodeGpuInfoStr, exist := node.Annotations[simontype.AnnoNodeGpuShare]
+func GetGpuNodeInfoFromAnnotation(node *corev1.Node) (*gpusharecache.GpuNodeInfoStr, error) {
+	gpuNodeInfoString, exist := node.Annotations[simontype.AnnoNodeGpuShare]
 	if !exist {
 		return nil, nil
 	}
 
-	nodeGpuInfo := new(gpusharecache.NodeGpuInfo)
-	if err := ffjson.Unmarshal([]byte(nodeGpuInfoStr), gpusharecache.NodeGpuInfo{}); err != nil {
+	gpuNodeInfoStr := new(gpusharecache.GpuNodeInfoStr)
+	if err := ffjson.Unmarshal([]byte(gpuNodeInfoString), gpuNodeInfoStr); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal GPU info of node %s: %s ", node.Name, err.Error())
 	}
 
-	return nodeGpuInfo, nil
+	return gpuNodeInfoStr, nil
 }

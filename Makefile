@@ -22,7 +22,8 @@ build:
 
 .PHONY: run
 run:
-	bin/simon apply --extended-resources "gpu" -f example/simon-gpushare-config.yaml
+	# bin/simon apply --extended-resources "gpu" -f example/simon-gpushare-config.yaml
+	bin/simon apply --extended-resources "gpu" -f example/simon-paib-snapshot-add-config.yaml
 
 .PHONY: test 
 test:

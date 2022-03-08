@@ -15,11 +15,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	"sigs.k8s.io/yaml"
 
-	gpusharecache "github.com/alibaba/open-gpu-share/pkg/cache"
 	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	localcache "github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
@@ -366,7 +364,11 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 			if containGpu(extendedResources) {
 				gpuMem, gpuNum := gpushareutils.GetGpuMemoryAndCountFromPodAnnotation(pod)
 				gpuMemReq := resource.NewQuantity(int64(gpuMem*gpuNum), resource.BinarySI)
-				fractionGpuMemReq := float64(gpuMemReq.Value()) / float64(allocatable.Name(gpushareutils.ResourceName, resource.BinarySI).Value()) * 100
+				nodeGpuMem := allocatable.Name(gpushareutils.ResourceName, resource.BinarySI)
+				var fractionGpuMemReq float64
+				if nodeGpuMem.Value() > 0 {
+					fractionGpuMemReq += float64(gpuMemReq.Value()) / float64(nodeGpuMem.Value()) * 100
+				}
 				data = append(data, fmt.Sprintf("%s(%d%%)", gpuMemReq.String(), int64(fractionGpuMemReq)))
 			}
 
@@ -437,7 +439,12 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 					nodeGpuMemReq.Add(*gpuMemReq)
 				}
 			}
-			nodeGpuMemFraction := float64(nodeGpuMemReq.Value()) / float64(allocatable.Name(gpushareutils.ResourceName, resource.BinarySI).Value()) * 100
+
+			nodeGpuMem := allocatable.Name(gpushareutils.ResourceName, resource.BinarySI)
+			var nodeGpuMemFraction float64
+			if nodeGpuMem.Value() > 0 {
+				nodeGpuMemFraction += float64(nodeGpuMemReq.Value()) / float64(nodeGpuMem.Value()) * 100
+			}
 			data = append(data, []string{
 				allocatable.Name(gpushareutils.ResourceName, resource.BinarySI).String(),
 				fmt.Sprintf("%s(%d%%)", nodeGpuMemReq.String(), int64(nodeGpuMemFraction)),
@@ -518,12 +525,10 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 			for _, status := range nodeStatuses {
 				node := status.Node
 				podList = append(podList, status.Pods...)
-				if nodeGpuInfoStr, exist := node.Annotations[simontype.AnnoNodeGpuShare]; exist {
-					var nodeGpuInfo gpusharecache.NodeGpuInfo
-					if err := ffjson.Unmarshal([]byte(nodeGpuInfoStr), &nodeGpuInfo); err != nil {
-						klog.Errorf("failed to unmarshal storage information of node(%s: %v", node.Name, err)
-						continue
-					}
+
+				if gpuNodeInfoStr, err := utils.GetGpuNodeInfoFromAnnotation(node); err != nil || gpuNodeInfoStr == nil {
+					continue
+				} else {
 					nodeGpuMemReq := resource.NewQuantity(0, resource.BinarySI)
 					for _, pod := range allPods {
 						if pod.Spec.NodeName == node.Name {
@@ -532,13 +537,13 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 							nodeGpuMemReq.Add(*gpuMemReq)
 						}
 					}
-					gpuReqCapFraction := float64(nodeGpuMemReq.Value()) / float64(nodeGpuInfo.GpuTotalMemory.Value()) * 100
-					gpuReqCapStr := fmt.Sprintf("%s/%s(%d%%)", nodeGpuMemReq.String(), nodeGpuInfo.GpuTotalMemory.String(), int(gpuReqCapFraction))
-					nodeOutputLine := []string{fmt.Sprintf("%s (%s)", node.Name, nodeGpuInfo.GpuModel), fmt.Sprintf("%d GPUs", nodeGpuInfo.GpuCount), gpuReqCapStr, fmt.Sprintf("%d Pods", nodeGpuInfo.NumPods)}
+					gpuReqCapFraction := float64(nodeGpuMemReq.Value()) / float64(gpuNodeInfoStr.GpuTotalMemory.Value()) * 100
+					gpuReqCapStr := fmt.Sprintf("%s/%s(%d%%)", nodeGpuMemReq.String(), gpuNodeInfoStr.GpuTotalMemory.String(), int(gpuReqCapFraction))
+					nodeOutputLine := []string{fmt.Sprintf("%s (%s)", node.Name, gpuNodeInfoStr.GpuModel), fmt.Sprintf("%d GPUs", gpuNodeInfoStr.GpuCount), gpuReqCapStr, fmt.Sprintf("%d Pods", gpuNodeInfoStr.NumPods)}
 					nodeGpuTable.Append(nodeOutputLine)
 
-					for idx := 0; idx < len(nodeGpuInfo.DevsBrief); idx += 1 {
-						if deviceInfoBrief, ok := nodeGpuInfo.DevsBrief[idx]; ok {
+					for idx := 0; idx < len(gpuNodeInfoStr.DevsBrief); idx += 1 {
+						if deviceInfoBrief, ok := gpuNodeInfoStr.DevsBrief[idx]; ok {
 							devTotalGpuMem := deviceInfoBrief.GpuTotalMemory
 							if devTotalGpuMem.Value() <= 0 {
 								continue // either no GPU or not allocated
@@ -546,7 +551,7 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 							devUsedGpuMem := deviceInfoBrief.GpuUsedMemory
 							devReqCapFraction := float64(devUsedGpuMem.Value()) / float64(devTotalGpuMem.Value()) * 100
 							devReqCapStr := fmt.Sprintf("%s/%s(%d%%)", devUsedGpuMem.String(), devTotalGpuMem.String(), int(devReqCapFraction))
-							nodeOutputLineDev := []string{fmt.Sprintf("%s (%s)", node.Name, nodeGpuInfo.GpuModel), fmt.Sprintf("%d", idx), devReqCapStr, fmt.Sprintf("%s", deviceInfoBrief.PodList)}
+							nodeOutputLineDev := []string{fmt.Sprintf("%s (%s)", node.Name, gpuNodeInfoStr.GpuModel), fmt.Sprintf("%d", idx), devReqCapStr, fmt.Sprintf("%s", deviceInfoBrief.PodList)}
 							nodeGpuTable.Append(nodeOutputLineDev)
 						}
 					}

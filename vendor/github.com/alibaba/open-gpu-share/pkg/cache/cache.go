@@ -92,7 +92,7 @@ func (cache *SchedulerCache) AddOrUpdatePod(pod *v1.Pod) error {
 	podCopy := pod.DeepCopy()
 	if n.addOrUpdatePod(podCopy) {
 		// put it into known pod
-		cache.rememberPod(pod.UID, podCopy)
+		cache.rememberPod(podCopy)
 	} else {
 		//log.Printf("debug: pod %s in ns %s's gpu id is %d, it's illegal, skip", pod.Name, pod.Namespace, utils.GetGpuIdFromAnnotation(pod))
 	}
@@ -157,15 +157,15 @@ func (cache *SchedulerCache) forgetPod(uid types.UID) {
 	delete(cache.knownPods, uid)
 }
 
-func (cache *SchedulerCache) rememberPod(uid types.UID, pod *v1.Pod) {
+func (cache *SchedulerCache) rememberPod(pod *v1.Pod) {
 	cache.nLock.Lock()
 	defer cache.nLock.Unlock()
 	cache.knownPods[pod.UID] = pod
 }
 
-func (cache *SchedulerCache) ExportGpuNodeInfoAsNodeGpuInfo(nodeName string) (*NodeGpuInfo, error) {
+func (cache *SchedulerCache) ExportGpuNodeInfoAsStr(nodeName string) (*GpuNodeInfoStr, error) {
 	if gpuNodeInfo, err := cache.GetGpuNodeInfo(nodeName); err != nil {
-		return gpuNodeInfo.ExportGpuNodeInfoAsNodeGpuInfo(), nil
+		return gpuNodeInfo.ExportGpuNodeInfoAsStr(), nil
 	} else {
 		return nil, err
 	}

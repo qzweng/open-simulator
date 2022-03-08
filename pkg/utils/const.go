@@ -1,11 +1,16 @@
 package utils
 
 const (
-	ColorReset  = "\033[0m"
-	ColorRed    = "\033[31m"
-	ColorGreen  = "\033[32m"
-	ColorYellow = "\033[33m"
-	ColorCyan   = "\033[36m"
+	//ColorReset  = "\033[0m"
+	ColorReset = ""
+	//ColorRed    = "\033[31m"
+	ColorRed = ""
+	//ColorGreen  = "\033[32m"
+	ColorGreen = ""
+	//ColorYellow = "\033[33m"
+	ColorYellow = ""
+	//ColorCyan   = "\033[36m"
+	ColorCyan = ""
 
 	// open-local storage class names
 	OpenLocalSCNameLVM           = "open-local-lvm"

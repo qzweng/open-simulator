@@ -65,7 +65,7 @@ func (plugin *GpuSharePlugin) Name() string {
 // Filter Plugin
 // Filter filters out non-allocatable nodes
 func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
-	fmt.Printf("filter_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeInfo.Node().Name)
+	//fmt.Printf("filter_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeInfo.Node().Name)
 	// check if the pod requires GPU resources
 	podGpuMem := gpushareutils.GetGpuMemoryFromPodAnnotation(pod)
 	if podGpuMem <= 0 {
@@ -100,7 +100,7 @@ func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.Cycle
 // Score Plugin
 // Score invoked at the score extension point.
 func (plugin *GpuSharePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
-	fmt.Printf("score_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
+	//fmt.Printf("score_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
 	podReq, _ := resourcehelper.PodRequestsAndLimits(pod)
 	if len(podReq) == 0 {
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
@@ -161,11 +161,11 @@ func (plugin *GpuSharePlugin) NormalizeScore(ctx context.Context, state *framewo
 }
 
 func (plugin *GpuSharePlugin) updateNode(node *corev1.Node) error {
-	nodeGpuInfo, err := plugin.ExportGpuNodeInfoAsNodeGpuInfo(node.Name)
+	nodeGpuInfoStr, err := plugin.ExportGpuNodeInfoAsNodeGpuInfo(node.Name)
 	if err != nil {
 		return err
 	}
-	if data, err := ffjson.Marshal(nodeGpuInfo); err != nil {
+	if data, err := ffjson.Marshal(nodeGpuInfoStr); err != nil {
 		return err
 	} else {
 		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
@@ -216,7 +216,7 @@ func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod) error {
 // Reserve Plugin
 // Reserve updates the GPU resource of the given node, according to the pod's request.
 func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
-	fmt.Printf("reserve_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
+	//fmt.Printf("reserve_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
 	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Success) // non-GPU pods are skipped
 	}
@@ -233,7 +233,7 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 
 	// get node from fakeclient and update Node
 	if err = plugin.addOrUpdatePod(podCopy); err != nil {
-		fmt.Printf("addOrUpdatePod: pod %s/%s, nodeName %s, error %v\n", pod.Namespace, pod.Name, nodeName, err)
+		//fmt.Printf("addOrUpdatePod: pod %s/%s, nodeName %s, error %v\n", pod.Namespace, pod.Name, nodeName, err)
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
@@ -254,7 +254,7 @@ func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.Cy
 // Bind Plugin
 // Bind updates the GPU resources of the pod.
 func (plugin *GpuSharePlugin) Bind(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
-	fmt.Printf("bind_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
+	//fmt.Printf("bind_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
 	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Skip) // non-GPU pods are skipped
 	}
@@ -276,12 +276,12 @@ func (plugin *GpuSharePlugin) Bind(ctx context.Context, state *framework.CycleSt
 
 // Util Functions
 
-func (plugin *GpuSharePlugin) ExportGpuNodeInfoAsNodeGpuInfo(nodeName string) (*gpusharecache.NodeGpuInfo, error) {
+func (plugin *GpuSharePlugin) ExportGpuNodeInfoAsNodeGpuInfo(nodeName string) (*gpusharecache.GpuNodeInfoStr, error) {
 	if gpuNodeInfo, err := plugin.cache.GetGpuNodeInfo(nodeName); err != nil {
 		return nil, err
 	} else {
-		nodeGpuInfo := gpuNodeInfo.ExportGpuNodeInfoAsNodeGpuInfo()
-		return nodeGpuInfo, nil
+		nodeGpuInfoStr := gpuNodeInfo.ExportGpuNodeInfoAsStr()
+		return nodeGpuInfoStr, nil
 	}
 }
 
