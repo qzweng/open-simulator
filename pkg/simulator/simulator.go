@@ -178,13 +178,8 @@ func New(opts ...Option) (Interface, error) {
 				//},
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					if pod, ok := newObj.(*corev1.Pod); ok {
-<<<<<<< HEAD
 						podKey := GeneratePodKey(pod)
-						fmt.Printf("update_sim_bgn: pod %s\n", podKey)
-=======
-						namespace, name := pod.Namespace, pod.Name
-						//fmt.Printf("update_sim_bgn: pod %s/%s\n", namespace, name)
->>>>>>> f92c191 (align analysis and simulator)
+						//fmt.Printf("update_sim_bgn: pod %s\n", podKey)
 						for {
 							time.Sleep(2 * time.Millisecond)
 
@@ -221,39 +216,21 @@ func New(opts ...Option) (Interface, error) {
 									break
 								}
 							}
-<<<<<<< HEAD
-							fmt.Printf("update_sim: pod %s, node %s, podFoundInNode %v, podFoundInCache %v\n",
-								podKey, curPod.Spec.NodeName, podFoundInNode, podFoundInCache)
-=======
-							//fmt.Printf("update_sim: pod %s/%s, node %s, podFoundInNode %v, podFoundInCache %v\n", namespace, name, curPod.Spec.NodeName, podFoundInNode, podFoundInCache)
->>>>>>> f92c191 (align analysis and simulator)
-
+							//fmt.Printf("update_sim: pod %s, node %s, podFoundInNode %v, podFoundInCache %v\n", podKey, curPod.Spec.NodeName, podFoundInNode, podFoundInCache)
 							if (podFoundInNode && podFoundInCache) || podUnscheduled {
 								break
 							}
 						}
 						sim.updateBarrier[simontype.SimulatorName] <- struct{}{}
-<<<<<<< HEAD
-						fmt.Printf("update_sim_end: pod %s\n", podKey)
-=======
-						if false {
-							fmt.Printf("update_sim_end: pod %s/%s\n", namespace, name)
-						}
->>>>>>> f92c191 (align analysis and simulator)
+						//fmt.Printf("update_sim_end: pod %s\n", podKey)
 					}
 				},
 				DeleteFunc: func(obj interface{}) {
 					if pod, ok := obj.(*corev1.Pod); ok {
-						podKey := GeneratePodKey(pod)
+						//podKey := GeneratePodKey(pod)
 						podCopy := pod.DeepCopy()
-						nodeName := pod.Spec.NodeName
-<<<<<<< HEAD
-						fmt.Printf("delete_sim_bgn: pod %s, node %s\n", podKey, nodeName)
-=======
-						if false {
-							fmt.Printf("delete_sim_bgn: pod %s/%s, node %s\n", namespace, name, nodeName)
-						}
->>>>>>> f92c191 (align analysis and simulator)
+						//nodeName := pod.Spec.NodeName
+						//fmt.Printf("delete_sim_bgn: pod %s, node %s\n", podKey, nodeName)
 						for {
 							time.Sleep(2 * time.Millisecond)
 
@@ -272,11 +249,7 @@ func New(opts ...Option) (Interface, error) {
 							}
 						}
 						sim.updateBarrier[simontype.SimulatorName] <- struct{}{}
-<<<<<<< HEAD
-						fmt.Printf("delete_sim_end: pod %s\n", podKey)
-=======
 						//fmt.Printf("delete_sim_end: pod %s/%s\n", namespace, name)
->>>>>>> f92c191 (align analysis and simulator)
 					}
 				},
 			},
@@ -547,7 +520,7 @@ func (sim *Simulator) runScheduler() {
 }
 
 func (sim *Simulator) createPod(pod *corev1.Pod) error {
-	namespace, name := pod.Namespace, pod.Name
+	//namespace, name := pod.Namespace, pod.Name
 	if _, err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
 		return fmt.Errorf("%s %s/%s: %s", simontype.CreatePodError, pod.Namespace, pod.Name, err.Error())
 	}
@@ -555,9 +528,7 @@ func (sim *Simulator) createPod(pod *corev1.Pod) error {
 	//fmt.Printf("===============================\n")
 	//fmt.Printf("create_main_bgn: pod %s/%s\n", namespace, name)
 	<-sim.updateBarrier[simontype.SimulatorName]
-	if false {
-		fmt.Printf("create_main_end: pod %s/%s\n", namespace, name)
-	}
+	//fmt.Printf("create_main_end: pod %s/%s\n", namespace, name)
 	//if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
 	//	<-sim.updateBarrier
 	//}
@@ -565,7 +536,7 @@ func (sim *Simulator) createPod(pod *corev1.Pod) error {
 }
 
 func (sim *Simulator) deletePod(pod *corev1.Pod) error {
-	namespace, name := pod.Namespace, pod.Name
+	//namespace, name := pod.Namespace, pod.Name
 	if err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{}); err != nil {
 		return fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
 	}
@@ -573,9 +544,7 @@ func (sim *Simulator) deletePod(pod *corev1.Pod) error {
 	//fmt.Printf("===============================\n")
 	//fmt.Printf("delete_main_bgn: pod %s/%s\n", namespace, name)
 	<-sim.updateBarrier[simontype.SimulatorName]
-	if false {
-		fmt.Printf("delete_main_end: pod %s/%s\n", namespace, name)
-	}
+	//fmt.Printf("delete_main_end: pod %s/%s\n", namespace, name)
 	//if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
 	//	<-sim.updateBarrier // wait for node update
 	//}
@@ -923,24 +892,8 @@ func ownedByCronJob(refs []metav1.OwnerReference) bool {
 
 func (sim *Simulator) isPodFoundInNodeGpuAnno(pod *corev1.Pod) bool {
 	namespace, name, nodeName := pod.Namespace, pod.Name, pod.Spec.NodeName
-
-<<<<<<< HEAD
-	node, err := sim.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		fmt.Printf("failed to get node %s\n", nodeName)
-		return false
-	}
-	nodeGpuInfoStr, found := node.ObjectMeta.Annotations[simontype.AnnoNodeGpuShare]
-	if !found {
-		panic("GPU node has no annotation")
-	}
-	var nodeGpuInfo gpusharecache.NodeGpuInfo
-	err = ffjson.Unmarshal([]byte(nodeGpuInfoStr), &nodeGpuInfo)
-=======
 	node, _ := sim.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-
 	gpuNodeInfoStr, err := utils.GetGpuNodeInfoFromAnnotation(node)
->>>>>>> f92c191 (align analysis and simulator)
 	if err != nil {
 		panic(err.Error())
 	}

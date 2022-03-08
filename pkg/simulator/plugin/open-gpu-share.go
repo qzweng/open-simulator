@@ -47,10 +47,10 @@ func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration run
 			DeleteFunc: func(obj interface{}) {
 				if pod, ok := obj.(*corev1.Pod); ok {
 					if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
-						namespace, name := pod.Namespace, pod.Name
-						fmt.Printf("delete_gpu_bgn: pod %s/%s\n", namespace, name)
+						//namespace, name := pod.Namespace, pod.Name
+						//fmt.Printf("delete_gpu_bgn: pod %s/%s\n", namespace, name)
 						_ = gpuSharePlugin.removePod(pod)
-						fmt.Printf("delete_gpu_end: pod %s/%s\n", namespace, name)
+						//fmt.Printf("delete_gpu_end: pod %s/%s\n", namespace, name)
 					}
 				}
 			}})
