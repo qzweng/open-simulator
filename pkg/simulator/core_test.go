@@ -361,7 +361,7 @@ func TestSimulate(t *testing.T) {
 	}
 }
 
-func checkResult(args args, got *SimulateResult, failedPodsNum int64) (bool, string) {
+func checkResult(args args, got *simontype.SimulateResult, failedPodsNum int64) (bool, string) {
 	// check number of failed pods
 	if failedPodsNum != int64(len(got.UnscheduledPods)) {
 		return false, fmt.Sprintf("failedPodsNum: %d, got.UnscheduledPods: %d, got.UnscheduledPods: %v", failedPodsNum, len(got.UnscheduledPods), got.UnscheduledPods)

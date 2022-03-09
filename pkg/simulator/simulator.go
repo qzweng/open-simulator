@@ -50,7 +50,8 @@ type Simulator struct {
 	status status
 
 	//
-	typicalPods TargetPodList
+	typicalPods     simontype.TargetPodList
+	nodeResourceMap map[string]simontype.TargetNodeResource
 }
 
 // status captures reason why one pod fails to be scheduled
@@ -61,63 +62,6 @@ type status struct {
 type simulatorOptions struct {
 	kubeconfig      string
 	schedulerConfig string
-}
-
-type TargetPod struct {
-	targetPodResource TargetPodResource
-	percentage        float64
-}
-
-type TargetPodList []TargetPod
-
-func (p TargetPodList) Len() int           { return len(p) }
-func (p TargetPodList) Less(i, j int) bool { return p[i].percentage < p[j].percentage }
-func (p TargetPodList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-const (
-	TypicalPodPopularityThreshold = 60 // 60%
-	TypicalPodResourceNumber      = 10
-)
-
-type TargetPodResource struct {
-	MilliCpu  int64
-	GpuNumber int64
-	GpuMemory int64 // GPU Memory per GPU
-	//Memory	  int64
-}
-
-type TargetNodeResource struct {
-	NodeName       string
-	MilliCpu       int64
-	GpuMemLeftList []int64
-	GpuMemTotal    int64
-	GpuNumber      int
-	//Memory	  int64
-}
-
-func (tpr TargetPodResource) Repr() string {
-	outStr := "<"
-	outStr += fmt.Sprintf("CPU: %6.2f", float64(tpr.MilliCpu)/1000)
-	outStr += fmt.Sprintf(", GPU: %d", tpr.GpuNumber)
-	gpuMemMiB := float64(tpr.GpuMemory / 1024 / 1024)
-	outStr += fmt.Sprintf(" x %5.0f MiB", gpuMemMiB)
-	outStr += ">"
-	return outStr
-}
-
-func (tnr TargetNodeResource) Repr() string {
-	outStr := tnr.NodeName + " <"
-	outStr += fmt.Sprintf("CPU: %6.2f", float64(tnr.MilliCpu)/1000)
-	outStr += fmt.Sprintf(", GPU: %d", tnr.GpuNumber)
-	if tnr.GpuNumber > 0 {
-		gpuMemMiB := float64(tnr.GpuMemTotal/int64(tnr.GpuNumber)) / 1024.0 / 1024.0
-		outStr += fmt.Sprintf(" x %6.0f MiB, Left:", gpuMemMiB)
-		for _, gML := range tnr.GpuMemLeftList {
-			outStr += fmt.Sprintf(" %5.0f MiB", float64(gML/1024.0/1024.0))
-		}
-	}
-	outStr += ">"
-	return outStr
 }
 
 // Option configures a Simulator
@@ -292,6 +236,9 @@ func New(opts ...Option) (Interface, error) {
 		simontype.OpenGpuSharePluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuSharePlugin(fakeClient, configuration, f)
 		},
+		simontype.GpuFragScorePluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuFragScorePlugin(fakeClient, configuration, f)
+		},
 	}
 	sim.scheduler, err = scheduler.New(
 		sim.fakeclient,
@@ -314,14 +261,14 @@ func New(opts ...Option) (Interface, error) {
 }
 
 // RunCluster
-func (sim *Simulator) RunCluster(cluster ResourceTypes) (*SimulateResult, error) {
+func (sim *Simulator) RunCluster(cluster ResourceTypes) (*simontype.SimulateResult, error) {
 	// start scheduler
 	sim.runScheduler()
 
 	return sim.syncClusterResourceList(cluster)
 }
 
-func (sim *Simulator) ScheduleApp(apps AppResource) (*SimulateResult, error) {
+func (sim *Simulator) ScheduleApp(apps AppResource) (*simontype.SimulateResult, error) {
 	// 由 AppResource 生成 Pods
 	appPods, err := GenerateValidPodsFromAppResources(sim.fakeclient, apps.Name, apps.Resource)
 	if err != nil {
@@ -336,13 +283,13 @@ func (sim *Simulator) ScheduleApp(apps AppResource) (*SimulateResult, error) {
 		return nil, err
 	}
 
-	return &SimulateResult{
+	return &simontype.SimulateResult{
 		UnscheduledPods: failedPod,
 		NodeStatus:      sim.getClusterNodeStatus(),
 	}, nil
 }
 
-func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*SimulateResult, error) {
+func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult, error) {
 	podMap := make(map[string]*corev1.Pod)
 	for _, pod := range pods {
 		podMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
@@ -369,7 +316,7 @@ func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*SimulateResult, error) {
 	}
 
 	fmt.Printf("deschedule pod list %v\n", descheduledPod)
-	var failedPods []UnscheduledPod
+	var failedPods []simontype.UnscheduledPod
 	for _, podKey := range descheduledPod {
 		podCopy := podMap[podKey].DeepCopy()
 		clearPod(podCopy)
@@ -377,14 +324,14 @@ func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*SimulateResult, error) {
 
 		if strings.Contains(sim.status.stopReason, "failed") {
 			sim.deletePod(podCopy)
-			failedPods = append(failedPods, UnscheduledPod{
+			failedPods = append(failedPods, simontype.UnscheduledPod{
 				Pod:    podCopy,
 				Reason: sim.status.stopReason,
 			})
 		}
 	}
 
-	return &SimulateResult{
+	return &simontype.SimulateResult{
 		UnscheduledPods: failedPods,
 		NodeStatus:      sim.getClusterNodeStatus(),
 	}, nil
@@ -488,12 +435,12 @@ func (sim *Simulator) AddParaSet() {
 
 }
 
-func (sim *Simulator) getClusterNodeStatus() []NodeStatus {
-	var nodeStatues []NodeStatus
+func (sim *Simulator) getClusterNodeStatus() []simontype.NodeStatus {
+	var nodeStatues []simontype.NodeStatus
 	nodes, _ := sim.fakeclient.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
 	allPods, _ := sim.fakeclient.CoreV1().Pods(corev1.NamespaceAll).List(context.Background(), metav1.ListOptions{})
 	for _, node := range nodes.Items {
-		nodeStatus := NodeStatus{}
+		nodeStatus := simontype.NodeStatus{}
 		nodeStatus.Node = node.DeepCopy()
 		nodeStatus.Pods = make([]*corev1.Pod, 0)
 		for _, pod := range allPods.Items {
@@ -552,8 +499,8 @@ func (sim *Simulator) deletePod(pod *corev1.Pod) error {
 }
 
 // Run starts to schedule pods
-func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]UnscheduledPod, error) {
-	var failedPods []UnscheduledPod
+func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]simontype.UnscheduledPod, error) {
+	var failedPods []simontype.UnscheduledPod
 	for _, pod := range pods {
 		sim.createPod(pod)
 
@@ -562,7 +509,7 @@ func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]UnscheduledPod, error)
 		//sim.status.stopReason = ""
 		if strings.Contains(sim.status.stopReason, "failed") {
 			sim.deletePod(pod)
-			failedPods = append(failedPods, UnscheduledPod{
+			failedPods = append(failedPods, simontype.UnscheduledPod{
 				Pod:    pod,
 				Reason: sim.status.stopReason,
 			})
@@ -602,7 +549,7 @@ func (sim *Simulator) Close() {
 	}
 }
 
-func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*SimulateResult, error) {
+func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*simontype.SimulateResult, error) {
 	//sync node
 	for _, item := range resourceList.Nodes {
 		if _, err := sim.fakeclient.CoreV1().Nodes().Create(context.TODO(), item, metav1.CreateOptions{}); err != nil {
@@ -680,7 +627,7 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*Simu
 		return nil, err
 	}
 
-	return &SimulateResult{
+	return &simontype.SimulateResult{
 		UnscheduledPods: failedPods,
 		NodeStatus:      sim.getClusterNodeStatus(),
 	}, nil

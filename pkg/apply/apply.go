@@ -177,7 +177,7 @@ func (applier *Applier) Run() (err error) {
 	success := false
 	// only support temporarily adding a type of node at present
 	newNode := nodeResource.Nodes[0]
-	var result *simulator.SimulateResult
+	var result *simontype.SimulateResult
 	for i := 0; i <= simontype.MaxNumNewNode; i++ {
 		newClusterResource := clusterResource
 		// add nodes to get a successful scheduling
@@ -301,7 +301,7 @@ func newFakeNodes(node *corev1.Node, nodeCount int) ([]*corev1.Node, error) {
 }
 
 // report print out scheduling result of pods
-func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
+func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 	// Step 1: report pod info
 	fmt.Println("Pod Info")
 	podTable := tablewriter.NewWriter(os.Stdout)
@@ -582,7 +582,7 @@ func report(nodeStatuses []simulator.NodeStatus, extendedResources []string) {
 	}
 }
 
-func satisfyResourceSetting(nodeStatuses []simulator.NodeStatus) (bool, string, error) {
+func satisfyResourceSetting(nodeStatuses []simontype.NodeStatus) (bool, string, error) {
 	var err error
 	var maxcpu int = 100
 	var maxmem int = 100

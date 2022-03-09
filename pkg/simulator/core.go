@@ -8,23 +8,9 @@ import (
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	storagev1 "k8s.io/api/storage/v1"
 
+	"github.com/alibaba/open-simulator/pkg/type"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
-
-type SimulateResult struct {
-	UnscheduledPods []UnscheduledPod
-	NodeStatus      []NodeStatus
-}
-
-type UnscheduledPod struct {
-	Pod    *corev1.Pod
-	Reason string
-}
-
-type NodeStatus struct {
-	Node *corev1.Node
-	Pods []*corev1.Pod
-}
 
 type ResourceTypes struct {
 	Nodes                  []*corev1.Node
@@ -48,11 +34,11 @@ type AppResource struct {
 }
 
 type Interface interface {
-	RunCluster(cluster ResourceTypes) (*SimulateResult, error)
-	ScheduleApp(AppResource) (*SimulateResult, error)
+	RunCluster(cluster ResourceTypes) (*simontype.SimulateResult, error)
+	ScheduleApp(AppResource) (*simontype.SimulateResult, error)
 	GetTypicalPods(cluster ResourceTypes)
-	ClusterAnalysis(result *SimulateResult)
-	Deschedule(pods []*corev1.Pod) (*SimulateResult, error)
+	ClusterAnalysis(result *simontype.SimulateResult)
+	Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult, error)
 	AddParaSet()
 	Close()
 }
@@ -65,7 +51,7 @@ type Interface interface {
 // 返回值
 // 1. error 不为空表示函数执行失败
 // 2. error 为空表示函数执行成功，通过 SimulateResult 信息获取集群模拟信息。其中 UnscheduledPods 表示无法调度的 Pods，若其为空表示模拟调度成功；NodeStatus 会详细记录每个 Node 上的 Pod 情况。
-func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*SimulateResult, error) {
+func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simontype.SimulateResult, error) {
 	// init simulator
 	sim, err := New(opts...)
 	if err != nil {
@@ -85,7 +71,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*Simul
 		cluster.Pods = append(cluster.Pods, validPods...)
 	}
 
-	var failedPods []UnscheduledPod
+	var failedPods []simontype.UnscheduledPod
 	sim.GetTypicalPods(cluster)
 
 	// run cluster

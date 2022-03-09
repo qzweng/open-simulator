@@ -9,6 +9,7 @@ const (
 	SimonPluginName        = "Simon"
 	OpenLocalPluginName    = "Open-Local"
 	OpenGpuSharePluginName = "Open-Gpu-Share"
+	GpuFragScorePluginName = "Gpu-Frag-Score"
 	NewNodeNamePrefix      = "simon"
 	SimulatorName          = "Main"
 	DefaultSchedulerName   = corev1.DefaultSchedulerName
