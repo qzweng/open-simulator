@@ -42,6 +42,16 @@ import (
 	simontype "github.com/alibaba/open-simulator/pkg/type"
 )
 
+var nameDelimiter = "/"
+
+func GeneratePodKey(pod *corev1.Pod) string {
+	return GeneratePodKeyByName(pod.Namespace, pod.Name)
+}
+
+func GeneratePodKeyByName(namespace, name string) string {
+	return namespace + nameDelimiter + name
+}
+
 // ParseFilePath converts recursively directory path to a slice of file paths
 func ParseFilePath(path string) (filePaths []string, err error) {
 	fi, err := os.Stat(path)

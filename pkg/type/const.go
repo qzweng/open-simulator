@@ -6,13 +6,14 @@ import (
 )
 
 const (
-	SimonPluginName        = "Simon"
-	OpenLocalPluginName    = "Open-Local"
-	OpenGpuSharePluginName = "Open-Gpu-Share"
-	GpuFragScorePluginName = "Gpu-Frag-Score"
-	NewNodeNamePrefix      = "simon"
-	SimulatorName          = "Main"
-	DefaultSchedulerName   = corev1.DefaultSchedulerName
+	SimonPluginName           = "Simon"
+	OpenLocalPluginName       = "Open-Local"
+	OpenGpuSharePluginName    = "Open-Gpu-Share"
+	GpuFragScorePluginName    = "Gpu-Frag-Score"
+	GpuPackingScorePluginName = "Gpu-Packing-Score"
+	NewNodeNamePrefix         = "simon"
+	SimulatorName             = "Main"
+	DefaultSchedulerName      = corev1.DefaultSchedulerName
 
 	StopReasonSuccess   = "everything is ok"
 	StopReasonDoNotStop = "do not stop"

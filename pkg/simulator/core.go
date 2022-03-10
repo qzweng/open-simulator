@@ -72,7 +72,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 
 	var failedPods []simontype.UnscheduledPod
-	sim.GetTypicalPods(cluster)
+	//sim.GetTypicalPods(cluster)
 
 	// run cluster
 	result, err := sim.RunCluster(cluster)
@@ -80,11 +80,11 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		return nil, err
 	}
 	failedPods = append(failedPods, result.UnscheduledPods...)
-	sim.ClusterAnalysis(result)
+	//sim.ClusterAnalysis(result)
 
 	// if flagDeschedule {
-	result, _ = sim.Deschedule(cluster.Pods)
-	failedPods = append(failedPods, result.UnscheduledPods...)
+	//result, _ = sim.Deschedule(cluster.Pods)
+	//failedPods = append(failedPods, result.UnscheduledPods...)
 	//sim.ClusterAnalysis(result)
 
 	// schedule pods

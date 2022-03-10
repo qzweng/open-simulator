@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,6 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
-	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/algo"
 	simonplugin "github.com/alibaba/open-simulator/pkg/simulator/plugin"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
@@ -122,7 +122,7 @@ func New(opts ...Option) (Interface, error) {
 				//},
 				UpdateFunc: func(oldObj, newObj interface{}) {
 					if pod, ok := newObj.(*corev1.Pod); ok {
-						podKey := GeneratePodKey(pod)
+						podKey := utils.GeneratePodKey(pod)
 						//fmt.Printf("update_sim_bgn: pod %s\n", podKey)
 						for {
 							time.Sleep(2 * time.Millisecond)
@@ -239,6 +239,9 @@ func New(opts ...Option) (Interface, error) {
 		simontype.GpuFragScorePluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuFragScorePlugin(fakeClient, configuration, f)
 		},
+		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuPackingScorePlugin(fakeClient, configuration, f)
+		},
 	}
 	sim.scheduler, err = scheduler.New(
 		sim.fakeclient,
@@ -300,7 +303,7 @@ func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult,
 	for _, ns := range nodeStatus {
 		victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
 		if victimPod != nil {
-			descheduledPod = append(descheduledPod, GeneratePodKey(victimPod))
+			descheduledPod = append(descheduledPod, utils.GeneratePodKey(victimPod))
 			sim.deletePod(victimPod)
 		}
 
@@ -348,7 +351,7 @@ func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod)
 	for _, pod := range pods {
 		similarity, ok := sim.resourceSimilarity(pod, node)
 		if !ok {
-			fmt.Printf("failed to get resource similarity of pod %s to node %s\n", GeneratePodKey(pod), node.Name)
+			fmt.Printf("failed to get resource similarity of pod %s to node %s\n", utils.GeneratePodKey(pod), node.Name)
 			continue
 		}
 		if similarity >= 0 && similarity < victimPodSimilarity {
@@ -357,7 +360,7 @@ func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod)
 		}
 	}
 	if victimPod != nil {
-		fmt.Printf("pod %s is selected to deschedule from node %s, resource similarity %.2f\n", GeneratePodKey(victimPod), node.Name, victimPodSimilarity)
+		fmt.Printf("pod %s is selected to deschedule from node %s, resource similarity %.2f\n", utils.GeneratePodKey(victimPod), node.Name, victimPodSimilarity)
 		return victimPod
 	}
 	return nil
@@ -387,7 +390,7 @@ func (sim *Simulator) resourceSimilarity(pod *corev1.Pod, node *corev1.Node) (fl
 			//podGpuCount := resource.MustParse(podGpuCountAnno)
 			podGpuCount, _ := strconv.ParseFloat(podGpuCountAnno, 64)
 
-			fmt.Printf("debug: pod %s, podGpuMemAnno %v, podGpuMem %v, podGpuCountAnno %v, podGpuCount %v\n", GeneratePodKey(pod), podGpuMemAnno, podGpuMem, podGpuCountAnno, podGpuCount)
+			fmt.Printf("debug: pod %s, podGpuMemAnno %v, podGpuMem %v, podGpuCountAnno %v, podGpuCount %v\n", utils.GeneratePodKey(pod), podGpuMemAnno, podGpuMem, podGpuCountAnno, podGpuCount)
 
 			podVec = append(podVec, float64(podGpuMem.Value())*podGpuCount/scaleFactor)
 		} else {
@@ -403,7 +406,7 @@ func (sim *Simulator) resourceSimilarity(pod *corev1.Pod, node *corev1.Node) (fl
 		return -1, false
 	}
 	fmt.Printf("similarity of pod %s with node %s is %.2f, pod vec %v, node vec %v\n",
-		GeneratePodKey(pod), node.Name, similarity, podVec, nodeVec)
+		utils.GeneratePodKey(pod), node.Name, similarity, podVec, nodeVec)
 	return similarity, true
 }
 

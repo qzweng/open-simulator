@@ -32,16 +32,6 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-var nameDelimiter = "/"
-
-func GeneratePodKey(pod *corev1.Pod) string {
-	return GeneratePodKeyByName(pod.Namespace, pod.Name)
-}
-
-func GeneratePodKeyByName(namespace, name string) string {
-	return namespace + nameDelimiter + name
-}
-
 // GenerateValidPodsFromAppResources generate valid pods from resources
 func GenerateValidPodsFromAppResources(client externalclientset.Interface, appname string, resources ResourceTypes) ([]*corev1.Pod, error) {
 	pods := make([]*corev1.Pod, 0)
@@ -249,6 +239,9 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 			},
 			{
 				Name: simontype.GpuFragScorePluginName,
+			},
+			{
+				Name: simontype.GpuPackingScorePluginName,
 			},
 		},
 	}
