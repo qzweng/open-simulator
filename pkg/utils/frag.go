@@ -96,6 +96,8 @@ func GetTargetPodResource(pod *v1.Pod) simontype.TargetPodResource {
 	}
 
 	tgtPodRes := simontype.TargetPodResource{
+		Namespace: pod.Namespace,
+		Name:      pod.Name,
 		MilliCpu:  non0CPU,
 		GpuNumber: int(gpuNumber),
 		GpuMemory: gpuMemory,

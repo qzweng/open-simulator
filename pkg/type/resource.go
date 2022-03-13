@@ -22,6 +22,8 @@ const (
 )
 
 type TargetPodResource struct {
+	Namespace string
+	Name      string
 	MilliCpu  int64
 	GpuNumber int
 	GpuMemory int64 // GPU Memory per GPU

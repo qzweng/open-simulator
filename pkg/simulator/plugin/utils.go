@@ -3,14 +3,19 @@ package plugin
 import (
 	"context"
 
+	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	externalclientset "k8s.io/client-go/kubernetes"
 
-	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/type"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
+
+func MakePodUnassigned(pod *corev1.Pod) {
+	delete(pod.Annotations, gpushareutils.DeviceIndex)
+	delete(pod.Spec.NodeSelector, simontype.NodeIP)
+}
 
 func GetNodeResourceMap(result *simontype.SimulateResult) map[string]simontype.TargetNodeResource {
 	var allPods []corev1.Pod

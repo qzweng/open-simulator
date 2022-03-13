@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"math"
 	"sort"
 
 	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
@@ -42,7 +41,7 @@ func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
 
-	node, err := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	node, err := plugin.fakeclient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node(%s): %s\n", nodeName, err.Error()))
 	}
@@ -55,7 +54,7 @@ func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework
 	podRes := utils.GetTargetPodResource(pod)
 	_, err = nodeRes.Sub(podRes)
 	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Unschedulable, fmt.Sprintf("failed to schedule pod(%s) on node(%s) because of insufficient resources", utils.GeneratePodKey(pod), nodeName))
+		return framework.MinNodeScore, framework.NewStatus(framework.Unschedulable, fmt.Sprintf("failed to schedule pod(%s) on node(%s) because of insufficient resources\n", utils.GeneratePodKey(pod), nodeName))
 	}
 
 	score := getPackingScore(podRes, nodeRes)
@@ -64,36 +63,13 @@ func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework
 }
 
 func (plugin *GpuPackingScorePlugin) ScoreExtensions() framework.ScoreExtensions {
-	return plugin
+	return nil
 }
 
-func (plugin *GpuPackingScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
-	// find the highest and lowest scores
-	var highest int64 = -math.MaxInt64
-	var lowest int64 = math.MaxInt64
-	for _, nodeScore := range scores {
-		if nodeScore.Score > highest {
-			highest = nodeScore.Score
-		}
-		if nodeScore.Score < lowest {
-			lowest = nodeScore.Score
-		}
-	}
-
-	// transform the highest to the lowest score range to fit the framework's min to max node score range
-	oldRange := highest - lowest
-	newRange := framework.MaxNodeScore - framework.MinNodeScore
-	for i, nodeScore := range scores {
-		if oldRange == 0 {
-			scores[i].Score = framework.MinNodeScore
-		} else {
-			scores[i].Score = ((nodeScore.Score - lowest) * newRange / oldRange) + framework.MinNodeScore
-		}
-	}
-	return framework.NewStatus(framework.Success)
-
-}
-
+// score rule, from high to low:
+//     case-1. use shared GPUs: return maxNodeScore - freeGPUMemRatioOnUsedGpu/10, capped in the range [maxNodeScore/2, maxNodeScore]
+//     case-2. use free GPUs on a used node: return maxNodeScore/2 - fullyFreeGpuNumToUse, capped in the range [maxNodeScore/3, maxNodeScore/2]
+//     case-3. use free GPUs on a free node: return maxNodeScore/3 - freeGpuNum, capped in the range [minNodeScore, maxNodeScore/3]
 func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.TargetNodeResource) int64 {
 	var fullyFreeGpuNum = 0
 	for _, gpuMemLeft := range nodeRes.GpuMemLeftList {
@@ -102,6 +78,7 @@ func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.Targe
 		}
 	}
 
+	// case-3: all gpus on the node are free
 	if fullyFreeGpuNum == nodeRes.GpuNumber {
 		score := framework.MaxNodeScore/3 - int64(fullyFreeGpuNum)
 		cappedScore := integer.Int64Max(score, int64(fullyFreeGpuNum))
@@ -127,15 +104,18 @@ func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.Targe
 		}
 	}
 	if gpuReq != 0 {
-		log.Errorf("failed to allocate gpu resource")
+		log.Errorf("failed to allocate gpu resource to pod(%s) on node(%s)\n",
+			utils.GeneratePodKeyByName(podRes.Namespace, podRes.Name), nodeRes.NodeName)
 		return framework.MinNodeScore
 	}
+	// case-2: have to use fully-free gpus
 	if fullyFreeGpuNumToUse > 0 {
 		score := framework.MaxNodeScore/2 - int64(fullyFreeGpuNumToUse)
 		cappedScore := integer.Int64Max(score, framework.MaxNodeScore/3)
 		return cappedScore
 	}
 
+	// case-1: use shared gpus
 	var freeGpuMemRatioOnUsedGpu int64 = 0
 	for _, gpu := range gpuToUse {
 		freeGpuMemRatioOnUsedGpu += nodeRes.GpuMemLeftList[gpu] * 100 / nodeRes.GpuMemTotal

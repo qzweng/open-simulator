@@ -322,7 +322,7 @@ func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult,
 	var failedPods []simontype.UnscheduledPod
 	for _, podKey := range descheduledPod {
 		podCopy := podMap[podKey].DeepCopy()
-		clearPod(podCopy)
+		simonplugin.MakePodUnassigned(podCopy)
 		sim.createPod(podCopy)
 
 		if strings.Contains(sim.status.stopReason, "failed") {
@@ -338,11 +338,6 @@ func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult,
 		UnscheduledPods: failedPods,
 		NodeStatus:      sim.getClusterNodeStatus(),
 	}, nil
-}
-
-func clearPod(pod *corev1.Pod) {
-	delete(pod.Annotations, gpushareutils.DeviceIndex)
-	pod.Spec.NodeSelector = nil
 }
 
 func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod) *corev1.Pod {

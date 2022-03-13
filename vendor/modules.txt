@@ -1049,6 +1049,7 @@ k8s.io/kubernetes/pkg/volume/util/volumepathhandler
 # k8s.io/mount-utils v0.21.0-beta.0 => k8s.io/mount-utils v0.20.5
 k8s.io/mount-utils
 # k8s.io/utils v0.0.0-20201110183641-67b214c5f920
+## explicit
 k8s.io/utils/buffer
 k8s.io/utils/exec
 k8s.io/utils/integer

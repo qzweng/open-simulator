@@ -1,0 +1,29 @@
+apiVersion: kubescheduler.config.k8s.io/v1beta1
+kind: KubeSchedulerConfiguration
+profiles:
+  - schedulerName: default-scheduler
+    plugins:
+      filter:
+        enabled:
+          - name: Open-Local
+          - name: Open-Gpu-Share
+      score:
+        disabled:
+          - name: Open-Gpu-Share
+          - weight:
+          - name: Gpu-Frag-Score
+        enabled:
+#          - name: Gpu-Frag-Score
+#            weight: 10
+          - name: Gpu-Packing-Score
+            weight: 1000
+      reserve:
+        enabled:
+          - name: Open-Gpu-Share
+      bind:
+        disabled:
+          - name: DefaultBinder
+        enabled:
+          - name: Simon
+          - name: Open-Local
+          - name: Open-Gpu-Share

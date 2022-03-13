@@ -43,6 +43,8 @@ const (
 	Job                   = "Job"
 	CronJob               = "CronJob"
 
+	NodeIP = "node-ip"
+
 	ConfigMapName      = "simulator-plan"
 	ConfigMapNamespace = metav1.NamespaceSystem
 	ConfigMapFileName  = "configmap-simon.yaml"
