@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"github.com/alibaba/open-simulator/pkg/utils"
 	"math"
 	"sync"
 
@@ -66,25 +67,23 @@ func (plugin *GpuSharePlugin) Name() string {
 // Filter filters out non-allocatable nodes
 func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	//fmt.Printf("filter_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeInfo.Node().Name)
-	// check if the pod requires GPU resources
-	podGpuMem := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
-	if podGpuMem <= 0 {
-		// the node is schedulable if pod does not require GPU resources
-		//klog.Infof("[Filter] Pod: %v/%v, podGpuMem <= 0: %v", pod.GetNamespace(), pod.GetName(), podGpuMem)
+	// Pass if the pod does not require GPU resources
+	if podGpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(pod); podGpuMilli <= 0 {
 		return framework.NewStatus(framework.Success)
 	}
-	//klog.Infof("[Filter] Pod: %v/%v, podGpuMem: %v", pod.GetNamespace(), pod.GetName(), podGpuMem)
-
-	// check if the node have GPU resources
 	node := nodeInfo.Node()
-	nodeGpuMem := gpushareutils.GetTotalGpuMemory(node)
-	if nodeGpuMem < podGpuMem {
-		//klog.Infof("[Filter] Unschedulable, Node: %v, nodeGpuMem: %v", node.GetName(), nodeGpuMem)
+	// Reject if the node has no GPU resource
+	if nodeGpuCount := gpushareutils.GetGpuCountOfNode(node); nodeGpuCount == 0 {
 		return framework.NewStatus(framework.Unschedulable, "Node:"+nodeInfo.Node().Name)
 	}
-	//klog.Infof("[Filter] Schedulable, Node: %v, nodeGpuMem: %v", node.GetName(), nodeGpuMem)
 
-	// check if any of the GPU has such resources
+	// Reject if the GPU type does not match
+	nodeGpuType := gpushareutils.GetGpuModelOfNode(node)
+	podGpuType := gpushareutils.GetGpuModelFromPodAnnotation(pod)
+	if utils.IsNodeAccessibleToPodByType(nodeGpuType, podGpuType) == false {
+		return framework.NewStatus(framework.Unschedulable, "Node:"+nodeInfo.Node().Name)
+	}
+
 	gpuNodeInfo, err := plugin.cache.GetGpuNodeInfo(node.Name)
 	if err != nil {
 		return framework.NewStatus(framework.Unschedulable, "Node:"+nodeInfo.Node().Name)

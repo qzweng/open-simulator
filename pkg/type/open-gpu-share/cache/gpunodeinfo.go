@@ -1,17 +1,12 @@
 package cache
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strconv"
-	"strings"
 	"sync"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
 	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
@@ -22,13 +17,12 @@ const (
 
 // GpuNodeInfo is node level aggregated information.
 type GpuNodeInfo struct {
-	name           string
-	node           *v1.Node
-	devs           map[int]*DeviceInfo
-	gpuCount       int
-	gpuTotalMemory int64
-	model          string
-	rwmu           *sync.RWMutex
+	name     string
+	node     *v1.Node
+	devs     map[int]*DeviceInfo
+	gpuCount int
+	model    string
+	rwmu     *sync.RWMutex
 }
 
 // NewGpuNodeInfo creates Node Level
@@ -38,7 +32,7 @@ func NewGpuNodeInfo(node *v1.Node) *GpuNodeInfo {
 	cardModel := utils.GetGpuModelOfNode(node)
 	devMap := map[int]*DeviceInfo{}
 	for i := 0; i < utils.GetGpuCountOfNode(node); i++ {
-		devMap[i] = newDeviceInfo(i, utils.GetTotalGpuMemory(node)/int64(utils.GetGpuCountOfNode(node)), cardModel)
+		devMap[i] = newDeviceInfo(i, cardModel)
 	}
 
 	//if len(devMap) == 0 {
@@ -50,7 +44,6 @@ func NewGpuNodeInfo(node *v1.Node) *GpuNodeInfo {
 		node:     node,
 		devs:     devMap,
 		gpuCount: utils.GetGpuCountOfNode(node),
-		gpu:      utils.GetTotalGpuMemory(node),
 		model:    cardModel,
 		rwmu:     new(sync.RWMutex),
 	}
@@ -59,14 +52,13 @@ func NewGpuNodeInfo(node *v1.Node) *GpuNodeInfo {
 // Reset only updates the devices when the length of devs is 0
 func (n *GpuNodeInfo) Reset(node *v1.Node) {
 	n.gpuCount = utils.GetGpuCountOfNode(node)
-	n.gpuTotalMemory = utils.GetTotalGpuMemory(node)
 	n.node = node
 
 	if len(n.devs) == 0 && n.gpuCount > 0 {
 		cardModel := utils.GetGpuModelOfNode(node)
 		devMap := map[int]*DeviceInfo{}
 		for i := 0; i < utils.GetGpuCountOfNode(node); i++ {
-			devMap[i] = newDeviceInfo(i, n.gpuTotalMemory/int64(n.gpuCount), cardModel)
+			devMap[i] = newDeviceInfo(i, cardModel)
 		}
 		n.devs = devMap
 	}
@@ -92,10 +84,6 @@ func (n *GpuNodeInfo) GetDevByDevId(devId int) (*DeviceInfo, bool) {
 
 func (n *GpuNodeInfo) GetNode() *v1.Node {
 	return n.node
-}
-
-func (n *GpuNodeInfo) GetTotalGpuMemory() int64 {
-	return n.gpuTotalMemory
 }
 
 func (n *GpuNodeInfo) GetGpuCount() int {
@@ -140,108 +128,20 @@ func (n *GpuNodeInfo) addOrUpdatePod(pod *v1.Pod) (added bool) {
 	return added
 }
 
-// Assume checks if the pod can be allocated on the node
-func (n *GpuNodeInfo) Assume(pod *v1.Pod) (allocatable bool) {
-	allocatable = false
-
-	n.rwmu.RLock()
-	defer n.rwmu.RUnlock()
-
-	availableGpus := n.getAvailableGpus()
-	reqGpuMem, reqGpuNum := utils.GetGpuMemoryAndCountFromPodAnnotation(pod)
-	//log.Printf("debug: AvailableGPUs: %v in node %s", availableGpus, n.name)
-
-	if len(availableGpus) > 0 {
-		for devId := 0; devId < len(n.devs); devId++ {
-			if availableGpu, ok := availableGpus[devId]; ok {
-				if availableGpu >= reqGpuMem {
-					if reqGpuNum -= 1; reqGpuNum <= 0 {
-						allocatable = true
-						break
-					}
-				}
-			}
-		}
-	}
-	return allocatable
-}
-
-func (n *GpuNodeInfo) Allocate(clientset *kubernetes.Clientset, pod *v1.Pod) (err error) {
-	var newPod *v1.Pod
-	n.rwmu.Lock()
-	defer n.rwmu.Unlock()
-	//log.Printf("info: Allocate() ----Begin to allocate GPU for gpu mem for pod %s in ns %s----", pod.Name, pod.Namespace)
-	// 1. Update the pod spec
-	devId, found := n.AllocateGpuId(pod)
-	if found {
-		newPod = utils.GetUpdatedPodAnnotationSpec(pod, devId)
-		if err != nil {
-			// the object has been modified; please apply your changes to the latest version and try again
-			if err.Error() == OptimisticLockErrorMsg {
-				// retry
-				pod, err = clientset.CoreV1().Pods(pod.Namespace).Get(context.TODO(), pod.Name, metav1.GetOptions{})
-				if err != nil {
-					return err
-				}
-				newPod = utils.GetUpdatedPodAnnotationSpec(pod, devId)
-				if err != nil {
-					return err
-				}
-			} else {
-				//log.Printf("failed to patch pod %v", pod)
-				return err
-			}
-		}
-	} else {
-		err = fmt.Errorf("The node %s can't place the pod %s in ns %s,and the pod spec is %v", pod.Spec.NodeName, pod.Name, pod.Namespace, pod)
-	}
-
-	// 2. Bind the pod to the node
-	if err == nil {
-		binding := &v1.Binding{
-			ObjectMeta: metav1.ObjectMeta{Name: pod.Name, UID: pod.UID},
-			Target:     v1.ObjectReference{Kind: "Node", Name: n.name},
-		}
-		//log.Printf("info: Allocate() 2. Try to bind pod %s in %s namespace to node %s with %v", pod.Name, pod.Namespace, pod.Spec.NodeName, binding)
-		err = clientset.CoreV1().Pods(pod.Namespace).Bind(context.TODO(), binding, metav1.CreateOptions{})
-		if err != nil {
-			//log.Printf("warn: Failed to bind the pod %s in ns %s due to %v", pod.Name, pod.Namespace, err)
-			return err
-		}
-	}
-
-	// 3. update the device info if the pod is update successfully
-	if err == nil {
-		//log.Printf("info: Allocate() 3. Try to add pod %s in ns %s to dev %d", pod.Name, pod.Namespace, devId)
-		if idl, e := utils.GpuIdStrToIntList(devId); e == nil {
-			for _, idx := range idl {
-				if dev, found := n.devs[(idx)]; found {
-					dev.addPod(newPod)
-				} else {
-					log.Printf("warn: Pod %s in ns %s failed to find the GPU ID %d in node %s", pod.Name, pod.Namespace, idx, n.name)
-				}
-			}
-		} else {
-			log.Printf("warn: Pod %s in ns %s has problem with parsing GPU ID %d in node %s, error: %s", pod.Name, pod.Namespace, idl, n.name, e)
-		}
-	}
-	//log.Printf("info: Allocate() ----End to allocate GPU for gpu mem for pod %s in ns %s----", pod.Name, pod.Namespace)
-	return err
-}
-
 // AllocateGpuId is the key of GPU allocating; it assigns the GPU ID to the pod
 func (n *GpuNodeInfo) AllocateGpuId(pod *v1.Pod) (candDevId string, found bool) {
 	found = false
 	candDevId = ""
 	// Assuming one Pod has only 1 GPU container; if not so, we let the containers share the same GPU memory spec, i.e.,
 	// Resources.Limits[ResourceName] is the GPU mem spec for each GPU for all containers.
-	reqGpuMem, reqGpuNum := utils.GetGpuMemoryAndCountFromPodAnnotation(pod) // reqGpuMem * reqGpuNum = totalGpuMemReq
-	if reqGpuMem <= 0 || reqGpuNum <= 0 {
+	reqGpuNum := utils.GetGpuCountFromPodAnnotation(pod)
+	reqGpuMilli := utils.GetGpuMilliFromPodAnnotation(pod)
+	if reqGpuMilli <= 0 || reqGpuNum <= 0 {
 		return candDevId, found
 	}
 
-	availableGpus := n.getAvailableGpus()
-	if len(availableGpus) <= 0 {
+	idleGpus := n.getIdleGpus()
+	if len(idleGpus) <= 0 {
 		return candDevId, found
 	}
 
@@ -254,13 +154,13 @@ func (n *GpuNodeInfo) AllocateGpuId(pod *v1.Pod) (candDevId string, found bool) 
 	}
 
 	if reqGpuNum == 1 { // 1-GPU pod. Adopt the original naive packing logic
-		var candGpuMem int64
+		var candGpuMilli int64
 		for devId := 0; devId < len(n.devs); devId++ {
-			if idleGpuMem, ok := availableGpus[devId]; ok {
-				if idleGpuMem >= reqGpuMem {
-					if candDevId == "" || idleGpuMem < candGpuMem {
+			if idleGpuMilli, ok := idleGpus[devId]; ok {
+				if idleGpuMilli >= reqGpuMilli {
+					if candDevId == "" || idleGpuMilli < candGpuMilli {
 						candDevId = strconv.Itoa(devId)
-						candGpuMem = idleGpuMem // update to the tightest fit
+						candGpuMilli = idleGpuMilli // update to the tightest fit
 						found = true
 					}
 				}
@@ -270,9 +170,9 @@ func (n *GpuNodeInfo) AllocateGpuId(pod *v1.Pod) (candDevId string, found bool) 
 		var candDevIdList []int
 		devId, reqGpuId := 0, 0
 		for devId < len(n.devs) && reqGpuId < int(reqGpuNum) { // two pointers
-			if idleGpuMem, ok := availableGpus[devId]; ok && idleGpuMem >= reqGpuMem {
+			if idleGpuMilli, ok := idleGpus[devId]; ok && idleGpuMilli >= reqGpuMilli {
 				candDevIdList = append(candDevIdList, devId)
-				availableGpus[devId] = idleGpuMem - reqGpuMem
+				idleGpus[devId] = idleGpuMilli - reqGpuMilli
 				reqGpuId++
 			} else {
 				devId++
@@ -290,108 +190,44 @@ func (n *GpuNodeInfo) AllocateGpuId(pod *v1.Pod) (candDevId string, found bool) 
 	return candDevId, found
 }
 
-func (n *GpuNodeInfo) getAvailableGpus() (availableGpus map[int]int64) {
-	allGpus := n.getAllGpus()
+// device index -> idle GPU milli
+func (n *GpuNodeInfo) getIdleGpus() (idleGpus map[int]int64) {
 	usedGpus := n.getUsedGpus()
 	//unhealthyGpus := n.getUnhealthyGpus()
-	availableGpus = map[int]int64{}
-	for id, totalGpuMem := range allGpus {
-		if usedGpuMem, found := usedGpus[id]; found {
-			availableGpus[id] = totalGpuMem - usedGpuMem
-		}
+	idleGpus = map[int]int64{}
+	for id, usedGpuMilli := range usedGpus {
+		idleGpus[id] = utils.MILLI - usedGpuMilli
 	}
-	//log.Printf("info: available GPU list %v before removing unhealthy GPUs", availableGpus)
-	//for id, _ := range unhealthyGpus {
-	//	log.Printf("info: delete dev %d from available GPU list", id)
-	//	delete(availableGpus, id)
-	//}
-	//log.Printf("info: available GPU list %v after removing unhealthy GPUs", availableGpus)
-
-	return availableGpus
+	return idleGpus
 }
 
-// device index: gpu memory
+// device index -> used GPU milli
 func (n *GpuNodeInfo) getUsedGpus() (usedGpus map[int]int64) {
 	usedGpus = map[int]int64{}
 	for _, dev := range n.devs {
-		usedGpus[dev.idx] = dev.GetUsedGpuMemory()
+		usedGpus[dev.idx] = dev.GetUsedGpuMilli()
 	}
 	//log.Printf("info: getUsedGpus: %v in node %s, and devs %v", usedGpus, n.name, n.devs)
 	return usedGpus
 }
 
-// device index: gpu memory
-func (n *GpuNodeInfo) getAllGpus() (allGpus map[int]int64) {
-	allGpus = map[int]int64{}
-	for _, dev := range n.devs {
-		allGpus[dev.idx] = dev.totalGpuMem
-	}
-	//log.Printf("info: getAllGpus: %v in node %s, and dev %v", allGpus, n.name, n.devs)
-	return allGpus
-}
-
-// getUnhealthyGpus get the unhealthy GPUs from configmap
-func (n *GpuNodeInfo) getUnhealthyGpus() (unhealthyGpus map[int]bool) {
-	unhealthyGpus = map[int]bool{}
-	name := fmt.Sprintf("unhealthy-gpu-%s", n.GetName())
-	//log.Printf("info: try to find unhealthy node %s", name)
-	cm := getConfigMap(name)
-	if cm == nil {
-		return
-	}
-
-	if devicesStr, found := cm.Data["gpus"]; found {
-		//log.Printf("warn: the unhelathy gpus %s", devicesStr)
-		idsStr := strings.Split(devicesStr, ",")
-		for _, sid := range idsStr {
-			id, err := strconv.Atoi(sid)
-			if err != nil {
-				log.Printf("warn: failed to parse id %s due to %v", sid, err)
-			}
-			unhealthyGpus[id] = true
-		}
-	} else {
-		//log.Println("info: skip, because there are no unhealthy gpus")
-	}
-
-	return
-
-}
-
-//func (n *GpuNodeInfo) PatchNodeAnnotationSpec() ([]byte, error) {
-//	now := time.Now()
-//	patchAnnotations := map[string]interface{}{
-//		"metadata": map[string]map[string]string{"annotations": {
-//			utils.EnvResourceIndex:      fmt.Sprintf("%d", devId),
-//			utils.EnvResourceByDev:      fmt.Sprintf("%d", totalGpuMemByDev),
-//			utils.EnvResourceByPod:      fmt.Sprintf("%d", GetGpuMemoryFromPodResource(oldPod)),
-//			utils.EnvAssignedFlag:       "false",
-//			utils.EnvResourceAssumeTime: fmt.Sprintf("%d", now.UnixNano()),
-//		}}}
-//	return json.Marshal(patchAnnotations)
-//}
-
 type GpuNodeInfoStr struct {
-	DevsBrief      map[int]*DeviceInfoBrief
-	GpuCount       int
-	GpuAllocatable int
-	GpuModel       string
-	GpuTotalMemory resource.Quantity
-	NumPods        int
+	DevsBrief    map[int]*DeviceInfoBrief
+	GpuCount     int
+	GpuModel     string
+	GpuUsedMilli int64
+	NumPods      int
 }
 
 func (n *GpuNodeInfo) ExportGpuNodeInfoAsStr() *GpuNodeInfoStr {
 	var numPods int
-	gpuAllocatable := n.gpuCount
+	var gpuUsedMilli int64
 	devsBrief := map[int]*DeviceInfoBrief{}
 	for idx, d := range n.devs {
 		dib := d.ExportDeviceInfoBrief()
-		if dib.GpuUsedMemory.Value() >= dib.GpuTotalMemory.Value() {
-			gpuAllocatable -= 1
-		}
+		gpuUsedMilli += dib.GpuUsedMilli
 		devsBrief[idx] = dib
 		numPods += len(dib.PodList)
 	}
-	gpuTotalMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", n.gpuTotalMemory/(1024*1024)))
-	return &GpuNodeInfoStr{devsBrief, n.gpuCount, gpuAllocatable, n.model, gpuTotalMem, numPods}
+	return &GpuNodeInfoStr{devsBrief, n.gpuCount, n.model, gpuUsedMilli, numPods}
 }

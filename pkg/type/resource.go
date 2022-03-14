@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
-	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
 type TargetPod struct {
@@ -83,7 +82,7 @@ func (tnr TargetNodeResource) Copy() TargetNodeResource {
 
 func (tnr TargetNodeResource) Sub(tpr TargetPodResource) (TargetNodeResource, error) {
 	out := tnr.Copy()
-	if out.MilliCpu < tpr.MilliCpu || out.GpuNumber < tpr.GpuNumber || !utils.IsNodeAccessibleToPod(tnr, tpr) {
+	if out.MilliCpu < tpr.MilliCpu || out.GpuNumber < tpr.GpuNumber {
 		return out, fmt.Errorf("node: %s failed to accommodate pod: %s", tnr.Repr(), tpr.Repr())
 	}
 	out.MilliCpu -= tpr.MilliCpu

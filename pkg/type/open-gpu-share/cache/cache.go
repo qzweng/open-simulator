@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"sync"
 
 	"k8s.io/api/core/v1"
@@ -130,24 +131,13 @@ func (cache *SchedulerCache) GetGpuNodeInfo(name string) (*GpuNodeInfo, error) {
 		n = NewGpuNodeInfo(node)
 		cache.nodes[name] = n
 	} else {
-		// if the existing node turn from non gpushare to gpushare
-		// if (utils.GetTotalGpuMemory(n.node) <= 0 && utils.GetTotalGpuMemory(node) > 0) ||
-		// 	(utils.GetGpuCountOfNode(n.node) <= 0 && utils.GetGpuCountOfNode(node) > 0) ||
-		// 	// if the existing node turn from gpushare to non gpushare
-		// 	(utils.GetTotalGpuMemory(n.node) > 0 && utils.GetTotalGpuMemory(node) <= 0) ||
-		// 	(utils.GetGpuCountOfNode(n.node) > 0 && utils.GetGpuCountOfNode(node) <= 0) {
 		if len(cache.nodes[name].devs) == 0 ||
-			utils.GetTotalGpuMemory(n.node) <= 0 ||
+			utils.GetGpuMilliOfNode(n.node) <= 0 ||
 			utils.GetGpuCountOfNode(n.node) <= 0 {
-			//log.Printf("info: GetGpuNodeInfo() need update node %s", name)
-
-			// fix the scenario that the number of devices changes from 0 to an positive number
 			cache.nodes[name].Reset(node)
-			//log.Printf("info: node: %s, labels from cache after been updated: %v", n.node.Name, n.node.Labels)
 		} else {
-			//log.Printf("info: GetGpuNodeInfo() uses the existing nodeInfo for %s", name)
+			fmt.Printf("[ERROR]: GetGpuNodeInfo() can neither find or build GpuNodeInfo of %s", name)
 		}
-		//log.Printf("debug: node %s with devices %v", name, n.devs)
 	}
 	return n, nil
 }

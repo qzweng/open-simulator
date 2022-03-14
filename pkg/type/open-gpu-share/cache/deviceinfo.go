@@ -1,23 +1,20 @@
 package cache
 
 import (
-	"fmt"
 	"log"
 	"sync"
 
 	"k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 type DeviceInfo struct {
-	idx         int
-	podMap      map[types.UID]*v1.Pod
-	model       string
-	totalGpuMem int64
-	rwmu        *sync.RWMutex
+	idx    int
+	podMap map[types.UID]*v1.Pod
+	model  string
+	rwmu   *sync.RWMutex
 }
 
 func (d *DeviceInfo) GetPods() []*v1.Pod {
@@ -28,22 +25,16 @@ func (d *DeviceInfo) GetPods() []*v1.Pod {
 	return pods
 }
 
-func newDeviceInfo(index int, totalGpuMem int64, cardModel string) *DeviceInfo {
+func newDeviceInfo(index int, cardModel string) *DeviceInfo {
 	return &DeviceInfo{
-		idx:         index,
-		totalGpuMem: totalGpuMem,
-		podMap:      map[types.UID]*v1.Pod{},
-		model:       cardModel,
-		rwmu:        new(sync.RWMutex),
+		idx:    index,
+		podMap: map[types.UID]*v1.Pod{},
+		model:  cardModel,
+		rwmu:   new(sync.RWMutex),
 	}
 }
 
-func (d *DeviceInfo) GetTotalGpuMemory() int64 {
-	return d.totalGpuMem
-}
-
-func (d *DeviceInfo) GetUsedGpuMemory() (gpuMem int64) {
-	//log.Printf("debug: GetUsedGpuMemory() podMap %v, and its address is %p", d.podMap, d)
+func (d *DeviceInfo) GetUsedGpuMilli() (gpuMilli int64) {
 	d.rwmu.RLock()
 	defer d.rwmu.RUnlock()
 	for _, pod := range d.podMap {
@@ -52,18 +43,18 @@ func (d *DeviceInfo) GetUsedGpuMemory() (gpuMem int64) {
 			continue
 		}
 
-		gpuMemPerGpu := utils.GetGpuMilliFromPodAnnotation(pod)
+		gpuMilliPerGpu := utils.GetGpuMilliFromPodAnnotation(pod)
 		idl, err := utils.GetGpuIdListFromAnnotation(pod)
 		if err != nil {
 			continue
 		}
 		for _, idx := range idl {
 			if idx == d.idx {
-				gpuMem += gpuMemPerGpu
+				gpuMilli += gpuMilliPerGpu
 			}
 		}
 	}
-	return gpuMem
+	return gpuMilli
 }
 
 func (d *DeviceInfo) addPod(pod *v1.Pod) {
@@ -83,11 +74,10 @@ func (d *DeviceInfo) removePod(pod *v1.Pod) {
 }
 
 type DeviceInfoBrief struct {
-	Idx            int
-	Model          string
-	PodList        []string
-	GpuTotalMemory resource.Quantity
-	GpuUsedMemory  resource.Quantity
+	Idx          int
+	Model        string
+	PodList      []string
+	GpuUsedMilli int64
 }
 
 func (d *DeviceInfo) ExportDeviceInfoBrief() *DeviceInfoBrief {
@@ -95,7 +85,6 @@ func (d *DeviceInfo) ExportDeviceInfoBrief() *DeviceInfoBrief {
 	for _, pod := range d.podMap {
 		podList = append(podList, utils.GeneratePodKey(pod))
 	}
-	gpuUsedMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", d.GetUsedGpuMemory()/(1024*1024)))
-	gpuTotalMem, _ := resource.ParseQuantity(fmt.Sprintf("%dMi", d.totalGpuMem/(1024*1024)))
-	return &DeviceInfoBrief{d.idx, d.model, podList, gpuTotalMem, gpuUsedMem}
+	gpuUsed := d.GetUsedGpuMilli()
+	return &DeviceInfoBrief{d.idx, d.model, podList, gpuUsed}
 }

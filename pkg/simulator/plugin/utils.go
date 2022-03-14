@@ -54,7 +54,7 @@ func GetNodeResourceViaPodList(podList []corev1.Pod, node *corev1.Node) (nodeRes
 	if gpuNodeInfoStr, err := utils.GetGpuNodeInfoFromAnnotation(node); err == nil {
 		if gpuNodeInfoStr != nil {
 			for _, dev := range gpuNodeInfoStr.DevsBrief {
-				gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMemory.Value()
+				gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMilli
 			}
 		}
 		nodeRes = simontype.TargetNodeResource{

@@ -7,12 +7,6 @@ func IsGpuSharingNode(node *v1.Node) bool {
 	return GetGpuMilliOfNode(node) > 0
 }
 
-// GetTotalGpuMemory Get the total GPU memory of the Node
-func GetTotalGpuMemory(node *v1.Node) int64 {
-	// DEBUG
-	return 0
-}
-
 // GetGpuMilliOfNode Get the GPU Milli of the node (0-8000 at most)
 func GetGpuMilliOfNode(node *v1.Node) int {
 	if milli, ok := node.Status.Capacity[ResourceName]; ok {

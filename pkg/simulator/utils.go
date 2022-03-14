@@ -29,7 +29,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/profile"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 

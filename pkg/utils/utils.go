@@ -40,6 +40,7 @@ import (
 	localutils "github.com/alibaba/open-local/pkg/utils"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
 	gpusharecache "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/cache"
+	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 var nameDelimiter = "/"
@@ -934,4 +935,33 @@ func GetGpuNodeInfoFromAnnotation(node *corev1.Node) (*gpusharecache.GpuNodeInfo
 func GetAllocatablePodList(clientset externalclientset.Interface) []corev1.Pod {
 	podList, _ := clientset.CoreV1().Pods(corev1.NamespaceAll).List(context.Background(), metav1.ListOptions{})
 	return podList.Items
+}
+
+func IsNodeAccessibleToPod(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) bool {
+	pt := podRes.GpuType
+	nt := nodeRes.GpuType
+	return IsNodeAccessibleToPodByType(nt, pt)
+}
+
+func IsNodeAccessibleToPodByType(nodeGpuType string, podGpuType string) bool {
+	if len(podGpuType) == 0 {
+		return true
+	}
+
+	pm, ok := utils.MapGpuTypeMemoryMiB[podGpuType]
+	if !ok {
+		fmt.Errorf("Pod GPU Type: %s not in Map", podGpuType)
+		return false
+	}
+
+	nm, ok := utils.MapGpuTypeMemoryMiB[nodeGpuType]
+	if !ok {
+		fmt.Errorf("Node GPU Type: %s not in Map", nodeGpuType)
+		return false
+	}
+
+	if pm > nm {
+		return false
+	}
+	return true
 }

@@ -88,24 +88,6 @@ func GetGpuCountFromPodAnnotation(pod *v1.Pod) (gpuCount int) {
 	return gpuCount
 }
 
-// GetGpuMemoryAndCountFromPodAnnotation gets GPU Memory (for each GPU) and GPU Number requested by the Pod
-func GetGpuMemoryAndCountFromPodAnnotation(pod *v1.Pod) (gpuMem int64, gpuNum int64) {
-	if len(pod.ObjectMeta.Annotations) > 0 {
-		if value, found := pod.ObjectMeta.Annotations[ResourceName]; found {
-			if q, err := resource.ParseQuantity(value); err == nil {
-				gpuMem += q.Value()
-			}
-		}
-		if value, found := pod.ObjectMeta.Annotations[CountName]; found {
-			if val, err := strconv.Atoi(value); err == nil && val >= 0 {
-				gpuNum += int64(val)
-			}
-		}
-	}
-	//log.Printf("debug: pod %s in ns %s with status %v has GPU Mem %d, GPU Count %d", pod.Name, pod.Namespace, pod.Status.Phase, gpuMem, gpuNum)
-	return gpuMem, gpuNum
-}
-
 // GpuIdStrToIntList follows the string formed in func (n *GpuNodeInfo) AllocateGpuId
 func GpuIdStrToIntList(id string) (idl []int, err error) {
 	if len(id) <= 0 {

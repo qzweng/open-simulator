@@ -56,6 +56,10 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 	}
 
 	podRes := utils.GetTargetPodResource(pod)
+	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
+		klog.Error("Node %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeRes.Repr(), podRes.Repr())
+		return int64(0), framework.NewStatus(framework.Success)
+	}
 	newNodeRes, err := nodeRes.Sub(podRes)
 	if err != nil {
 		klog.Errorf(err.Error())

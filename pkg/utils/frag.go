@@ -207,22 +207,6 @@ func CanNodeHostPodOnGpuMemory(nodeRes simontype.TargetNodeResource, podRes simo
 	return false
 }
 
-func IsNodeAccessibleToPod(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) bool {
-	//if podRes.GpuType
-
-	if podRes.MilliGpu > 0 {
-		if nodeRes.GpuNumber <= 0 {
-			return false
-		}
-		gpuMemEach := nodeRes.GpuMemTotal / int64(nodeRes.GpuNumber)
-		if gpuMemEach < podRes.MilliGpu {
-			//fmt.Printf("[DEBUG] gpuMemEach (%d) < podRes.MilliGpu (%d) => no_access\n", gpuMemEach, podRes.MilliGpu)
-			return false
-		}
-	}
-	return true
-}
-
 func GetNodePodFrag(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) string {
 	if podRes.MilliGpu == 0 {
 		if nodeRes.MilliCpu >= podRes.MilliCpu {

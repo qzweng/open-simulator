@@ -36,8 +36,8 @@ func (plugin *GpuPackingScorePlugin) Name() string {
 }
 
 func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
-	podGpuMem := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
-	if podGpuMem <= 0 {
+	podGpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
+	if podGpuMilli <= 0 {
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
 
@@ -72,8 +72,8 @@ func (plugin *GpuPackingScorePlugin) ScoreExtensions() framework.ScoreExtensions
 //     case-3. use free GPUs on a free node: return maxNodeScore/3 - freeGpuNum, capped in the range [minNodeScore, maxNodeScore/3]
 func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.TargetNodeResource) int64 {
 	var fullyFreeGpuNum = 0
-	for _, gpuMemLeft := range nodeRes.MilliGpuLeftList {
-		if gpuMemLeft == nodeRes.GpuMemTotal {
+	for _, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
+		if gpuMilliLeft == gpushareutils.MILLI {
 			fullyFreeGpuNum++
 		}
 	}
@@ -91,14 +91,14 @@ func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.Targe
 	var gpuReq = podRes.GpuNumber
 	var fullyFreeGpuNumToUse = 0
 	var gpuToUse []int
-	for idx, gpuMemLeft := range nodeRes.MilliGpuLeftList {
+	for idx, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
 		if gpuReq == 0 {
 			break
 		}
-		if podRes.MilliGpu <= gpuMemLeft {
+		if podRes.MilliGpu <= gpuMilliLeft {
 			gpuReq--
 			gpuToUse = append(gpuToUse, idx)
-			if gpuMemLeft == nodeRes.GpuMemTotal {
+			if gpuMilliLeft == gpushareutils.MILLI {
 				fullyFreeGpuNumToUse++
 			}
 		}
@@ -116,11 +116,11 @@ func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.Targe
 	}
 
 	// case-1: use shared gpus
-	var freeGpuMemRatioOnUsedGpu int64 = 0
+	var freeGpuRatioOnUsedGpu int64 = 0
 	for _, gpu := range gpuToUse {
-		freeGpuMemRatioOnUsedGpu += nodeRes.MilliGpuLeftList[gpu] * 100 / nodeRes.GpuMemTotal
+		freeGpuRatioOnUsedGpu += nodeRes.MilliGpuLeftList[gpu] * 100 / gpushareutils.MILLI
 	}
-	score := framework.MaxNodeScore - freeGpuMemRatioOnUsedGpu/10
+	score := framework.MaxNodeScore - freeGpuRatioOnUsedGpu/10
 	cappedScore := integer.Int64Max(score, framework.MaxNodeScore/2)
 	return cappedScore
 }
