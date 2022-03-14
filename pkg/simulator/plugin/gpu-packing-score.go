@@ -14,7 +14,7 @@ import (
 	"k8s.io/utils/integer"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -36,7 +36,7 @@ func (plugin *GpuPackingScorePlugin) Name() string {
 }
 
 func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
-	podGpuMem := gpushareutils.GetGpuMemoryFromPodAnnotation(pod)
+	podGpuMem := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
 	if podGpuMem <= 0 {
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
@@ -72,7 +72,7 @@ func (plugin *GpuPackingScorePlugin) ScoreExtensions() framework.ScoreExtensions
 //     case-3. use free GPUs on a free node: return maxNodeScore/3 - freeGpuNum, capped in the range [minNodeScore, maxNodeScore/3]
 func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.TargetNodeResource) int64 {
 	var fullyFreeGpuNum = 0
-	for _, gpuMemLeft := range nodeRes.GpuMemLeftList {
+	for _, gpuMemLeft := range nodeRes.MilliGpuLeftList {
 		if gpuMemLeft == nodeRes.GpuMemTotal {
 			fullyFreeGpuNum++
 		}
@@ -85,17 +85,17 @@ func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.Targe
 		return cappedScore
 	}
 
-	sort.SliceStable(nodeRes.GpuMemLeftList, func(i, j int) bool {
-		return nodeRes.GpuMemLeftList[i] < nodeRes.GpuMemLeftList[j]
+	sort.SliceStable(nodeRes.MilliGpuLeftList, func(i, j int) bool {
+		return nodeRes.MilliGpuLeftList[i] < nodeRes.MilliGpuLeftList[j]
 	})
 	var gpuReq = podRes.GpuNumber
 	var fullyFreeGpuNumToUse = 0
 	var gpuToUse []int
-	for idx, gpuMemLeft := range nodeRes.GpuMemLeftList {
+	for idx, gpuMemLeft := range nodeRes.MilliGpuLeftList {
 		if gpuReq == 0 {
 			break
 		}
-		if podRes.GpuMemory <= gpuMemLeft {
+		if podRes.MilliGpu <= gpuMemLeft {
 			gpuReq--
 			gpuToUse = append(gpuToUse, idx)
 			if gpuMemLeft == nodeRes.GpuMemTotal {
@@ -118,7 +118,7 @@ func getPackingScore(podRes simontype.TargetPodResource, nodeRes simontype.Targe
 	// case-1: use shared gpus
 	var freeGpuMemRatioOnUsedGpu int64 = 0
 	for _, gpu := range gpuToUse {
-		freeGpuMemRatioOnUsedGpu += nodeRes.GpuMemLeftList[gpu] * 100 / nodeRes.GpuMemTotal
+		freeGpuMemRatioOnUsedGpu += nodeRes.MilliGpuLeftList[gpu] * 100 / nodeRes.GpuMemTotal
 	}
 	score := framework.MaxNodeScore - freeGpuMemRatioOnUsedGpu/10
 	cappedScore := integer.Int64Max(score, framework.MaxNodeScore/2)

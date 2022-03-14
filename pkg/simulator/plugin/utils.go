@@ -8,7 +8,7 @@ import (
 	externalclientset "k8s.io/client-go/kubernetes"
 
 	"github.com/alibaba/open-simulator/pkg/type"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -45,25 +45,24 @@ func GetNodeResourceViaPodList(podList []corev1.Pod, node *corev1.Node) (nodeRes
 	reqs, _ := utils.GetPodsTotalRequestsAndLimitsByNodeName(podList, node.Name)
 	nodeCpuReq, _ := reqs[corev1.ResourceCPU], reqs[corev1.ResourceMemory]
 
-	gpuMemTotal := gpushareutils.GetTotalGpuMemory(node)
-	gpuNumber := gpushareutils.GetGpuCountInNode(node)
-	gpuMemLeftList := make([]int64, gpuNumber)
+	gpuNumber := gpushareutils.GetGpuCountOfNode(node)
+	gpuMilliLeftList := make([]int64, gpuNumber)
 	for i := 0; i < gpuNumber; i++ {
-		gpuMemLeftList[i] = gpuMemTotal / int64(gpuNumber)
+		gpuMilliLeftList[i] = gpushareutils.MILLI
 	}
 
 	if gpuNodeInfoStr, err := utils.GetGpuNodeInfoFromAnnotation(node); err == nil {
 		if gpuNodeInfoStr != nil {
 			for _, dev := range gpuNodeInfoStr.DevsBrief {
-				gpuMemLeftList[dev.Idx] -= dev.GpuUsedMemory.Value()
+				gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMemory.Value()
 			}
 		}
 		nodeRes = simontype.TargetNodeResource{
-			NodeName:       node.Name,
-			MilliCpu:       allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
-			GpuMemLeftList: gpuMemLeftList,
-			GpuMemTotal:    gpuMemTotal,
-			GpuNumber:      gpuNumber,
+			NodeName:         node.Name,
+			MilliCpu:         allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
+			MilliGpuLeftList: gpuMilliLeftList,
+			GpuNumber:        gpuNumber,
+			GpuType:          gpushareutils.GetGpuModelOfNode(node),
 		}
 	}
 	return nodeRes, err

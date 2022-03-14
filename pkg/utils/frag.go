@@ -9,7 +9,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/util"
 
 	"github.com/alibaba/open-simulator/pkg/type"
-	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 const (
@@ -83,10 +83,8 @@ func (fa FragAmount) Repr() (outStr string) {
 
 func GetTargetPodResource(pod *v1.Pod) simontype.TargetPodResource {
 	gpuNumber := utils.GetGpuCountFromPodAnnotation(pod)
-	gpuMemory := utils.GetGpuMemoryFromPodAnnotation(pod)
-	if gpuNumber > 1 {
-		gpuMemory /= gpuNumber
-	}
+	gpuMilli := utils.GetGpuMilliFromPodAnnotation(pod)
+	gpuType := utils.GetGpuModelFromPodAnnotation(pod)
 
 	var non0CPU, non0Mem int64
 	for _, c := range pod.Spec.Containers {
@@ -99,8 +97,9 @@ func GetTargetPodResource(pod *v1.Pod) simontype.TargetPodResource {
 		Namespace: pod.Namespace,
 		Name:      pod.Name,
 		MilliCpu:  non0CPU,
-		GpuNumber: int(gpuNumber),
-		GpuMemory: gpuMemory,
+		MilliGpu:  gpuMilli,
+		GpuNumber: gpuNumber,
+		GpuType:   gpuType,
 	}
 	return tgtPodRes
 }
@@ -128,7 +127,7 @@ func NodeGpuFragAmount(nodeRes simontype.TargetNodeResource, typicalPods simonty
 	fragAmount := FragAmount{nodeRes.NodeName, fragRatio.Data}
 
 	var gpuMemLeftTotal int64
-	for _, gpuMemLeft := range nodeRes.GpuMemLeftList {
+	for _, gpuMemLeft := range nodeRes.MilliGpuLeftList {
 		gpuMemLeftTotal += gpuMemLeft
 	}
 
@@ -197,8 +196,8 @@ func SortTargetPodInDecreasingCount(tgtPodResMap map[simontype.TargetPodResource
 
 func CanNodeHostPodOnGpuMemory(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) bool {
 	gpuRequest := podRes.GpuNumber
-	for _, gpuHostMem := range nodeRes.GpuMemLeftList {
-		if gpuHostMem >= podRes.GpuMemory {
+	for _, gpuHostMem := range nodeRes.MilliGpuLeftList {
+		if gpuHostMem >= podRes.MilliGpu {
 			gpuRequest -= 1
 			if gpuRequest <= 0 {
 				return true
@@ -209,13 +208,15 @@ func CanNodeHostPodOnGpuMemory(nodeRes simontype.TargetNodeResource, podRes simo
 }
 
 func IsNodeAccessibleToPod(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) bool {
-	if podRes.GpuMemory > 0 {
+	//if podRes.GpuType
+
+	if podRes.MilliGpu > 0 {
 		if nodeRes.GpuNumber <= 0 {
 			return false
 		}
 		gpuMemEach := nodeRes.GpuMemTotal / int64(nodeRes.GpuNumber)
-		if gpuMemEach < podRes.GpuMemory {
-			//fmt.Printf("[DEBUG] gpuMemEach (%d) < podRes.GpuMemory (%d) => no_access\n", gpuMemEach, podRes.GpuMemory)
+		if gpuMemEach < podRes.MilliGpu {
+			//fmt.Printf("[DEBUG] gpuMemEach (%d) < podRes.MilliGpu (%d) => no_access\n", gpuMemEach, podRes.MilliGpu)
 			return false
 		}
 	}
@@ -223,7 +224,7 @@ func IsNodeAccessibleToPod(nodeRes simontype.TargetNodeResource, podRes simontyp
 }
 
 func GetNodePodFrag(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) string {
-	if podRes.GpuMemory == 0 {
+	if podRes.MilliGpu == 0 {
 		if nodeRes.MilliCpu >= podRes.MilliCpu {
 			return XLSatisfied
 		} else {

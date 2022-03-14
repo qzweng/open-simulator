@@ -23,7 +23,7 @@ import (
 	"github.com/alibaba/open-simulator/pkg/chart"
 	"github.com/alibaba/open-simulator/pkg/simulator"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 

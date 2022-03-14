@@ -13,7 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 const (
@@ -35,10 +35,10 @@ type GpuNodeInfo struct {
 func NewGpuNodeInfo(node *v1.Node) *GpuNodeInfo {
 	//log.Printf("debug: NewGpuNodeInfo() creates nodeInfo for %s", node.Name)
 
-	cardModel := utils.GetGpuModel(node)
+	cardModel := utils.GetGpuModelOfNode(node)
 	devMap := map[int]*DeviceInfo{}
-	for i := 0; i < utils.GetGpuCountInNode(node); i++ {
-		devMap[i] = newDeviceInfo(i, utils.GetTotalGpuMemory(node)/int64(utils.GetGpuCountInNode(node)), cardModel)
+	for i := 0; i < utils.GetGpuCountOfNode(node); i++ {
+		devMap[i] = newDeviceInfo(i, utils.GetTotalGpuMemory(node)/int64(utils.GetGpuCountOfNode(node)), cardModel)
 	}
 
 	//if len(devMap) == 0 {
@@ -46,26 +46,26 @@ func NewGpuNodeInfo(node *v1.Node) *GpuNodeInfo {
 	//}
 
 	return &GpuNodeInfo{
-		name:           node.Name,
-		node:           node,
-		devs:           devMap,
-		gpuCount:       utils.GetGpuCountInNode(node),
-		gpuTotalMemory: utils.GetTotalGpuMemory(node),
-		model:          cardModel,
-		rwmu:           new(sync.RWMutex),
+		name:     node.Name,
+		node:     node,
+		devs:     devMap,
+		gpuCount: utils.GetGpuCountOfNode(node),
+		gpu:      utils.GetTotalGpuMemory(node),
+		model:    cardModel,
+		rwmu:     new(sync.RWMutex),
 	}
 }
 
 // Reset only updates the devices when the length of devs is 0
 func (n *GpuNodeInfo) Reset(node *v1.Node) {
-	n.gpuCount = utils.GetGpuCountInNode(node)
+	n.gpuCount = utils.GetGpuCountOfNode(node)
 	n.gpuTotalMemory = utils.GetTotalGpuMemory(node)
 	n.node = node
 
 	if len(n.devs) == 0 && n.gpuCount > 0 {
-		cardModel := utils.GetGpuModel(node)
+		cardModel := utils.GetGpuModelOfNode(node)
 		devMap := map[int]*DeviceInfo{}
-		for i := 0; i < utils.GetGpuCountInNode(node); i++ {
+		for i := 0; i < utils.GetGpuCountOfNode(node); i++ {
 			devMap[i] = newDeviceInfo(i, n.gpuTotalMemory/int64(n.gpuCount), cardModel)
 		}
 		n.devs = devMap

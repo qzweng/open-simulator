@@ -53,25 +53,34 @@ func GetGpuIdListFromAnnotation(pod *v1.Pod) (idl []int, err error) {
 	return GpuIdStrToIntList(id)
 }
 
-// GetGpuMemoryFromPodAnnotation gets the GPU Memory of the pod
-func GetGpuMemoryFromPodAnnotation(pod *v1.Pod) (gpuMemory int64) {
+// GetGpuMilliFromPodAnnotation gets the GPU (in Milli) of the pod, range: 0-1000
+func GetGpuMilliFromPodAnnotation(pod *v1.Pod) (gpuMilli int64) {
 	if len(pod.ObjectMeta.Annotations) > 0 {
 		if value, found := pod.ObjectMeta.Annotations[ResourceName]; found {
 			if q, err := resource.ParseQuantity(value); err == nil {
-				gpuMemory += q.Value()
+				gpuMilli += q.Value()
 			}
 		}
 	}
-	//log.Printf("debug: pod %s in ns %s with status %v has GPU Mem %d", pod.Name, pod.Namespace, pod.Status.Phase, gpuMemory)
-	return gpuMemory
+	//log.Printf("debug: pod %s in ns %s with status %v has GPU Mem %d", pod.Name, pod.Namespace, pod.Status.Phase, gpuMilli)
+	return gpuMilli
+}
+
+func GetGpuModelFromPodAnnotation(pod *v1.Pod) (gpuType string) {
+	if len(pod.ObjectMeta.Annotations) > 0 {
+		if value, found := pod.ObjectMeta.Annotations[ModelName]; found {
+			gpuType += value
+		}
+	}
+	return gpuType
 }
 
 // GetGpuCountFromPodAnnotation gets the GPU Count of the pod
-func GetGpuCountFromPodAnnotation(pod *v1.Pod) (gpuCount int64) {
+func GetGpuCountFromPodAnnotation(pod *v1.Pod) (gpuCount int) {
 	if len(pod.ObjectMeta.Annotations) > 0 {
 		if value, found := pod.ObjectMeta.Annotations[CountName]; found {
 			if val, err := strconv.Atoi(value); err == nil && val >= 0 {
-				gpuCount += int64(val)
+				gpuCount += val
 			}
 		}
 	}

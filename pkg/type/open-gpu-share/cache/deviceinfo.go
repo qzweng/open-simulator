@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 type DeviceInfo struct {
@@ -52,7 +52,7 @@ func (d *DeviceInfo) GetUsedGpuMemory() (gpuMem int64) {
 			continue
 		}
 
-		gpuMemPerGpu := utils.GetGpuMemoryFromPodAnnotation(pod)
+		gpuMemPerGpu := utils.GetGpuMilliFromPodAnnotation(pod)
 		idl, err := utils.GetGpuIdListFromAnnotation(pod)
 		if err != nil {
 			continue

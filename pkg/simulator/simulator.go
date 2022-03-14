@@ -26,7 +26,7 @@ import (
 	"github.com/alibaba/open-simulator/pkg/algo"
 	simonplugin "github.com/alibaba/open-simulator/pkg/simulator/plugin"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -136,7 +136,7 @@ func New(opts ...Option) (Interface, error) {
 							podUnscheduled := false
 							curPod, _ := sim.fakeclient.CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
 							if curPod.Spec.NodeName != "" {
-								if gpushareutils.GetGpuMemoryFromPodAnnotation(curPod) > 0 { // GPU pod
+								if gpushareutils.GetGpuMilliFromPodAnnotation(curPod) > 0 { // GPU pod
 									podFoundInNode = sim.isPodFoundInNodeGpuAnno(curPod)
 								} else {
 									podFoundInNode = true
@@ -185,7 +185,7 @@ func New(opts ...Option) (Interface, error) {
 
 							podFoundInAnno := false
 							if pod.Spec.NodeName != "" {
-								if gpushareutils.GetGpuMemoryFromPodAnnotation(podCopy) > 0 { // GPU pod
+								if gpushareutils.GetGpuMilliFromPodAnnotation(podCopy) > 0 { // GPU pod
 									podFoundInAnno = sim.isPodFoundInNodeGpuAnno(podCopy)
 								}
 							}

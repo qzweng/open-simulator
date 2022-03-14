@@ -6,7 +6,7 @@ import (
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 type SchedulerCache struct {
@@ -50,7 +50,7 @@ func (cache *SchedulerCache) GetGpuNodeinfos() []*GpuNodeInfo {
 func (cache *SchedulerCache) BuildCacheFromPodList(podList []*v1.Pod) error {
 	//log.Println("debug: begin to build scheduler cache")
 	for _, pod := range podList {
-		if utils.GetGpuMemoryFromPodAnnotation(pod) <= int64(0) {
+		if utils.GetGpuMilliFromPodAnnotation(pod) <= int64(0) {
 			continue
 		}
 
@@ -132,13 +132,13 @@ func (cache *SchedulerCache) GetGpuNodeInfo(name string) (*GpuNodeInfo, error) {
 	} else {
 		// if the existing node turn from non gpushare to gpushare
 		// if (utils.GetTotalGpuMemory(n.node) <= 0 && utils.GetTotalGpuMemory(node) > 0) ||
-		// 	(utils.GetGpuCountInNode(n.node) <= 0 && utils.GetGpuCountInNode(node) > 0) ||
+		// 	(utils.GetGpuCountOfNode(n.node) <= 0 && utils.GetGpuCountOfNode(node) > 0) ||
 		// 	// if the existing node turn from gpushare to non gpushare
 		// 	(utils.GetTotalGpuMemory(n.node) > 0 && utils.GetTotalGpuMemory(node) <= 0) ||
-		// 	(utils.GetGpuCountInNode(n.node) > 0 && utils.GetGpuCountInNode(node) <= 0) {
+		// 	(utils.GetGpuCountOfNode(n.node) > 0 && utils.GetGpuCountOfNode(node) <= 0) {
 		if len(cache.nodes[name].devs) == 0 ||
 			utils.GetTotalGpuMemory(n.node) <= 0 ||
-			utils.GetGpuCountInNode(n.node) <= 0 {
+			utils.GetGpuCountOfNode(n.node) <= 0 {
 			//log.Printf("info: GetGpuNodeInfo() need update node %s", name)
 
 			// fix the scenario that the number of devices changes from 0 to an positive number

@@ -39,7 +39,7 @@ import (
 	localcache "github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	localutils "github.com/alibaba/open-local/pkg/utils"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
-	gpusharecache "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/cache"
+	gpusharecache "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/cache"
 )
 
 var nameDelimiter = "/"

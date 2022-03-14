@@ -3,6 +3,9 @@ package simontype
 import (
 	"fmt"
 	"sort"
+
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
+	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
 type TargetPod struct {
@@ -25,17 +28,18 @@ type TargetPodResource struct {
 	Namespace string
 	Name      string
 	MilliCpu  int64
+	MilliGpu  int64 // Milli GPU request per GPU, 0-1000
 	GpuNumber int
-	GpuMemory int64 // GPU Memory per GPU
+	GpuType   string //
 	//Memory	  int64
 }
 
 type TargetNodeResource struct {
-	NodeName       string
-	MilliCpu       int64
-	GpuMemLeftList []int64
-	GpuMemTotal    int64
-	GpuNumber      int
+	NodeName         string
+	MilliCpu         int64
+	MilliGpuLeftList []int64
+	GpuNumber        int
+	GpuType          string
 	//Memory	  int64
 }
 
@@ -43,8 +47,7 @@ func (tpr TargetPodResource) Repr() string {
 	outStr := "<"
 	outStr += fmt.Sprintf("CPU: %6.2f", float64(tpr.MilliCpu)/1000)
 	outStr += fmt.Sprintf(", GPU: %d", tpr.GpuNumber)
-	gpuMemMiB := float64(tpr.GpuMemory / 1024 / 1024)
-	outStr += fmt.Sprintf(" x %5.0f MiB", gpuMemMiB)
+	outStr += fmt.Sprintf(" x %dm", tpr.MilliGpu)
 	outStr += ">"
 	return outStr
 }
@@ -54,10 +57,9 @@ func (tnr TargetNodeResource) Repr() string {
 	outStr += fmt.Sprintf("CPU: %6.2f", float64(tnr.MilliCpu)/1000)
 	outStr += fmt.Sprintf(", GPU: %d", tnr.GpuNumber)
 	if tnr.GpuNumber > 0 {
-		gpuMemMiB := float64(tnr.GpuMemTotal/int64(tnr.GpuNumber)) / 1024.0 / 1024.0
-		outStr += fmt.Sprintf(" x %6.0f MiB, Left:", gpuMemMiB)
-		for _, gML := range tnr.GpuMemLeftList {
-			outStr += fmt.Sprintf(" %5.0f MiB", float64(gML/1024.0/1024.0))
+		outStr += fmt.Sprintf(" x %dm, Left:", gpushareutils.MILLI)
+		for _, gML := range tnr.MilliGpuLeftList {
+			outStr += fmt.Sprintf(" %dm", gML)
 		}
 	}
 	outStr += ">"
@@ -65,23 +67,23 @@ func (tnr TargetNodeResource) Repr() string {
 }
 
 func (tnr TargetNodeResource) Copy() TargetNodeResource {
-	gpuMemLeftList := make([]int64, len(tnr.GpuMemLeftList))
-	for i := 0; i < len(tnr.GpuMemLeftList); i++ {
-		gpuMemLeftList[i] = tnr.GpuMemLeftList[i]
+	milliGpuLeftList := make([]int64, len(tnr.MilliGpuLeftList))
+	for i := 0; i < len(tnr.MilliGpuLeftList); i++ {
+		milliGpuLeftList[i] = tnr.MilliGpuLeftList[i]
 	}
 
 	return TargetNodeResource{
-		NodeName:       tnr.NodeName,
-		MilliCpu:       tnr.MilliCpu,
-		GpuMemLeftList: gpuMemLeftList,
-		GpuMemTotal:    tnr.GpuMemTotal,
-		GpuNumber:      tnr.GpuNumber,
+		NodeName:         tnr.NodeName,
+		MilliCpu:         tnr.MilliCpu,
+		MilliGpuLeftList: milliGpuLeftList,
+		GpuNumber:        tnr.GpuNumber,
+		GpuType:          tnr.GpuType,
 	}
 }
 
 func (tnr TargetNodeResource) Sub(tpr TargetPodResource) (TargetNodeResource, error) {
 	out := tnr.Copy()
-	if out.MilliCpu < tpr.MilliCpu || out.GpuMemTotal < tpr.GpuMemory || out.GpuNumber < tpr.GpuNumber {
+	if out.MilliCpu < tpr.MilliCpu || out.GpuNumber < tpr.GpuNumber || !utils.IsNodeAccessibleToPod(tnr, tpr) {
 		return out, fmt.Errorf("node: %s failed to accommodate pod: %s", tnr.Repr(), tpr.Repr())
 	}
 	out.MilliCpu -= tpr.MilliCpu
@@ -91,16 +93,16 @@ func (tnr TargetNodeResource) Sub(tpr TargetPodResource) (TargetNodeResource, er
 	}
 
 	gpuRequest := tpr.GpuNumber
-	//fmt.Printf("[DEBUG] [ORIN] out.GpuMemLeftList: %v\n", out.GpuMemLeftList)
-	sort.Slice(out.GpuMemLeftList, func(i, j int) bool { return out.GpuMemLeftList[i] > out.GpuMemLeftList[j] })
-	//fmt.Printf("[DEBUG] [SORT] out.GpuMemLeftList: %v\n", out.GpuMemLeftList)
+	//fmt.Printf("[DEBUG] [ORIN] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
+	sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { return out.MilliGpuLeftList[i] > out.MilliGpuLeftList[j] })
+	//fmt.Printf("[DEBUG] [SORT] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
 
-	for i := 0; i < len(out.GpuMemLeftList); i++ {
-		if tpr.GpuMemory <= out.GpuMemLeftList[i] {
+	for i := 0; i < len(out.MilliGpuLeftList); i++ {
+		if tpr.MilliGpu <= out.MilliGpuLeftList[i] {
 			gpuRequest -= 1
-			out.GpuMemLeftList[i] -= tpr.GpuMemory
+			out.MilliGpuLeftList[i] -= tpr.MilliGpu
 			if gpuRequest <= 0 {
-				//fmt.Printf("[DEBUG] [DONE] out.GpuMemLeftList: %v\n", out.GpuMemLeftList)
+				//fmt.Printf("[DEBUG] [DONE] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
 				return out, nil
 			}
 		}

@@ -18,8 +18,8 @@ import (
 
 	"github.com/alibaba/open-simulator/pkg/algo"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
-	gpusharecache "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/cache"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
+	gpusharecache "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/cache"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 // GpuSharePlugin is a plugin for scheduling framework
@@ -46,7 +46,7 @@ func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration run
 		cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
 				if pod, ok := obj.(*corev1.Pod); ok {
-					if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
+					if gpushareutils.GetGpuMilliFromPodAnnotation(pod) > 0 {
 						//namespace, name := pod.Namespace, pod.Name
 						//fmt.Printf("delete_gpu_bgn: pod %s/%s\n", namespace, name)
 						_ = gpuSharePlugin.removePod(pod)
@@ -67,7 +67,7 @@ func (plugin *GpuSharePlugin) Name() string {
 func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	//fmt.Printf("filter_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeInfo.Node().Name)
 	// check if the pod requires GPU resources
-	podGpuMem := gpushareutils.GetGpuMemoryFromPodAnnotation(pod)
+	podGpuMem := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
 	if podGpuMem <= 0 {
 		// the node is schedulable if pod does not require GPU resources
 		//klog.Infof("[Filter] Pod: %v/%v, podGpuMem <= 0: %v", pod.GetNamespace(), pod.GetName(), podGpuMem)
@@ -217,7 +217,7 @@ func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod) error {
 // Reserve updates the GPU resource of the given node, according to the pod's request.
 func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
 	//fmt.Printf("reserve_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
-	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) <= 0 {
+	if gpushareutils.GetGpuMilliFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Success) // non-GPU pods are skipped
 	}
 	plugin.Lock()
@@ -255,7 +255,7 @@ func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.Cy
 // Bind updates the GPU resources of the pod.
 func (plugin *GpuSharePlugin) Bind(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
 	//fmt.Printf("bind_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
-	if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) <= 0 {
+	if gpushareutils.GetGpuMilliFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Skip) // non-GPU pods are skipped
 	}
 
