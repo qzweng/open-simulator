@@ -29,6 +29,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/profile"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -312,4 +313,9 @@ func MatchAndSetLocalStorageAnnotationOnNode(nodes []*corev1.Node, dir string) {
 			metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeLocalStorage, info)
 		}
 	}
+}
+
+func MakePodUnassigned(pod *corev1.Pod) {
+	delete(pod.Annotations, gpushareutils.DeviceIndex)
+	delete(pod.Spec.NodeSelector, simontype.NodeIP)
 }

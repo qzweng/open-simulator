@@ -12,11 +12,6 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-func MakePodUnassigned(pod *corev1.Pod) {
-	delete(pod.Annotations, gpushareutils.DeviceIndex)
-	delete(pod.Spec.NodeSelector, simontype.NodeIP)
-}
-
 func GetNodeResourceMap(result *simontype.SimulateResult) map[string]simontype.TargetNodeResource {
 	var allPods []corev1.Pod
 	for _, ns := range result.NodeStatus {

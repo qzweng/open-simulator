@@ -184,8 +184,10 @@ func New(opts ...Option) (Interface, error) {
 							}
 
 							podFoundInAnno := false
-							if gpushareutils.GetGpuMemoryFromPodAnnotation(podCopy) > 0 { // GPU pod
-								podFoundInAnno = sim.isPodFoundInNodeGpuAnno(podCopy)
+							if pod.Spec.NodeName != "" {
+								if gpushareutils.GetGpuMemoryFromPodAnnotation(podCopy) > 0 { // GPU pod
+									podFoundInAnno = sim.isPodFoundInNodeGpuAnno(podCopy)
+								}
 							}
 
 							if !podFoundInAnno && !podFoundInCache {
@@ -322,7 +324,7 @@ func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult,
 	var failedPods []simontype.UnscheduledPod
 	for _, podKey := range descheduledPod {
 		podCopy := podMap[podKey].DeepCopy()
-		simonplugin.MakePodUnassigned(podCopy)
+		MakePodUnassigned(podCopy)
 		sim.createPod(podCopy)
 
 		if strings.Contains(sim.status.stopReason, "failed") {
@@ -465,34 +467,20 @@ func (sim *Simulator) runScheduler() {
 }
 
 func (sim *Simulator) createPod(pod *corev1.Pod) error {
-	//namespace, name := pod.Namespace, pod.Name
 	if _, err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{}); err != nil {
-		return fmt.Errorf("%s %s/%s: %s", simontype.CreatePodError, pod.Namespace, pod.Name, err.Error())
+		return fmt.Errorf("%s(%s): %s", simontype.CreatePodError, utils.GeneratePodKey(pod), err.Error())
 	}
 
-	//fmt.Printf("===============================\n")
-	//fmt.Printf("create_main_bgn: pod %s/%s\n", namespace, name)
 	<-sim.updateBarrier[simontype.SimulatorName]
-	//fmt.Printf("create_main_end: pod %s/%s\n", namespace, name)
-	//if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
-	//	<-sim.updateBarrier
-	//}
 	return nil
 }
 
 func (sim *Simulator) deletePod(pod *corev1.Pod) error {
-	//namespace, name := pod.Namespace, pod.Name
 	if err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{}); err != nil {
-		return fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
+		return fmt.Errorf("%s(%s): %s", simontype.DeletePodError, utils.GeneratePodKey(pod), err.Error())
 	}
 
-	//fmt.Printf("===============================\n")
-	//fmt.Printf("delete_main_bgn: pod %s/%s\n", namespace, name)
 	<-sim.updateBarrier[simontype.SimulatorName]
-	//fmt.Printf("delete_main_end: pod %s/%s\n", namespace, name)
-	//if gpushareutils.GetGpuMemoryFromPodAnnotation(pod) > 0 {
-	//	<-sim.updateBarrier // wait for node update
-	//}
 	return nil
 }
 
@@ -502,9 +490,6 @@ func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]simontype.UnscheduledP
 	for _, pod := range pods {
 		sim.createPod(pod)
 
-		//sim.deletePod(pod)
-
-		//sim.status.stopReason = ""
 		if strings.Contains(sim.status.stopReason, "failed") {
 			sim.deletePod(pod)
 			failedPods = append(failedPods, simontype.UnscheduledPod{
@@ -514,30 +499,6 @@ func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]simontype.UnscheduledP
 		}
 	}
 	return failedPods, nil
-}
-
-func (sim *Simulator) DeletePod(pod *corev1.Pod) error {
-	nodeName := pod.Spec.NodeName
-	if nodeName == "" {
-		return fmt.Errorf("Empty pod.Spec.NodeName")
-	}
-	node, err := sim.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	if err := sim.fakeclient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, metav1.DeleteOptions{}); err != nil {
-		return fmt.Errorf("%s %s/%s: %s", simontype.DeletePodError, pod.Namespace, pod.Name, err.Error())
-	}
-
-	if gpuNodeInfoStr, err := utils.GetGpuNodeInfoFromAnnotation(node); err != nil || gpuNodeInfoStr == nil {
-		if err != nil {
-			return err
-		}
-		if gpuNodeInfoStr == nil {
-			return fmt.Errorf("GPU annotation of pod %s/%s not found in node %s", pod.Namespace, pod.Name, nodeName)
-		}
-	}
-	return nil
 }
 
 func (sim *Simulator) Close() {

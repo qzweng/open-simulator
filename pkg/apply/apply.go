@@ -36,13 +36,15 @@ type Options struct {
 }
 
 type Applier struct {
-	cluster           v1alpha1.Cluster
-	appList           []v1alpha1.AppInfo
-	newNode           string
-	schedulerConfig   string
-	useGreed          bool
-	interactive       bool
-	extendedResources []string
+	cluster                v1alpha1.Cluster
+	appList                []v1alpha1.AppInfo
+	newNode                string
+	schedulerConfig        string
+	useGreed               bool
+	interactive            bool
+	extendedResources      []string
+	shufflePod             bool
+	workloadInflationRatio float64
 }
 
 type Interface interface {
@@ -66,13 +68,15 @@ func NewApplier(opts Options) Interface {
 	}
 
 	applier := &Applier{
-		cluster:           simonCR.Spec.Cluster,
-		appList:           simonCR.Spec.AppList,
-		newNode:           simonCR.Spec.NewNode,
-		schedulerConfig:   opts.DefaultSchedulerConfigFile,
-		useGreed:          opts.UseGreed,
-		interactive:       opts.Interactive,
-		extendedResources: opts.ExtendedResources,
+		cluster:                simonCR.Spec.Cluster,
+		appList:                simonCR.Spec.AppList,
+		newNode:                simonCR.Spec.NewNode,
+		shufflePod:             simonCR.Spec.ShufflePod,
+		workloadInflationRatio: simonCR.Spec.WorkloadInflationRatio,
+		schedulerConfig:        opts.DefaultSchedulerConfigFile,
+		useGreed:               opts.UseGreed,
+		interactive:            opts.Interactive,
+		extendedResources:      opts.ExtendedResources,
 	}
 
 	if err := validate(applier); err != nil {
@@ -130,6 +134,8 @@ func (applier *Applier) Run() (err error) {
 			return err
 		}
 	}
+	clusterResource.ShufflePod = applier.shufflePod
+	clusterResource.WorkloadInflationRatio = applier.workloadInflationRatio
 
 	// Step 3: convert the path of the new node to be added into the kubernetes object
 	// only support temporarily one type of node at present

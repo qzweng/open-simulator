@@ -12,9 +12,11 @@ type Cluster struct {
 }
 
 type SimonSpec struct {
-	Cluster Cluster   `json:"cluster"`
-	AppList []AppInfo `json:"appList"`
-	NewNode string    `json:"newNode"`
+	Cluster                Cluster   `json:"cluster"`
+	AppList                []AppInfo `json:"appList"`
+	NewNode                string    `json:"newNode"`
+	ShufflePod             bool      `json:"shufflePod,omitempty"`
+	WorkloadInflationRatio float64   `json:"workloadInflationRatio,omitempty"`
 }
 
 type SimonMetaData struct {
