@@ -8,8 +8,8 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/util"
 
-	"github.com/alibaba/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/type"
+	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
 )
 
 const (

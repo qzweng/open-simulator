@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/utils/integer"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 

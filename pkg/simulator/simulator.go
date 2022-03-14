@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	gpushareutils "github.com/alibaba/open-gpu-share/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,6 +26,7 @@ import (
 	"github.com/alibaba/open-simulator/pkg/algo"
 	simonplugin "github.com/alibaba/open-simulator/pkg/simulator/plugin"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 

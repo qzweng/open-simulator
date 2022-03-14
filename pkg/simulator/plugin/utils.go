@@ -9,6 +9,7 @@ import (
 	externalclientset "k8s.io/client-go/kubernetes"
 
 	"github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/pkg/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
