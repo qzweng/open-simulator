@@ -10,7 +10,6 @@ profiles:
       score:
         disabled:
           - name: Open-Gpu-Share
-          - weight:
           - name: Gpu-Frag-Score
         enabled:
 #          - name: Gpu-Frag-Score
