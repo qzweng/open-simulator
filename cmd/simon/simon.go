@@ -2,14 +2,14 @@ package simon
 
 import (
 	goflag "flag"
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	cliflag "k8s.io/component-base/cli/flag"
 	"os"
 
 	"github.com/alibaba/open-simulator/cmd/apply"
 	"github.com/alibaba/open-simulator/cmd/doc"
 	"github.com/alibaba/open-simulator/cmd/version"
-	log "github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
-	cliflag "k8s.io/component-base/cli/flag"
 )
 
 const (

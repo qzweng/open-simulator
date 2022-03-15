@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
+	"k8s.io/kubernetes/pkg/scheduler/util"
 	"os"
 	"path/filepath"
 	"sort"
@@ -937,7 +939,7 @@ func GetAllocatablePodList(clientset externalclientset.Interface) []corev1.Pod {
 	return podList.Items
 }
 
-func IsNodeAccessibleToPod(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) bool {
+func IsNodeAccessibleToPod(nodeRes simontype.NodeResource, podRes simontype.PodResource) bool {
 	pt := podRes.GpuType
 	nt := nodeRes.GpuType
 	return IsNodeAccessibleToPodByType(nt, pt)
@@ -964,4 +966,107 @@ func IsNodeAccessibleToPodByType(nodeGpuType string, podGpuType string) bool {
 		return false
 	}
 	return true
+}
+
+func GetPodResource(pod *corev1.Pod) simontype.PodResource {
+	gpuNumber := utils.GetGpuCountFromPodAnnotation(pod)
+	gpuMilli := utils.GetGpuMilliFromPodAnnotation(pod)
+	gpuType := utils.GetGpuModelFromPodAnnotation(pod)
+
+	var non0CPU, non0Mem int64
+	for _, c := range pod.Spec.Containers {
+		non0CPUReq, non0MemReq := util.GetNonzeroRequests(&c.Resources.Requests)
+		non0CPU += non0CPUReq
+		non0Mem += non0MemReq
+	}
+
+	tgtPodRes := simontype.PodResource{
+		MilliCpu:  non0CPU,
+		MilliGpu:  gpuMilli,
+		GpuNumber: gpuNumber,
+		GpuType:   gpuType,
+	}
+	return tgtPodRes
+}
+
+func GetNodeResourceMap(result *simontype.SimulateResult) map[string]simontype.NodeResource {
+	var allPods []corev1.Pod
+	for _, ns := range result.NodeStatus {
+		for _, pod := range ns.Pods {
+			allPods = append(allPods, *pod)
+		}
+	}
+
+	nodeResMap := make(map[string]simontype.NodeResource)
+	for _, ns := range result.NodeStatus {
+		node := ns.Node
+		if nodeRes, err := GetNodeResourceViaPodList(allPods, node); err == nil {
+			nodeResMap[node.Name] = nodeRes
+		}
+	}
+	return nodeResMap
+}
+
+func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeRes simontype.NodeResource, err error) {
+	nodeInfo, err := handle.SnapshotSharedLister().NodeInfos().Get(node.Name)
+	if err != nil {
+		return nodeRes, err
+	}
+	milliCpuLeft := node.Status.Allocatable.Cpu().MilliValue() - nodeInfo.Requested.MilliCPU
+
+	gpuNumber := utils.GetGpuCountOfNode(node)
+	gpuMilliLeftList := make([]int64, gpuNumber)
+	for i := 0; i < gpuNumber; i++ {
+		gpuMilliLeftList[i] = utils.MILLI
+	}
+	if gpuNodeInfoStr, err := GetGpuNodeInfoFromAnnotation(node); err == nil && gpuNodeInfoStr != nil {
+		for _, dev := range gpuNodeInfoStr.DevsBrief {
+			gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMilli
+		}
+	}
+
+	nodeRes = simontype.NodeResource{
+		NodeName:         node.Name,
+		MilliCpu:         milliCpuLeft,
+		MilliGpuLeftList: gpuMilliLeftList,
+		GpuNumber:        gpuNumber,
+		GpuType:          utils.GetGpuModelOfNode(node),
+	}
+	return nodeRes, err
+}
+
+func GetNodeResourceViaClient(client externalclientset.Interface, ctx context.Context, node *corev1.Node) (nodeRes simontype.NodeResource, err error) {
+	if podsOnNode, err := client.CoreV1().Pods(corev1.NamespaceAll).List(ctx, metav1.ListOptions{
+		FieldSelector: "spec.nodeName=" + node.Name}); err == nil {
+		if nodeRes, err = GetNodeResourceViaPodList(podsOnNode.Items, node); err != nil {
+			return nodeRes, err
+		}
+	}
+	return nodeRes, err
+}
+
+func GetNodeResourceViaPodList(podList []corev1.Pod, node *corev1.Node) (nodeRes simontype.NodeResource, err error) {
+	allocatable := node.Status.Allocatable
+	reqs, _ := GetPodsTotalRequestsAndLimitsByNodeName(podList, node.Name)
+	nodeCpuReq, _ := reqs[corev1.ResourceCPU], reqs[corev1.ResourceMemory]
+
+	gpuNumber := utils.GetGpuCountOfNode(node)
+	gpuMilliLeftList := make([]int64, gpuNumber)
+	for i := 0; i < gpuNumber; i++ {
+		gpuMilliLeftList[i] = utils.MILLI
+	}
+	if gpuNodeInfoStr, err := GetGpuNodeInfoFromAnnotation(node); err == nil && gpuNodeInfoStr != nil {
+		for _, dev := range gpuNodeInfoStr.DevsBrief {
+			gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMilli
+		}
+	}
+
+	nodeRes = simontype.NodeResource{
+		NodeName:         node.Name,
+		MilliCpu:         allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
+		MilliGpuLeftList: gpuMilliLeftList,
+		GpuNumber:        gpuNumber,
+		GpuType:          utils.GetGpuModelOfNode(node),
+	}
+	return nodeRes, err
 }

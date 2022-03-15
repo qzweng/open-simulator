@@ -8,7 +8,7 @@ import (
 )
 
 type TargetPod struct {
-	TargetPodResource TargetPodResource
+	TargetPodResource PodResource
 	Percentage        float64
 }
 
@@ -23,9 +23,7 @@ const (
 	TypicalPodResourceNumber      = 10
 )
 
-type TargetPodResource struct {
-	Namespace string
-	Name      string
+type PodResource struct { // typical pod, without name and namespace.
 	MilliCpu  int64
 	MilliGpu  int64 // Milli GPU request per GPU, 0-1000
 	GpuNumber int
@@ -33,16 +31,16 @@ type TargetPodResource struct {
 	//Memory	  int64
 }
 
-type TargetNodeResource struct {
+type NodeResource struct {
 	NodeName         string
 	MilliCpu         int64
 	MilliGpuLeftList []int64
 	GpuNumber        int
 	GpuType          string
-	//Memory	  int64
+	//Memory           int64 // TODO
 }
 
-func (tpr TargetPodResource) Repr() string {
+func (tpr PodResource) Repr() string {
 	outStr := "<"
 	outStr += fmt.Sprintf("CPU: %6.2f", float64(tpr.MilliCpu)/1000)
 	outStr += fmt.Sprintf(", GPU: %d", tpr.GpuNumber)
@@ -51,8 +49,8 @@ func (tpr TargetPodResource) Repr() string {
 	return outStr
 }
 
-func (tnr TargetNodeResource) Repr() string {
-	outStr := tnr.NodeName + " <"
+func (tnr NodeResource) Repr() string {
+	outStr := "<"
 	outStr += fmt.Sprintf("CPU: %6.2f", float64(tnr.MilliCpu)/1000)
 	outStr += fmt.Sprintf(", GPU: %d", tnr.GpuNumber)
 	if tnr.GpuNumber > 0 {
@@ -65,13 +63,13 @@ func (tnr TargetNodeResource) Repr() string {
 	return outStr
 }
 
-func (tnr TargetNodeResource) Copy() TargetNodeResource {
+func (tnr NodeResource) Copy() NodeResource {
 	milliGpuLeftList := make([]int64, len(tnr.MilliGpuLeftList))
 	for i := 0; i < len(tnr.MilliGpuLeftList); i++ {
 		milliGpuLeftList[i] = tnr.MilliGpuLeftList[i]
 	}
 
-	return TargetNodeResource{
+	return NodeResource{
 		NodeName:         tnr.NodeName,
 		MilliCpu:         tnr.MilliCpu,
 		MilliGpuLeftList: milliGpuLeftList,
@@ -80,7 +78,7 @@ func (tnr TargetNodeResource) Copy() TargetNodeResource {
 	}
 }
 
-func (tnr TargetNodeResource) Sub(tpr TargetPodResource) (TargetNodeResource, error) {
+func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 	out := tnr.Copy()
 	if out.MilliCpu < tpr.MilliCpu || out.GpuNumber < tpr.GpuNumber {
 		return out, fmt.Errorf("node: %s failed to accommodate pod: %s", tnr.Repr(), tpr.Repr())

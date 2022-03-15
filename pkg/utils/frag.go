@@ -4,12 +4,9 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/alibaba/open-simulator/pkg/type"
 	"k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/kubernetes/pkg/scheduler/util"
-
-	"github.com/alibaba/open-simulator/pkg/type"
-	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 const (
@@ -75,36 +72,13 @@ func (fa FragAmount) Repr() (outStr string) {
 		if i > 0 {
 			outStr += ", "
 		}
-		outStr += fmt.Sprintf("%6.2f GiB", v/1024/1024/1024)
+		outStr += fmt.Sprintf("%5.0f", v)
 	}
 	outStr += "]"
 	return outStr
 }
 
-func GetTargetPodResource(pod *v1.Pod) simontype.TargetPodResource {
-	gpuNumber := utils.GetGpuCountFromPodAnnotation(pod)
-	gpuMilli := utils.GetGpuMilliFromPodAnnotation(pod)
-	gpuType := utils.GetGpuModelFromPodAnnotation(pod)
-
-	var non0CPU, non0Mem int64
-	for _, c := range pod.Spec.Containers {
-		non0CPUReq, non0MemReq := util.GetNonzeroRequests(&c.Resources.Requests)
-		non0CPU += non0CPUReq
-		non0Mem += non0MemReq
-	}
-
-	tgtPodRes := simontype.TargetPodResource{
-		Namespace: pod.Namespace,
-		Name:      pod.Name,
-		MilliCpu:  non0CPU,
-		MilliGpu:  gpuMilli,
-		GpuNumber: gpuNumber,
-		GpuType:   gpuType,
-	}
-	return tgtPodRes
-}
-
-func NodeGpuFragRatio(nodeRes simontype.TargetNodeResource, typicalPods simontype.TargetPodList) FragRatio {
+func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragRatio {
 	data := make([]float64, len(FragRatioDataMap))
 	fragRatio := FragRatio{nodeRes.NodeName, data}
 	for _, pod := range typicalPods {
@@ -122,26 +96,26 @@ func NodeGpuFragRatio(nodeRes simontype.TargetNodeResource, typicalPods simontyp
 	return fragRatio
 }
 
-func NodeGpuFragAmount(nodeRes simontype.TargetNodeResource, typicalPods simontype.TargetPodList) FragAmount {
+func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragAmount {
 	fragRatio := NodeGpuFragRatio(nodeRes, typicalPods)
 	fragAmount := FragAmount{nodeRes.NodeName, fragRatio.Data}
 
-	var gpuMemLeftTotal int64
+	var gpuMilliLeftTotal int64
 	for _, gpuMemLeft := range nodeRes.MilliGpuLeftList {
-		gpuMemLeftTotal += gpuMemLeft
+		gpuMilliLeftTotal += gpuMemLeft
 	}
 
 	for i := 0; i < len(fragAmount.Data); i++ {
-		fragAmount.Data[i] *= float64(gpuMemLeftTotal)
+		fragAmount.Data[i] *= float64(gpuMilliLeftTotal)
 	}
 	//fmt.Printf("IN NodeGpuFragAmount: %s\n", fragAmount.Repr())
 	return fragAmount
 }
 
-func GetTypicalPods(allPodsList []*v1.Pod) simontype.TargetPodList {
-	tgtPodResCntMap := map[simontype.TargetPodResource]float64{}
+func GetTypicalPods(allPodsList []*v1.Pod, verbose bool) simontype.TargetPodList {
+	tgtPodResCntMap := map[simontype.PodResource]float64{}
 	for _, pod := range allPodsList {
-		tgtPodRes := GetTargetPodResource(pod)
+		tgtPodRes := GetPodResource(pod)
 		if cnt, ok := tgtPodResCntMap[tgtPodRes]; ok {
 			tgtPodResCntMap[tgtPodRes] = cnt + 1
 		} else {
@@ -150,8 +124,10 @@ func GetTypicalPods(allPodsList []*v1.Pod) simontype.TargetPodList {
 	}
 
 	tgtPodList := SortTargetPodInDecreasingCount(tgtPodResCntMap)
-	fmt.Printf("\nNum of Total Pods: %d\n", len(allPodsList))
-	fmt.Printf("Num of Total Pod Sepc: %d\n", len(tgtPodList))
+	if verbose {
+		fmt.Printf("\nNum of Total Pods: %d\n", len(allPodsList))
+		fmt.Printf("Num of Total Pod Sepc: %d\n", len(tgtPodList))
+	}
 	ExpectedNumPods := int(simontype.TypicalPodPopularityThreshold * len(allPodsList) / 100)
 	var i, podResNum int
 	var numPods float64
@@ -159,15 +135,24 @@ func GetTypicalPods(allPodsList []*v1.Pod) simontype.TargetPodList {
 		podResNum += simontype.TypicalPodResourceNumber
 		for i < podResNum && i < len(tgtPodList) {
 			numPods += tgtPodList[i].Percentage
-			fmt.Printf("[%d] %s: %.0f\n", i, tgtPodList[i].TargetPodResource.Repr(), tgtPodList[i].Percentage)
+			if verbose {
+				fmt.Printf("[%d] %s: %.0f\n", i, tgtPodList[i].TargetPodResource.Repr(), tgtPodList[i].Percentage)
+			}
 			i += 1
 		}
 	}
 
-	fmt.Printf("\nCount top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPodsList)))
+	if verbose {
+		fmt.Printf("\nCount top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPodsList)))
+	}
 	for j, tp := range tgtPodList[:i] {
 		tgtPodList[j].Percentage = tp.Percentage / numPods
-		fmt.Printf("[%d] %s: %.1f%%\n", j, tp.TargetPodResource.Repr(), tgtPodList[j].Percentage*100)
+		if verbose {
+			fmt.Printf("[%d] %s: %.1f%%\n", j, tp.TargetPodResource.Repr(), tgtPodList[j].Percentage*100)
+		}
+	}
+	if verbose {
+		fmt.Printf("\n")
 	}
 	return tgtPodList[:i]
 	//sim.typicalPods = tgtPodList[:i]
@@ -183,7 +168,7 @@ func (fa FragAmount) FragAmountSumExceptQ3MiB() (out float64) {
 	return out
 }
 
-func SortTargetPodInDecreasingCount(tgtPodResMap map[simontype.TargetPodResource]float64) simontype.TargetPodList {
+func SortTargetPodInDecreasingCount(tgtPodResMap map[simontype.PodResource]float64) simontype.TargetPodList {
 	pl := make(simontype.TargetPodList, len(tgtPodResMap))
 	i := 0
 	for k, v := range tgtPodResMap {
@@ -194,7 +179,7 @@ func SortTargetPodInDecreasingCount(tgtPodResMap map[simontype.TargetPodResource
 	return pl
 }
 
-func CanNodeHostPodOnGpuMemory(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) bool {
+func CanNodeHostPodOnGpuMemory(nodeRes simontype.NodeResource, podRes simontype.PodResource) bool {
 	gpuRequest := podRes.GpuNumber
 	for _, gpuHostMem := range nodeRes.MilliGpuLeftList {
 		if gpuHostMem >= podRes.MilliGpu {
@@ -207,7 +192,7 @@ func CanNodeHostPodOnGpuMemory(nodeRes simontype.TargetNodeResource, podRes simo
 	return false
 }
 
-func GetNodePodFrag(nodeRes simontype.TargetNodeResource, podRes simontype.TargetPodResource) string {
+func GetNodePodFrag(nodeRes simontype.NodeResource, podRes simontype.PodResource) string {
 	if podRes.MilliGpu == 0 {
 		if nodeRes.MilliCpu >= podRes.MilliCpu {
 			return XLSatisfied

@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"fmt"
 	"sync"
 
 	"k8s.io/api/core/v1"
@@ -130,14 +129,15 @@ func (cache *SchedulerCache) GetGpuNodeInfo(name string) (*GpuNodeInfo, error) {
 	if !ok {
 		n = NewGpuNodeInfo(node)
 		cache.nodes[name] = n
-	} else {
-		if len(cache.nodes[name].devs) == 0 ||
-			utils.GetGpuMilliOfNode(n.node) <= 0 ||
-			utils.GetGpuCountOfNode(n.node) <= 0 {
-			cache.nodes[name].Reset(node)
-		} else {
-			fmt.Printf("[ERROR]: GetGpuNodeInfo() can neither find or build GpuNodeInfo of %s", name)
-		}
+		//} else {
+		//	//cache.nodes[name].Reset(node)
+		//	if len(cache.nodes[name].devs) == 0 ||
+		//		utils.GetGpuMilliOfNode(n.node) <= 0 ||
+		//		utils.GetGpuCountOfNode(n.node) <= 0 {
+		//		cache.nodes[name].Reset(node)
+		//	} else {
+		//		fmt.Printf("[ERROR]: GetGpuNodeInfo() can neither find or build GpuNodeInfo of %s", name)
+		//	}
 	}
 	return n, nil
 }

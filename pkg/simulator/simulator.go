@@ -51,7 +51,7 @@ type Simulator struct {
 
 	//
 	typicalPods     simontype.TargetPodList
-	nodeResourceMap map[string]simontype.TargetNodeResource
+	nodeResourceMap map[string]simontype.NodeResource
 }
 
 // status captures reason why one pod fails to be scheduled
@@ -126,7 +126,7 @@ func New(opts ...Option) (Interface, error) {
 						//fmt.Printf("update_sim_bgn: pod %s\n", podKey)
 						for {
 							time.Sleep(2 * time.Millisecond)
-
+							//fmt.Printf("[DEBUG] Update Enter pod %s\n", utils.GeneratePodKey(pod))
 							podFoundInCache := false
 							if p, _ := sim.scheduler.SchedulerCache.GetPod(pod); p != nil {
 								podFoundInCache = true
@@ -142,7 +142,7 @@ func New(opts ...Option) (Interface, error) {
 									podFoundInNode = true
 								}
 							} else {
-								var unscheduledReason, unscheduledMessage string
+								var unscheduledReason string
 								sim.status.stopReason = ""
 								for _, condition := range pod.Status.Conditions {
 									podUnscheduled = condition.Type == corev1.PodScheduled &&
@@ -150,13 +150,12 @@ func New(opts ...Option) (Interface, error) {
 										condition.Reason == corev1.PodReasonUnschedulable
 									if podUnscheduled {
 										unscheduledReason = condition.Reason
-										unscheduledMessage = condition.Message
 										break
 									}
 								}
 								if podUnscheduled {
-									sim.status.stopReason = fmt.Sprintf("failed to schedule pod %s, reason %s, message %s",
-										podKey, unscheduledReason, unscheduledMessage)
+									sim.status.stopReason = fmt.Sprintf("failed to schedule pod %s, reason %s",
+										podKey, unscheduledReason)
 									break
 								}
 							}
@@ -177,6 +176,7 @@ func New(opts ...Option) (Interface, error) {
 						//fmt.Printf("delete_sim_bgn: pod %s, node %s\n", podKey, nodeName)
 						for {
 							time.Sleep(2 * time.Millisecond)
+							//fmt.Printf("[DEBUG] Delete Enter pod %s (%s)\n", utils.GeneratePodKey(pod), pod.Spec.NodeName)
 
 							podFoundInCache := false
 							if p, _ := sim.scheduler.SchedulerCache.GetPod(podCopy); p != nil {
@@ -487,15 +487,17 @@ func (sim *Simulator) deletePod(pod *corev1.Pod) error {
 // Run starts to schedule pods
 func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]simontype.UnscheduledPod, error) {
 	var failedPods []simontype.UnscheduledPod
-	for _, pod := range pods {
+	for i, pod := range pods {
 		sim.createPod(pod)
-
+		fmt.Printf("[%d] pod %s created\n", i, utils.GeneratePodKey(pod))
 		if strings.Contains(sim.status.stopReason, "failed") {
+			fmt.Printf("[INFO] pod: %s, stopReason: %s\n", utils.GeneratePodKey(pod), sim.status.stopReason)
 			sim.deletePod(pod)
 			failedPods = append(failedPods, simontype.UnscheduledPod{
 				Pod:    pod,
 				Reason: sim.status.stopReason,
 			})
+			sim.status.stopReason = ""
 		}
 	}
 	return failedPods, nil

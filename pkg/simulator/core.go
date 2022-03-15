@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"time"
 
-	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -71,6 +70,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	if err != nil {
 		return nil, err
 	}
+	sim.GetTypicalPods(cluster)
 
 	if cluster.ShufflePod {
 		rand.Seed(time.Now().UnixNano())
@@ -84,13 +84,13 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		var inflationPods []*corev1.Pod
 		numBeforeInflation := len(cluster.Pods)
 		numAfterInflation := int(math.Ceil(float64(numBeforeInflation) * cluster.WorkloadInflationRatio))
-		log.Infof("workload inflation ratio: %.4f, before: %d, after: %d\n", cluster.WorkloadInflationRatio, numBeforeInflation, numAfterInflation)
+		fmt.Printf("[INFO] workload inflation ratio: %.4f, before: %d, after: %d\n", cluster.WorkloadInflationRatio, numBeforeInflation, numAfterInflation)
 		for i := 0; i < numAfterInflation-numBeforeInflation; i++ {
 			rand.Seed(time.Now().UnixNano())
 			idx := rand.Intn(numBeforeInflation)
 			podCloned, err := utils.MakeValidPodByPod(cluster.Pods[idx].DeepCopy())
 			if err != nil {
-				log.Errorf("failed to clone pod(%s)\n", utils.GeneratePodKey(cluster.Pods[idx]))
+				fmt.Printf("[ERROR] failed to clone pod(%s)\n", utils.GeneratePodKey(cluster.Pods[idx]))
 				continue
 			}
 			podCloned.Name = fmt.Sprintf("%s-clone-%d", podCloned.Name, i)
@@ -98,7 +98,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		}
 		cluster.Pods = append(cluster.Pods, inflationPods...)
 	} else {
-		log.Infof("workload inflation ratio(%.4f) is not larger than than 1\n", cluster.WorkloadInflationRatio)
+		fmt.Printf("[INFO] workload inflation ratio(%.4f) is not larger than than 1\n", cluster.WorkloadInflationRatio)
 	}
 
 	for _, item := range cluster.DaemonSets {
@@ -110,7 +110,6 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 
 	var failedPods []simontype.UnscheduledPod
-	//sim.GetTypicalPods(cluster)
 
 	// run cluster
 	result, err := sim.RunCluster(cluster)
@@ -118,7 +117,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		return nil, err
 	}
 	failedPods = append(failedPods, result.UnscheduledPods...)
-	//sim.ClusterAnalysis(result)
+	sim.ClusterAnalysis(result)
 
 	// if flagDeschedule {
 	//result, _ = sim.Deschedule(cluster.Pods)

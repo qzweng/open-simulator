@@ -29,6 +29,7 @@ type GpuSharePlugin struct {
 	fakeclient          externalclientset.Interface
 	cache               *gpusharecache.SchedulerCache
 	podToUpdateCacheMap map[string]*corev1.Pod // key: getPodMapKey(): return pod.Namespace+pod.Name
+	handle              framework.Handle
 }
 
 // Just to check whether the implemented struct fits the interface
@@ -37,21 +38,24 @@ var _ framework.ScorePlugin = &GpuSharePlugin{}
 var _ framework.ReservePlugin = &GpuSharePlugin{}
 var _ framework.BindPlugin = &GpuSharePlugin{}
 
-func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
+func NewGpuSharePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	gpuSharePlugin := &GpuSharePlugin{
 		fakeclient:          fakeclient,
 		podToUpdateCacheMap: make(map[string]*corev1.Pod),
+		handle:              handle,
 	}
 	gpuSharePlugin.InitSchedulerCache()
-	f.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
+	handle.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
 				if pod, ok := obj.(*corev1.Pod); ok {
 					if gpushareutils.GetGpuMilliFromPodAnnotation(pod) > 0 {
-						//namespace, name := pod.Namespace, pod.Name
+						namespace, name := pod.Namespace, pod.Name
 						//fmt.Printf("delete_gpu_bgn: pod %s/%s\n", namespace, name)
-						_ = gpuSharePlugin.removePod(pod)
-						//fmt.Printf("delete_gpu_end: pod %s/%s\n", namespace, name)
+						err := gpuSharePlugin.removePod(pod)
+						if err != nil {
+							fmt.Printf("[ERROR] removePod (%s) error: %s\n", utils.GeneratePodKeyByName(namespace, name), err.Error())
+						}
 					}
 				}
 			}})
@@ -198,7 +202,7 @@ func (plugin *GpuSharePlugin) addOrUpdatePod(pod *corev1.Pod) error {
 func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod) error {
 	nodeName := pod.Spec.NodeName
 	if nodeName == "" {
-		return fmt.Errorf("pod not scheduled when removed: %s/%s", pod.Namespace, pod.Name)
+		return nil
 	}
 	node, err := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 	if err != nil {

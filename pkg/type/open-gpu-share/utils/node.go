@@ -25,9 +25,8 @@ func GetGpuCountOfNode(node *v1.Node) int {
 
 // GetGpuModelOfNode Get the GPU Model of the node, see MapGpuTypeMemoryMiB
 func GetGpuModelOfNode(node *v1.Node) string {
-	val, ok := node.ObjectMeta.Labels[ModelName]
-	if !ok {
-		return "N/A"
+	if val, ok := node.ObjectMeta.Labels[ModelName]; ok {
+		return val
 	}
-	return val
+	return ""
 }

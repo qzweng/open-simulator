@@ -20,14 +20,16 @@ import (
 // GpuFragScorePlugin is a plugin for scheduling framework, scoring pods by GPU fragmentation amount
 type GpuFragScorePlugin struct {
 	fakeclient externalclientset.Interface
+	handle     framework.Handle
 }
 
 // Just to check whether the implemented struct fits the interface
 var _ framework.ScorePlugin = &GpuFragScorePlugin{}
 
-func NewGpuFragScorePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
+func NewGpuFragScorePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	gpuFragScorePlugin := &GpuFragScorePlugin{
 		fakeclient: fakeclient,
+		handle:     handle,
 	}
 	return gpuFragScorePlugin, nil
 }
@@ -50,14 +52,14 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 		return int64(framework.MinNodeScore), framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
-	nodeRes, err := GetNodeResourceViaClient(plugin.fakeclient, ctx, node)
+	nodeRes, err := utils.GetNodeResourceViaHandle(plugin.handle, node)
 	if err != nil {
 		return int64(framework.MinNodeScore), framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes %s: %s\n", nodeName, err.Error()))
 	}
 
-	podRes := utils.GetTargetPodResource(pod)
+	podRes := utils.GetPodResource(pod)
 	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
-		klog.Error("Node %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeRes.Repr(), podRes.Repr())
+		klog.Error("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
 		return int64(0), framework.NewStatus(framework.Success)
 	}
 	newNodeRes, err := nodeRes.Sub(podRes)
@@ -75,7 +77,7 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 	for i := 0; i < len(allocatablePodList); i++ {
 		podList[i] = &allocatablePodList[i]
 	}
-	targetPodList := utils.GetTypicalPods(podList)
+	targetPodList := utils.GetTypicalPods(podList, false)
 
 	nodeGpuFrag := utils.NodeGpuFragAmount(nodeRes, targetPodList)
 	newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, targetPodList)
@@ -83,13 +85,13 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 	score := int64(float64(framework.MaxNodeScore-framework.MinNodeScore) *
 		(nodeGpuFrag.FragAmountSumExceptQ3MiB() - newNodeGpuFrag.FragAmountSumExceptQ3MiB())) // could be negative
 
-	fmt.Printf("[GpuFragScore] Place Pod %s: %s\n"+
+	fmt.Printf("[GpuFragScore] Place Pod %s: %s to Node (%s)\n"+
 		"  [NodeRes]  %s \n"+
 		"          => %s\n"+
 		"  [NodeFrag] %s (%.1f)\n"+
 		"          => %s (%.1f)\n"+
 		"  [Score] Delta = %d\n",
-		pod.Name, podRes.Repr(),
+		pod.Name, podRes.Repr(), nodeName,
 		nodeRes.Repr(), newNodeRes.Repr(),
 		nodeGpuFrag.Repr(), nodeGpuFrag.FragAmountSumExceptQ3MiB(),
 		newNodeGpuFrag.Repr(), newNodeGpuFrag.FragAmountSumExceptQ3MiB(),
