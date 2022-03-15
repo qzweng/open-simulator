@@ -65,6 +65,19 @@ func (fa FragAmount) Add(faOther FragAmount) error {
 	return nil
 }
 
+func (fr FragRatio) Repr() (outStr string) {
+	outStr += fr.NodeName
+	outStr += ": ["
+	for i, v := range fr.Data {
+		if i > 0 {
+			outStr += ", "
+		}
+		outStr += fmt.Sprintf("%4.1f%%", 100*v)
+	}
+	outStr += "]"
+	return outStr
+}
+
 func (fa FragAmount) Repr() (outStr string) {
 	outStr += fa.NodeName
 	outStr += ": ["
@@ -72,7 +85,7 @@ func (fa FragAmount) Repr() (outStr string) {
 		if i > 0 {
 			outStr += ", "
 		}
-		outStr += fmt.Sprintf("%5.0f", v)
+		outStr += fmt.Sprintf("%5.1f", v)
 	}
 	outStr += "]"
 	return outStr
@@ -101,8 +114,8 @@ func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.Tar
 	fragAmount := FragAmount{nodeRes.NodeName, fragRatio.Data}
 
 	var gpuMilliLeftTotal int64
-	for _, gpuMemLeft := range nodeRes.MilliGpuLeftList {
-		gpuMilliLeftTotal += gpuMemLeft
+	for _, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
+		gpuMilliLeftTotal += gpuMilliLeft
 	}
 
 	for i := 0; i < len(fragAmount.Data); i++ {
@@ -158,13 +171,12 @@ func GetTypicalPods(allPodsList []*v1.Pod, verbose bool) simontype.TargetPodList
 	//sim.typicalPods = tgtPodList[:i]
 }
 
-func (fa FragAmount) FragAmountSumExceptQ3MiB() (out float64) {
+func (fa FragAmount) FragAmountSumExceptQ3() (out float64) {
 	for i := 0; i < len(FragRatioDataMap); i++ {
 		if i != FragRatioDataMap[Q3Satisfied] {
 			out += fa.Data[i]
 		}
 	}
-	out = out / 1024 / 1024
 	return out
 }
 

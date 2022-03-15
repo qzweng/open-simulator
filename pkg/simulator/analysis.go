@@ -73,6 +73,6 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 	return utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
 }
 
-func (sim *Simulator) GetTypicalPods(cluster ResourceTypes) {
+func (sim *Simulator) SetTypicalPods(cluster ResourceTypes) {
 	sim.typicalPods = utils.GetTypicalPods(cluster.Pods, true)
 }

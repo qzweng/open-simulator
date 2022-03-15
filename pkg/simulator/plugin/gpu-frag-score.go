@@ -19,17 +19,19 @@ import (
 
 // GpuFragScorePlugin is a plugin for scheduling framework, scoring pods by GPU fragmentation amount
 type GpuFragScorePlugin struct {
-	fakeclient externalclientset.Interface
-	handle     framework.Handle
+	fakeclient  externalclientset.Interface
+	handle      framework.Handle
+	typicalPods *simontype.TargetPodList
 }
 
 // Just to check whether the implemented struct fits the interface
 var _ framework.ScorePlugin = &GpuFragScorePlugin{}
 
-func NewGpuFragScorePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+func NewGpuFragScorePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList) (framework.Plugin, error) {
 	gpuFragScorePlugin := &GpuFragScorePlugin{
-		fakeclient: fakeclient,
-		handle:     handle,
+		fakeclient:  fakeclient,
+		handle:      handle,
+		typicalPods: typicalPods,
 	}
 	return gpuFragScorePlugin, nil
 }
@@ -38,6 +40,17 @@ func NewGpuFragScorePlugin(fakeclient externalclientset.Interface, configuration
 func (plugin *GpuFragScorePlugin) Name() string {
 	return simontype.GpuFragScorePluginName
 }
+
+//func (plugin *GpuFragScorePlugin) SetTypicalPods() {
+//	if plugin.typicalPods == nil {
+//		allocatablePodList := utils.GetAllocatablePodList(plugin.fakeclient)
+//		podList := make([]*corev1.Pod, len(allocatablePodList))
+//		for i := 0; i < len(allocatablePodList); i++ {
+//			podList[i] = &allocatablePodList[i]
+//		}
+//		plugin.typicalPods = utils.GetTypicalPods(podList, false)
+//	}
+//}
 
 // Score invoked at the score extension point.
 func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
@@ -68,34 +81,46 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 		return int64(0), framework.NewStatus(framework.Success)
 	}
 
-	allocatablePodList := utils.GetAllocatablePodList(plugin.fakeclient)
-	/* Transfer []*corev1.Pod => []Pod, since
-	   Pods in ResourceTypes is []*corev1.Pod
-	   PodList.Items returned by clientset.CoreV1().Pods.List() is []Pod
-	*/
-	podList := make([]*corev1.Pod, len(allocatablePodList))
-	for i := 0; i < len(allocatablePodList); i++ {
-		podList[i] = &allocatablePodList[i]
+	//plugin.SetTypicalPods()
+	if plugin.typicalPods == nil {
+		fmt.Printf("[ERROR] typical pods list is empty\n")
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("typical pods list is empty\n"))
 	}
-	targetPodList := utils.GetTypicalPods(podList, false)
+	//fmt.Printf("[TYPICAL PODS]\n")
+	//for _, item := range *plugin.typicalPods {
+	//	fmt.Printf("%#v\n", item)
+	//}
+	//fmt.Println()
 
-	nodeGpuFrag := utils.NodeGpuFragAmount(nodeRes, targetPodList)
-	newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, targetPodList)
+	//var gpuMilliLeftTotal int64
+	//for _, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
+	//	gpuMilliLeftTotal += gpuMilliLeft
+	//}
+	//var newGpuMilliLeftTotal int64
+	//for _, gpuMilliLeft := range newNodeRes.MilliGpuLeftList {
+	//	newGpuMilliLeftTotal += gpuMilliLeft
+	//}
+	//nodeGpuFragRatio := utils.NodeGpuFragRatio(nodeRes, *plugin.typicalPods)
+	nodeGpuFrag := utils.NodeGpuFragAmount(nodeRes, *plugin.typicalPods)
+	//newNodeGpuFragRatio := utils.NodeGpuFragRatio(newNodeRes, *plugin.typicalPods)
+	newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, *plugin.typicalPods)
 
-	score := int64(float64(framework.MaxNodeScore-framework.MinNodeScore) *
-		(nodeGpuFrag.FragAmountSumExceptQ3MiB() - newNodeGpuFrag.FragAmountSumExceptQ3MiB())) // could be negative
+	score := int64(nodeGpuFrag.FragAmountSumExceptQ3() - newNodeGpuFrag.FragAmountSumExceptQ3()) // could be negative
 
-	fmt.Printf("[GpuFragScore] Place Pod %s: %s to Node (%s)\n"+
-		"  [NodeRes]  %s \n"+
-		"          => %s\n"+
-		"  [NodeFrag] %s (%.1f)\n"+
-		"          => %s (%.1f)\n"+
-		"  [Score] Delta = %d\n",
-		pod.Name, podRes.Repr(), nodeName,
-		nodeRes.Repr(), newNodeRes.Repr(),
-		nodeGpuFrag.Repr(), nodeGpuFrag.FragAmountSumExceptQ3MiB(),
-		newNodeGpuFrag.Repr(), newNodeGpuFrag.FragAmountSumExceptQ3MiB(),
-		score)
+	/*
+		fmt.Printf("[GpuFragScore] Place Pod %s: %s to Node (%s)\n"+
+			"  [NodeRes]  %s \n"+
+			"          => %s\n"+
+			"  [NodeFrag] %s (%d) %s (%.1f)\n"+
+			"          => %s (%d) %s (%.1f)\n"+
+			"  [Score] Delta = %d\n",
+			pod.Name, podRes.Repr(), nodeName,
+			nodeRes.Repr(), newNodeRes.Repr(),
+			nodeGpuFragRatio.Repr(), gpuMilliLeftTotal, nodeGpuFrag.Repr(), nodeGpuFrag.FragAmountSumExceptQ3(),
+			newNodeGpuFragRatio.Repr(), newGpuMilliLeftTotal, newNodeGpuFrag.Repr(), newNodeGpuFrag.FragAmountSumExceptQ3(),
+			score)
+	*/
+
 	return score, framework.NewStatus(framework.Success)
 }
 
@@ -117,7 +142,7 @@ func (plugin *GpuFragScorePlugin) NormalizeScore(ctx context.Context, state *fra
 			lowest = nodeScore.Score
 		}
 	}
-	fmt.Printf("[GpuFragScore] [Normalized] highest: %d, lowest: %d\n", highest, lowest)
+	//fmt.Printf("[GpuFragScore] [Normalized] highest: %d, lowest: %d\n", highest, lowest)
 
 	// Transform the highest to the lowest score range to fit the framework's min to max node score range.
 	oldRange := highest - lowest
@@ -128,7 +153,7 @@ func (plugin *GpuFragScorePlugin) NormalizeScore(ctx context.Context, state *fra
 		} else {
 			scores[i].Score = ((nodeScore.Score - lowest) * newRange / oldRange) + framework.MinNodeScore
 		}
-		fmt.Printf("[GpuFragScore] [Normalized] Node %s, Score: %d\n", scores[i].Name, scores[i].Score)
+		//fmt.Printf("[GpuFragScore] [Normalized] Node %s, Score: %d\n", scores[i].Name, scores[i].Score)
 	}
 	return framework.NewStatus(framework.Success)
 }

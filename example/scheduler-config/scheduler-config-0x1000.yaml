@@ -9,15 +9,15 @@ profiles:
           - name: Open-Gpu-Share
       score:
         disabled:
-          - name: Open-Gpu-Share
-          - name: Gpu-Frag-Score
-        enabled:
-          - name: Gpu-Frag-Score
-            weight: 1000
           - name: Gpu-Packing-Score
+          - name: Gpu-Frag-Score
+          - name: Open-Gpu-Share
+          - name: Simon
+        enabled:
+          # - name: Gpu-Packing-Score
+          #   weight: 0
+          - name: Gpu-Frag-Score
             weight: 1000
-          # - name: Simon
-          #   weight: 1
       reserve:
         enabled:
           - name: Open-Gpu-Share

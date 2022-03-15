@@ -43,7 +43,7 @@ type AppResource struct {
 type Interface interface {
 	RunCluster(cluster ResourceTypes) (*simontype.SimulateResult, error)
 	ScheduleApp(AppResource) (*simontype.SimulateResult, error)
-	GetTypicalPods(cluster ResourceTypes)
+	SetTypicalPods(cluster ResourceTypes)
 	ClusterAnalysis(result *simontype.SimulateResult)
 	Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult, error)
 	AddParaSet()
@@ -70,7 +70,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	if err != nil {
 		return nil, err
 	}
-	sim.GetTypicalPods(cluster)
+	sim.SetTypicalPods(cluster)
 
 	if cluster.ShufflePod {
 		rand.Seed(time.Now().UnixNano())
@@ -117,6 +117,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		return nil, err
 	}
 	failedPods = append(failedPods, result.UnscheduledPods...)
+	ReportFailedPods(failedPods)
 	sim.ClusterAnalysis(result)
 
 	// if flagDeschedule {
@@ -136,4 +137,13 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	//sim.ClusterAnalysis(result)
 
 	return result, nil
+}
+
+func ReportFailedPods(fp []simontype.UnscheduledPod) {
+	fmt.Printf("Failed Pods in detail:\n")
+	for _, up := range fp {
+		podResoure := utils.GetPodResource(up.Pod)
+		fmt.Printf("  %s: %s\n", utils.GeneratePodKey(up.Pod), podResoure.Repr())
+	}
+	fmt.Println()
 }

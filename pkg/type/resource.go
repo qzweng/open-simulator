@@ -44,7 +44,8 @@ func (tpr PodResource) Repr() string {
 	outStr := "<"
 	outStr += fmt.Sprintf("CPU: %6.2f", float64(tpr.MilliCpu)/1000)
 	outStr += fmt.Sprintf(", GPU: %d", tpr.GpuNumber)
-	outStr += fmt.Sprintf(" x %dm", tpr.MilliGpu)
+	outStr += fmt.Sprintf(" x {%-4d}m", tpr.MilliGpu)
+	outStr += fmt.Sprintf(" (%s)", tpr.GpuType)
 	outStr += ">"
 	return outStr
 }

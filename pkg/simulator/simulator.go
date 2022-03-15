@@ -239,7 +239,7 @@ func New(opts ...Option) (Interface, error) {
 			return simonplugin.NewGpuSharePlugin(fakeClient, configuration, f)
 		},
 		simontype.GpuFragScorePluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
-			return simonplugin.NewGpuFragScorePlugin(fakeClient, configuration, f)
+			return simonplugin.NewGpuFragScorePlugin(fakeClient, configuration, f, &sim.typicalPods)
 		},
 		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuPackingScorePlugin(fakeClient, configuration, f)

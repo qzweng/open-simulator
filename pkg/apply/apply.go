@@ -369,7 +369,12 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 			// GPU
 			if containGpu(extendedResources) {
 				gpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
-				data = append(data, fmt.Sprintf("%d/%d", gpuMilli, gpushareutils.MILLI))
+				gpuNumber := gpushareutils.GetGpuCountOfNode(node)
+				var gpuMilliRatio int
+				if gpuNumber != 0 {
+					gpuMilliRatio = int(100 * float64(gpuMilli) / (float64(gpuNumber) * gpushareutils.MILLI))
+				}
+				data = append(data, fmt.Sprintf("%d(%d%%)", gpuMilli, gpuMilliRatio))
 			}
 
 			data = append(data, appname)
@@ -440,9 +445,10 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 			}
 
 			nodeGpuCount := gpushareutils.GetGpuCountOfNode(node)
+			nodeGpuMilliRatio := int(100 * float64(nodeGpuMilliReq) / (float64(nodeGpuCount) * gpushareutils.MILLI))
 			data = append(data, []string{
 				fmt.Sprintf("%d", nodeGpuCount),
-				fmt.Sprintf("%d/%d", nodeGpuMilliReq, nodeGpuCount*gpushareutils.MILLI),
+				fmt.Sprintf("%d(%d%%)", nodeGpuMilliReq, nodeGpuMilliRatio),
 			}...)
 		}
 		data = append(data, []string{
