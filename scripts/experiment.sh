@@ -13,7 +13,9 @@ for CONFIG in $(ls example/scheduler-config); do
   done
 done
 
-CONFIG="scheduler-config-500x500.yaml"
-INFLATION=300
-i=20
-./bin/simon_linux apply --extended-resources "gpu" -f "example/paib/2022_03_13_11_30_06/paib_config_2022_03_13_11_30_06_${INFLATION}.yaml" --default-scheduler-config "example/scheduler-config/${CONFIG}" > "logs/${CONFIG}-${INFLATION}-${i}.log"
+# <TEST>
+#CONFIG="scheduler-config-500x500.yaml"
+#INFLATION=300
+#i=20
+#./bin/simon_linux apply --extended-resources "gpu" -f "example/paib/2022_03_13_11_30_06/paib_config_2022_03_13_11_30_06_${INFLATION}.yaml" --default-scheduler-config "example/scheduler-config/${CONFIG}" > "logs/${CONFIG}-${INFLATION}-${i}.log"
+# </TEST>
