@@ -18,6 +18,7 @@ import (
 	externalclientset "k8s.io/client-go/kubernetes"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/scheduler"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -88,7 +89,16 @@ func New(opts ...Option) (Interface, error) {
 	}
 
 	// Step 3: create fake client
-	fakeClient := fakeclientset.NewSimpleClientset()
+	var fakeClient externalclientset.Interface
+	if options.kubeconfig != "" {
+		config, err := clientcmd.BuildConfigFromFlags("", options.kubeconfig)
+		if err != nil {
+			fmt.Printf("[Error] %s\n", err.Error())
+		}
+		fakeClient, err = externalclientset.NewForConfig(config)
+	} else {
+		fakeClient = fakeclientset.NewSimpleClientset()
+	}
 	sharedInformerFactory := informers.NewSharedInformerFactory(fakeClient, 0)
 
 	// Step 4: Create the simulator
@@ -96,8 +106,8 @@ func New(opts ...Option) (Interface, error) {
 	updateBarrier := map[string]chan struct{}{
 		simontype.SimulatorName: make(chan struct{}),
 	}
+
 	sim := &Simulator{
-		// externalclient:  kubeClient,
 		fakeclient:      fakeClient,
 		updateBarrier:   updateBarrier,
 		informerFactory: sharedInformerFactory,

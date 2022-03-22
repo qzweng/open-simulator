@@ -265,7 +265,7 @@ func (plugin *GpuSharePlugin) Bind(ctx context.Context, state *framework.CycleSt
 	podCopy, ok := plugin.podToUpdateCacheMap[getPodMapKey(pod)]
 	if !ok {
 		klog.Errorf("No podToUpdate found, which should not happen since it should have failed in ReservePlugin")
-		return framework.NewStatus(framework.Error, "No podToUpdate found")
+		return framework.NewStatus(framework.Error, fmt.Sprintf("No podToUpdate found"))
 	}
 	_, err := plugin.fakeclient.CoreV1().Pods(podCopy.Namespace).Update(context.TODO(), podCopy, metav1.UpdateOptions{})
 	if err != nil {

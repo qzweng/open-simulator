@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
+	"sort"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -14,6 +15,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 
 	"github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -77,6 +79,33 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		rand.Shuffle(len(cluster.Pods), func(i, j int) {
 			cluster.Pods[i], cluster.Pods[j] = cluster.Pods[j], cluster.Pods[i]
 		})
+	} else {
+		timeNow := time.Now() //.Format(time.RFC3339)
+		sort.SliceStable(cluster.Pods, func(i, j int) bool {
+			var timeI, timeJ time.Time
+			if timeStr, ok := cluster.Pods[i].Annotations[gpushareutils.CreationTime]; ok {
+				timeI, err = time.Parse(time.RFC3339, timeStr)
+				if err != nil {
+					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
+					timeI = timeNow
+				}
+			} else {
+				fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
+				timeI = timeNow
+			}
+
+			if timeStr, ok := cluster.Pods[j].Annotations[gpushareutils.CreationTime]; ok {
+				timeJ, err = time.Parse(time.RFC3339, timeStr)
+				if err != nil {
+					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
+					timeJ = timeNow
+				}
+			} else {
+				fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
+				timeJ = timeNow
+			}
+			return timeI.Before(timeJ) || (timeI.Equal(timeJ) && cluster.Pods[i].Name < cluster.Pods[j].Name)
+		})
 	}
 
 	// workload inflation
@@ -112,7 +141,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	var failedPods []simontype.UnscheduledPod
 
 	// run cluster
-	result, err := sim.RunCluster(cluster)
+	result, err := sim.RunCluster(cluster) // Existing pods in the cluster are scheduled here.
 	if err != nil {
 		return nil, err
 	}
