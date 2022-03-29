@@ -40,9 +40,6 @@ type Simulator struct {
 	// scheduler
 	scheduler *scheduler.Scheduler
 
-	// stopCh
-	updateBarrier map[string]chan struct{}
-
 	// context
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -103,9 +100,6 @@ func New(opts ...Option) (Interface, error) {
 
 	// Step 4: Create the simulator
 	ctx, cancel := context.WithCancel(context.Background())
-	updateBarrier := map[string]chan struct{}{
-		simontype.SimulatorName: make(chan struct{}),
-	}
 
 	storagev1Informers := sharedInformerFactory.Storage().V1()
 	scInformer := storagev1Informers.StorageClasses().Informer()
@@ -114,7 +108,6 @@ func New(opts ...Option) (Interface, error) {
 
 	sim := &Simulator{
 		client:          client,
-		updateBarrier:   updateBarrier,
 		informerFactory: sharedInformerFactory,
 		ctx:             ctx,
 		cancelFunc:      cancel,
@@ -442,9 +435,6 @@ func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]simontype.UnscheduledP
 
 func (sim *Simulator) Close() {
 	sim.cancelFunc()
-	for _, ub := range sim.updateBarrier {
-		close(ub)
-	}
 }
 
 func (sim *Simulator) isPodScheduled(ns, name string) bool {
@@ -652,27 +642,6 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*simo
 		UnscheduledPods: failedPods,
 		NodeStatus:      sim.getClusterNodeStatus(),
 	}, nil
-}
-
-func (sim *Simulator) update(pod *corev1.Pod) {
-	var stop bool = false
-	var stopReason string
-	var stopMessage string
-	for _, podCondition := range pod.Status.Conditions {
-		// log.Infof("podCondition %v", podCondition)
-		stop = podCondition.Type == corev1.PodScheduled && podCondition.Status == corev1.ConditionFalse && podCondition.Reason == corev1.PodReasonUnschedulable
-		if stop {
-			stopReason = podCondition.Reason
-			stopMessage = podCondition.Message
-			// fmt.Printf("stop is true: %s %s\n", stopReason, stopMessage)
-			break
-		}
-	}
-	// Only for pending pods provisioned by simon
-	if stop {
-		sim.status.stopReason = fmt.Sprintf("failed to schedule pod (%s/%s): %s: %s", pod.Namespace, pod.Name, stopReason, stopMessage)
-	}
-	sim.updateBarrier[simontype.SimulatorName] <- struct{}{}
 }
 
 // WithKubeConfig sets kubeconfig for Simulator, the default value is ""
