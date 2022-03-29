@@ -1,6 +1,7 @@
 package cache
 
 import (
+	"fmt"
 	"sync"
 
 	"k8s.io/api/core/v1"
@@ -47,23 +48,23 @@ func (cache *SchedulerCache) GetGpuNodeinfos() []*GpuNodeInfo {
 //	}
 //}
 
-func (cache *SchedulerCache) BuildCacheFromPodList(podList []*v1.Pod) error {
-	//log.Println("debug: begin to build scheduler cache")
-	for _, pod := range podList {
-		if utils.GetGpuMilliFromPodAnnotation(pod) <= int64(0) {
-			continue
-		}
-
-		if len(pod.Spec.NodeName) == 0 {
-			continue
-		}
-
-		if err := cache.AddOrUpdatePod(pod); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+//func (cache *SchedulerCache) BuildCacheFromPodList(podList []*v1.Pod) error {
+//	//log.Println("debug: begin to build scheduler cache")
+//	for _, pod := range podList {
+//		if utils.GetGpuMilliFromPodAnnotation(pod) <= int64(0) {
+//			continue
+//		}
+//
+//		if len(pod.Spec.NodeName) == 0 {
+//			continue
+//		}
+//
+//		if err := cache.AddOrUpdatePod(pod); err != nil {
+//			return err
+//		}
+//	}
+//	return nil
+//}
 
 func (cache *SchedulerCache) GetPod(name, namespace string) (*v1.Pod, error) {
 	return cache.getter.PodGet(name, namespace)
@@ -78,15 +79,8 @@ func (cache *SchedulerCache) KnownPod(podUID types.UID) bool {
 	return found
 }
 
-func (cache *SchedulerCache) AddOrUpdatePod(pod *v1.Pod) error {
-	//log.Printf("debug: Add or update pod info: %v", pod)
-	//log.Printf("debug: Node %v", cache.nodes)
-	if len(pod.Spec.NodeName) == 0 {
-		//log.Printf("debug: pod %s in ns %s is not assigned to any node, skip", pod.Name, pod.Namespace)
-		return nil
-	}
-
-	n, err := cache.GetGpuNodeInfo(pod.Spec.NodeName)
+func (cache *SchedulerCache) AddOrUpdatePod(pod *v1.Pod, nodeName string) error {
+	n, err := cache.GetGpuNodeInfo(nodeName)
 	if err != nil {
 		return err
 	}
@@ -95,21 +89,21 @@ func (cache *SchedulerCache) AddOrUpdatePod(pod *v1.Pod) error {
 		// put it into known pod
 		cache.rememberPod(podCopy)
 	} else {
-		//log.Printf("debug: pod %s in ns %s's gpu id is %d, it's illegal, skip", pod.Name, pod.Namespace, utils.GetGpuIdFromAnnotation(pod))
+		fmt.Printf("[Error] [AddOrUpdatePod] failed to addOrUpdate pod(%s) on node(%s)\n",
+			utils.GeneratePodKey(pod), nodeName)
 	}
 
 	return nil
 }
 
 // The lock is in cacheNode
-func (cache *SchedulerCache) RemovePod(pod *v1.Pod) {
-	//log.Printf("debug: Remove pod info: %v", pod)
-	//log.Printf("debug: Node %v", cache.nodes)
-	n, err := cache.GetGpuNodeInfo(pod.Spec.NodeName)
+func (cache *SchedulerCache) RemovePod(pod *v1.Pod, nodeName string) {
+	n, err := cache.GetGpuNodeInfo(nodeName)
 	if err == nil {
 		n.removePod(pod)
 	} else {
-		//log.Printf("debug: Failed to get node %s due to %v", pod.Spec.NodeName, err)
+		fmt.Printf("[Error] [RemovePod] failed to remove pod(%s) from node(%s)\n",
+			utils.GeneratePodKey(pod), nodeName)
 	}
 
 	cache.forgetPod(pod.UID)

@@ -9,7 +9,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	externalclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	"k8s.io/utils/integer"
 
@@ -19,16 +18,14 @@ import (
 )
 
 type GpuPackingScorePlugin struct {
-	fakeclient externalclientset.Interface
-	handle     framework.Handle
+	handle framework.Handle
 }
 
 var _ framework.ScorePlugin = &GpuPackingScorePlugin{}
 
-func NewGpuPackingScorePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+func NewGpuPackingScorePlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	gpuPackingScorePlugin := &GpuPackingScorePlugin{
-		fakeclient: fakeclient,
-		handle:     handle,
+		handle: handle,
 	}
 	return gpuPackingScorePlugin, nil
 }
@@ -43,15 +40,16 @@ func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
 
-	node, err := plugin.fakeclient.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node(%s): %s\n", nodeName, err.Error()))
 	}
 
-	nodeRes, err := utils.GetNodeResourceViaHandle(plugin.handle, node)
-	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s): %s\n", nodeName, err.Error()))
+	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	if nodeResPtr == nil {
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
+	nodeRes := *nodeResPtr
 
 	podRes := utils.GetPodResource(pod)
 	_, err = nodeRes.Sub(podRes)

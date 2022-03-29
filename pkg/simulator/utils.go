@@ -236,9 +236,6 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 				Name: simontype.OpenLocalPluginName,
 			},
 			{
-				Name: simontype.OpenGpuSharePluginName,
-			},
-			{
 				Name: simontype.GpuFragScorePluginName,
 			},
 			{
@@ -267,9 +264,6 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 		Enabled: []kubeschedulerconfig.Plugin{
 			{
 				Name: simontype.OpenLocalPluginName,
-			},
-			{
-				Name: simontype.OpenGpuSharePluginName,
 			},
 			{
 				Name: simontype.SimonPluginName,

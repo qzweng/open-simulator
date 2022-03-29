@@ -8,7 +8,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	externalclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -19,7 +18,6 @@ import (
 
 // GpuFragScorePlugin is a plugin for scheduling framework, scoring pods by GPU fragmentation amount
 type GpuFragScorePlugin struct {
-	fakeclient  externalclientset.Interface
 	handle      framework.Handle
 	typicalPods *simontype.TargetPodList
 }
@@ -27,9 +25,8 @@ type GpuFragScorePlugin struct {
 // Just to check whether the implemented struct fits the interface
 var _ framework.ScorePlugin = &GpuFragScorePlugin{}
 
-func NewGpuFragScorePlugin(fakeclient externalclientset.Interface, configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList) (framework.Plugin, error) {
+func NewGpuFragScorePlugin(configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList) (framework.Plugin, error) {
 	gpuFragScorePlugin := &GpuFragScorePlugin{
-		fakeclient:  fakeclient,
 		handle:      handle,
 		typicalPods: typicalPods,
 	}
@@ -60,15 +57,16 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
 	}
 
-	node, err := plugin.fakeclient.CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 	if err != nil {
-		return int64(framework.MinNodeScore), framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
-	nodeRes, err := utils.GetNodeResourceViaHandle(plugin.handle, node)
-	if err != nil {
-		return int64(framework.MinNodeScore), framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes %s: %s\n", nodeName, err.Error()))
+	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	if nodeResPtr == nil {
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
+	nodeRes := *nodeResPtr
 
 	podRes := utils.GetPodResource(pod)
 	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {

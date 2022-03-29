@@ -104,10 +104,10 @@ func GpuIdStrToIntList(id string) (idl []int, err error) {
 	return idl, nil
 }
 
-// GetUpdatedPodAnnotationSpec updates pod env with devId
-func GetUpdatedPodAnnotationSpec(oldPod *v1.Pod, devId string) (newPod *v1.Pod) {
+// UpdatePodDeviceAnnoSpec updates pod env with devId
+func UpdatePodDeviceAnnoSpec(oldPod *v1.Pod, devId string) (newPod *v1.Pod) {
 	newPod = oldPod.DeepCopy()
-	if len(newPod.ObjectMeta.Annotations) == 0 {
+	if newPod.ObjectMeta.Annotations == nil {
 		newPod.ObjectMeta.Annotations = map[string]string{}
 	}
 

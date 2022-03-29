@@ -147,7 +147,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 	failedPods = append(failedPods, result.UnscheduledPods...)
 	ReportFailedPods(failedPods)
-	sim.ClusterAnalysis(result)
+	//sim.ClusterAnalysis(result)
 
 	// if flagDeschedule {
 	//result, _ = sim.Deschedule(cluster.Pods)

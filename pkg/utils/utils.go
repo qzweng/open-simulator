@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"k8s.io/kubernetes/pkg/scheduler/framework"
-	"k8s.io/kubernetes/pkg/scheduler/util"
 	"os"
 	"path/filepath"
 	"sort"
@@ -37,6 +35,8 @@ import (
 	apiv1 "k8s.io/kubernetes/pkg/apis/core/v1"
 	"k8s.io/kubernetes/pkg/apis/core/validation"
 	"k8s.io/kubernetes/pkg/controller/daemon"
+	"k8s.io/kubernetes/pkg/scheduler/framework"
+	schedulerutil "k8s.io/kubernetes/pkg/scheduler/util"
 
 	localcache "github.com/alibaba/open-local/pkg/scheduler/algorithm/cache"
 	localutils "github.com/alibaba/open-local/pkg/utils"
@@ -975,7 +975,7 @@ func GetPodResource(pod *corev1.Pod) simontype.PodResource {
 
 	var non0CPU, non0Mem int64
 	for _, c := range pod.Spec.Containers {
-		non0CPUReq, non0MemReq := util.GetNonzeroRequests(&c.Resources.Requests)
+		non0CPUReq, non0MemReq := schedulerutil.GetNonzeroRequests(&c.Resources.Requests)
 		non0CPU += non0CPUReq
 		non0Mem += non0MemReq
 	}
@@ -990,83 +990,73 @@ func GetPodResource(pod *corev1.Pod) simontype.PodResource {
 }
 
 func GetNodeResourceMap(result *simontype.SimulateResult) map[string]simontype.NodeResource {
-	var allPods []corev1.Pod
-	for _, ns := range result.NodeStatus {
-		for _, pod := range ns.Pods {
-			allPods = append(allPods, *pod)
-		}
-	}
-
 	nodeResMap := make(map[string]simontype.NodeResource)
 	for _, ns := range result.NodeStatus {
 		node := ns.Node
-		if nodeRes, err := GetNodeResourceViaPodList(allPods, node); err == nil {
-			nodeResMap[node.Name] = nodeRes
+		if nodeRes := GetNodeResourceViaPodList(getPodListFromPodPtrList(ns.Pods), node); nodeRes != nil {
+			nodeResMap[node.Name] = *nodeRes
+		} else {
+			fmt.Printf("[Error] [GetNodeResourceMap] failed to get nodeRes(%s)\n", node.Name)
 		}
 	}
 	return nodeResMap
 }
 
-func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeRes simontype.NodeResource, err error) {
+func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeRes *simontype.NodeResource) {
 	nodeInfo, err := handle.SnapshotSharedLister().NodeInfos().Get(node.Name)
 	if err != nil {
-		return nodeRes, err
+		return nil
 	}
 	milliCpuLeft := node.Status.Allocatable.Cpu().MilliValue() - nodeInfo.Requested.MilliCPU
 
-	gpuNumber := utils.GetGpuCountOfNode(node)
-	gpuMilliLeftList := make([]int64, gpuNumber)
-	for i := 0; i < gpuNumber; i++ {
-		gpuMilliLeftList[i] = utils.MILLI
-	}
-	if gpuNodeInfoStr, err := GetGpuNodeInfoFromAnnotation(node); err == nil && gpuNodeInfoStr != nil {
-		for _, dev := range gpuNodeInfoStr.DevsBrief {
-			gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMilli
-		}
-	}
-
-	nodeRes = simontype.NodeResource{
+	return &simontype.NodeResource{
 		NodeName:         node.Name,
 		MilliCpu:         milliCpuLeft,
-		MilliGpuLeftList: gpuMilliLeftList,
-		GpuNumber:        gpuNumber,
+		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
+		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),
 	}
-	return nodeRes, err
 }
 
-func GetNodeResourceViaClient(client externalclientset.Interface, ctx context.Context, node *corev1.Node) (nodeRes simontype.NodeResource, err error) {
-	if podsOnNode, err := client.CoreV1().Pods(corev1.NamespaceAll).List(ctx, metav1.ListOptions{
-		FieldSelector: "spec.nodeName=" + node.Name}); err == nil {
-		if nodeRes, err = GetNodeResourceViaPodList(podsOnNode.Items, node); err != nil {
-			return nodeRes, err
-		}
-	}
-	return nodeRes, err
-}
-
-func GetNodeResourceViaPodList(podList []corev1.Pod, node *corev1.Node) (nodeRes simontype.NodeResource, err error) {
+func GetNodeResourceViaPodList(podList []corev1.Pod, node *corev1.Node) (nodeRes *simontype.NodeResource) {
 	allocatable := node.Status.Allocatable
 	reqs, _ := GetPodsTotalRequestsAndLimitsByNodeName(podList, node.Name)
 	nodeCpuReq, _ := reqs[corev1.ResourceCPU], reqs[corev1.ResourceMemory]
 
-	gpuNumber := utils.GetGpuCountOfNode(node)
-	gpuMilliLeftList := make([]int64, gpuNumber)
-	for i := 0; i < gpuNumber; i++ {
+	return &simontype.NodeResource{
+		NodeName:         node.Name,
+		MilliCpu:         allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
+		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
+		GpuNumber:        utils.GetGpuCountOfNode(node),
+		GpuType:          utils.GetGpuModelOfNode(node),
+	}
+}
+
+func getPodListFromPodPtrList(podPtrList []*corev1.Pod) (podList []corev1.Pod) {
+	for _, pod := range podPtrList {
+		podList = append(podList, *pod.DeepCopy())
+	}
+	return podList
+}
+
+func getGpuMilliLeftListOnNode(node *corev1.Node) []int64 {
+	// ignore non-gpu node
+	if !utils.IsGpuSharingNode(node) {
+		return nil
+	}
+
+	gpuNum := utils.GetGpuCountOfNode(node)
+	gpuMilliLeftList := make([]int64, gpuNum)
+	for i := 0; i < gpuNum; i++ {
 		gpuMilliLeftList[i] = utils.MILLI
 	}
 	if gpuNodeInfoStr, err := GetGpuNodeInfoFromAnnotation(node); err == nil && gpuNodeInfoStr != nil {
 		for _, dev := range gpuNodeInfoStr.DevsBrief {
 			gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMilli
 		}
+	} else {
+		//fmt.Printf("[Error] [getGpuMilliLeftListOnNode] failed to parse node(%s) gpu info from annotation(%v)\n",
+		//	node.Name, node.ObjectMeta.Annotations)
 	}
-
-	nodeRes = simontype.NodeResource{
-		NodeName:         node.Name,
-		MilliCpu:         allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
-		MilliGpuLeftList: gpuMilliLeftList,
-		GpuNumber:        gpuNumber,
-		GpuType:          utils.GetGpuModelOfNode(node),
-	}
-	return nodeRes, err
+	return gpuMilliLeftList
 }

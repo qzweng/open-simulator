@@ -1,7 +1,6 @@
 package simontype
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -13,7 +12,7 @@ const (
 	GpuPackingScorePluginName = "Gpu-Packing-Score"
 	NewNodeNamePrefix         = "simon"
 	SimulatorName             = "Main"
-	DefaultSchedulerName      = corev1.DefaultSchedulerName
+	DefaultSchedulerName      = "simon-scheduler"
 
 	StopReasonSuccess   = "everything is ok"
 	StopReasonDoNotStop = "do not stop"
