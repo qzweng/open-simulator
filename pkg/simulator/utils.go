@@ -223,7 +223,7 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 			{},
 		}
 	}
-	kcfg.Profiles[0].SchedulerName = corev1.DefaultSchedulerName
+	kcfg.Profiles[0].SchedulerName = simontype.DefaultSchedulerName
 	if kcfg.Profiles[0].Plugins == nil {
 		kcfg.Profiles[0].Plugins = &kubeschedulerconfig.Plugins{}
 	}

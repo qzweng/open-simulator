@@ -14,6 +14,7 @@ import (
 	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	storagev1 "k8s.io/api/storage/v1"
 
+	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
 	"github.com/alibaba/open-simulator/pkg/type"
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
@@ -33,8 +34,6 @@ type ResourceTypes struct {
 	PodDisruptionBudgets   []*policyv1beta1.PodDisruptionBudget
 	Jobs                   []*batchv1.Job
 	CronJobs               []*batchv1beta1.CronJob
-	ShufflePod             bool
-	WorkloadInflationRatio float64
 }
 
 type AppResource struct {
@@ -47,7 +46,8 @@ type Interface interface {
 	ScheduleApp(AppResource) (*simontype.SimulateResult, error)
 	SetTypicalPods(cluster ResourceTypes)
 	ClusterAnalysis(result *simontype.SimulateResult)
-	Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult, error)
+	Deschedule() (*simontype.SimulateResult, error)
+	GetCustomConfig() v1alpha1.CustomConfig
 	AddParaSet()
 	Close()
 }
@@ -74,7 +74,8 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 	sim.SetTypicalPods(cluster)
 
-	if cluster.ShufflePod {
+	shufflePod := sim.GetCustomConfig().ShufflePod
+	if shufflePod {
 		rand.Seed(time.Now().UnixNano())
 		rand.Shuffle(len(cluster.Pods), func(i, j int) {
 			cluster.Pods[i], cluster.Pods[j] = cluster.Pods[j], cluster.Pods[i]
@@ -90,7 +91,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 					timeI = timeNow
 				}
 			} else {
-				fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
+				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
 				timeI = timeNow
 			}
 
@@ -101,7 +102,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 					timeJ = timeNow
 				}
 			} else {
-				fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
+				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
 				timeJ = timeNow
 			}
 			return timeI.Before(timeJ) || (timeI.Equal(timeJ) && cluster.Pods[i].Name < cluster.Pods[j].Name)
@@ -109,11 +110,12 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 
 	// workload inflation
-	if cluster.WorkloadInflationRatio > 1 {
+	workloadInflationRatio := sim.GetCustomConfig().WorkloadInflationRatio
+	if workloadInflationRatio > 1 {
 		var inflationPods []*corev1.Pod
 		numBeforeInflation := len(cluster.Pods)
-		numAfterInflation := int(math.Ceil(float64(numBeforeInflation) * cluster.WorkloadInflationRatio))
-		fmt.Printf("[INFO] workload inflation ratio: %.4f, before: %d, after: %d\n", cluster.WorkloadInflationRatio, numBeforeInflation, numAfterInflation)
+		numAfterInflation := int(math.Ceil(float64(numBeforeInflation) * workloadInflationRatio))
+		fmt.Printf("[INFO] workload inflation ratio: %.4f, before: %d, after: %d\n", workloadInflationRatio, numBeforeInflation, numAfterInflation)
 		for i := 0; i < numAfterInflation-numBeforeInflation; i++ {
 			rand.Seed(time.Now().UnixNano())
 			idx := rand.Intn(numBeforeInflation)
@@ -127,7 +129,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		}
 		cluster.Pods = append(cluster.Pods, inflationPods...)
 	} else {
-		fmt.Printf("[INFO] workload inflation ratio(%.4f) is not larger than than 1\n", cluster.WorkloadInflationRatio)
+		fmt.Printf("[INFO] workload inflation ratio(%.4f) is not larger than than 1\n", workloadInflationRatio)
 	}
 
 	for _, item := range cluster.DaemonSets {
@@ -149,10 +151,12 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	ReportFailedPods(failedPods)
 	//sim.ClusterAnalysis(result)
 
-	// if flagDeschedule {
-	//result, _ = sim.Deschedule(cluster.Pods)
-	//failedPods = append(failedPods, result.UnscheduledPods...)
-	//sim.ClusterAnalysis(result)
+	customConfig := sim.GetCustomConfig()
+	if customConfig.DeschedulePolicy != "" {
+		result, _ = sim.Deschedule()
+		failedPods = append(failedPods, result.UnscheduledPods...)
+		//sim.ClusterAnalysis(result)
+	}
 
 	// schedule pods
 	for _, app := range apps {

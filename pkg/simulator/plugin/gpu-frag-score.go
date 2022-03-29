@@ -103,7 +103,7 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 	//newNodeGpuFragRatio := utils.NodeGpuFragRatio(newNodeRes, *plugin.typicalPods)
 	newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, *plugin.typicalPods)
 
-	score := int64(nodeGpuFrag.FragAmountSumExceptQ3() - newNodeGpuFrag.FragAmountSumExceptQ3()) // could be negative
+	score := int64(nodeGpuFrag.FragAmountSumExceptQ3() - newNodeGpuFrag.FragAmountSumExceptQ3()) // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
 
 	/*
 		fmt.Printf("[GpuFragScore] Place Pod %s: %s to Node (%s)\n"+

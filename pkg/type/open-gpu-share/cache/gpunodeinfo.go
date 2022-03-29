@@ -94,16 +94,16 @@ func (n *GpuNodeInfo) removePod(pod *v1.Pod) {
 	n.rwmu.Lock()
 	defer n.rwmu.Unlock()
 
-	if idl, err := utils.GetGpuIdListFromAnnotation(pod); err == nil {
+	if idl, err := utils.GetGpuIdListFromAnnotation(pod); len(idl) > 0 && err == nil {
 		for _, idx := range idl {
 			if dev, found := n.devs[(idx)]; found {
 				dev.removePod(pod)
 			} else {
-				log.Printf("warn: Pod %s in ns %s failed to find the GPU ID %d in node %s", pod.Name, pod.Namespace, idx, n.name)
+				log.Printf("[ERROR] Pod %s in ns %s failed to find the GPU ID %d in node %s", pod.Name, pod.Namespace, idx, n.name)
 			}
 		}
 	} else {
-		log.Printf("warn: Pod %s in ns %s has problem with parsing GPU ID %d in node %s, error: %s", pod.Name, pod.Namespace, idl, n.name, err)
+		log.Printf("[ERROR] Pod %s in ns %s has problem with parsing GPU ID %d in node %s, error: %s. (Is Open-GPU-Share -> Bind enabled not enabled, or ", pod.Name, pod.Namespace, idl, n.name, err)
 	}
 }
 

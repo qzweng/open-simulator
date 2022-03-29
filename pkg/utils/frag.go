@@ -110,6 +110,10 @@ func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.Targ
 }
 
 func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragAmount {
+	if len(typicalPods) <= 0 {
+		fmt.Printf("[ERROR] Typical Pods list is empty\n")
+		return FragAmount{}
+	}
 	fragRatio := NodeGpuFragRatio(nodeRes, typicalPods)
 	fragAmount := FragAmount{nodeRes.NodeName, fragRatio.Data}
 

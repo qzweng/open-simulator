@@ -682,13 +682,13 @@ func ValidateNode(node *corev1.Node) error {
 	return nil
 }
 
-func GetPodsTotalRequestsAndLimitsByNodeName(pods []corev1.Pod, nodeName string) (map[corev1.ResourceName]resource.Quantity, map[corev1.ResourceName]resource.Quantity) {
+func GetPodsTotalRequestsAndLimitsByNodeName(pods []*corev1.Pod, nodeName string) (map[corev1.ResourceName]resource.Quantity, map[corev1.ResourceName]resource.Quantity) {
 	reqs, limits := make(map[corev1.ResourceName]resource.Quantity), make(map[corev1.ResourceName]resource.Quantity)
 	for _, pod := range pods {
 		if pod.Spec.NodeName != nodeName {
 			continue
 		}
-		podReqs, podLimits := resourcehelper.PodRequestsAndLimits(&pod)
+		podReqs, podLimits := resourcehelper.PodRequestsAndLimits(pod)
 		for podReqName, podReqValue := range podReqs {
 			if value, ok := reqs[podReqName]; !ok {
 				reqs[podReqName] = podReqValue.DeepCopy()
@@ -989,11 +989,11 @@ func GetPodResource(pod *corev1.Pod) simontype.PodResource {
 	return tgtPodRes
 }
 
-func GetNodeResourceMap(result *simontype.SimulateResult) map[string]simontype.NodeResource {
+func GetNodeResourceMap(nodeStatus []simontype.NodeStatus) map[string]simontype.NodeResource {
 	nodeResMap := make(map[string]simontype.NodeResource)
-	for _, ns := range result.NodeStatus {
+	for _, ns := range nodeStatus {
 		node := ns.Node
-		if nodeRes := GetNodeResourceViaPodList(getPodListFromPodPtrList(ns.Pods), node); nodeRes != nil {
+		if nodeRes := GetNodeResourceViaPodList(ns.Pods, node); nodeRes != nil {
 			nodeResMap[node.Name] = *nodeRes
 		} else {
 			fmt.Printf("[Error] [GetNodeResourceMap] failed to get nodeRes(%s)\n", node.Name)
@@ -1018,7 +1018,7 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 	}
 }
 
-func GetNodeResourceViaPodList(podList []corev1.Pod, node *corev1.Node) (nodeRes *simontype.NodeResource) {
+func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRes *simontype.NodeResource) {
 	allocatable := node.Status.Allocatable
 	reqs, _ := GetPodsTotalRequestsAndLimitsByNodeName(podList, node.Name)
 	nodeCpuReq, _ := reqs[corev1.ResourceCPU], reqs[corev1.ResourceMemory]
@@ -1030,13 +1030,6 @@ func GetNodeResourceViaPodList(podList []corev1.Pod, node *corev1.Node) (nodeRes
 		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),
 	}
-}
-
-func getPodListFromPodPtrList(podPtrList []*corev1.Pod) (podList []corev1.Pod) {
-	for _, pod := range podPtrList {
-		podList = append(podList, *pod.DeepCopy())
-	}
-	return podList
 }
 
 func getGpuMilliLeftListOnNode(node *corev1.Node) []int64 {
@@ -1059,4 +1052,35 @@ func getGpuMilliLeftListOnNode(node *corev1.Node) []int64 {
 		//	node.Name, node.ObjectMeta.Annotations)
 	}
 	return gpuMilliLeftList
+}
+
+func GetAllPodsPtrFromNodeStatus(nodeStatus []simontype.NodeStatus) []*corev1.Pod {
+	var allPods []*corev1.Pod
+	for _, status := range nodeStatus {
+		for _, pod := range status.Pods {
+			if pod != nil {
+				allPods = append(allPods, pod)
+			} else {
+				fmt.Printf("[ERROR] Nil Pod pointer exists in nodeStatus: %v\n", nodeStatus)
+			}
+		}
+	}
+	return allPods
+}
+
+func GetPodsPtrFromPods(pods []corev1.Pod) (podsPtr []*corev1.Pod) {
+	for _, pod := range pods {
+		podsPtr = append(podsPtr, pod.DeepCopy()) // &pod is wrong; using pod.DeepCopy() instead.
+	}
+	return
+}
+
+func RemovePodFromPodSliceByPod(pods []*corev1.Pod, pod *corev1.Pod) []*corev1.Pod {
+	ret := make([]*corev1.Pod, 0)
+	for _, p := range pods {
+		if p != pod {
+			ret = append(ret, p)
+		}
+	}
+	return ret
 }

@@ -3,14 +3,10 @@ package simulator
 import (
 	"context"
 	"fmt"
-	"math"
 	"sort"
-	"strconv"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/informers"
@@ -24,6 +20,7 @@ import (
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 
 	"github.com/alibaba/open-simulator/pkg/algo"
+	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
 	simonplugin "github.com/alibaba/open-simulator/pkg/simulator/plugin"
 	simontype "github.com/alibaba/open-simulator/pkg/type"
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
@@ -49,6 +46,7 @@ type Simulator struct {
 	//
 	typicalPods     simontype.TargetPodList
 	nodeResourceMap map[string]simontype.NodeResource
+	customConfig    v1alpha1.CustomConfig
 }
 
 // status captures reason why one pod fails to be scheduled
@@ -59,6 +57,7 @@ type status struct {
 type simulatorOptions struct {
 	kubeconfig      string
 	schedulerConfig string
+	customConfig    v1alpha1.CustomConfig
 }
 
 // Option configures a Simulator
@@ -67,6 +66,7 @@ type Option func(*simulatorOptions)
 var defaultSimulatorOptions = simulatorOptions{
 	kubeconfig:      "",
 	schedulerConfig: "",
+	customConfig:    v1alpha1.CustomConfig{},
 }
 
 // New generates all components that will be needed to simulate scheduling and returns a complete simulator
@@ -111,6 +111,7 @@ func New(opts ...Option) (Interface, error) {
 		informerFactory: sharedInformerFactory,
 		ctx:             ctx,
 		cancelFunc:      cancel,
+		customConfig:    options.customConfig,
 	}
 
 	// Step 6: create scheduler for fake cluster
@@ -185,143 +186,6 @@ func (sim *Simulator) ScheduleApp(apps AppResource) (*simontype.SimulateResult, 
 		UnscheduledPods: failedPod,
 		NodeStatus:      sim.getClusterNodeStatus(),
 	}, nil
-}
-
-func (sim *Simulator) Deschedule(pods []*corev1.Pod) (*simontype.SimulateResult, error) {
-	podMap := make(map[string]*corev1.Pod)
-	for _, pod := range pods {
-		podMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
-	}
-
-	nodeStatus := sim.getClusterNodeStatus()
-	var descheduledPod []string
-	for _, ns := range nodeStatus {
-		victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
-		if victimPod != nil {
-			descheduledPod = append(descheduledPod, utils.GeneratePodKey(victimPod))
-			sim.deletePod(victimPod)
-		}
-
-		//for _, pod := range ns.Pods {
-		//	sim.deletePod(pod) // delete all pods
-		//	podCopy := podMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
-		//	sim.createPod(podCopy)
-		//	sim.deletePod(podCopy)
-		//	podCopy = podMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
-		//	sim.createPod(podCopy)
-		//	sim.deletePod(podCopy)
-		//}
-	}
-
-	fmt.Printf("deschedule pod list %v\n", descheduledPod)
-	var failedPods []simontype.UnscheduledPod
-	for _, podKey := range descheduledPod {
-		podCopy := podMap[podKey].DeepCopy()
-		MakePodUnassigned(podCopy)
-		sim.createPod(podCopy)
-
-		if strings.Contains(sim.status.stopReason, "failed") {
-			sim.deletePod(podCopy)
-			failedPods = append(failedPods, simontype.UnscheduledPod{
-				Pod:    podCopy,
-				Reason: sim.status.stopReason,
-			})
-		}
-	}
-
-	return &simontype.SimulateResult{
-		UnscheduledPods: failedPods,
-		NodeStatus:      sim.getClusterNodeStatus(),
-	}, nil
-}
-
-func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod) *corev1.Pod {
-	var victimPod *corev1.Pod
-	var victimPodSimilarity float64 = 1
-	for _, pod := range pods {
-		similarity, ok := sim.resourceSimilarity(pod, node)
-		if !ok {
-			fmt.Printf("failed to get resource similarity of pod %s to node %s\n", utils.GeneratePodKey(pod), node.Name)
-			continue
-		}
-		if similarity >= 0 && similarity < victimPodSimilarity {
-			victimPod = pod
-			victimPodSimilarity = similarity
-		}
-	}
-	if victimPod != nil {
-		fmt.Printf("pod %s is selected to deschedule from node %s, resource similarity %.2f\n", utils.GeneratePodKey(victimPod), node.Name, victimPodSimilarity)
-		return victimPod
-	}
-	return nil
-}
-
-func (sim *Simulator) resourceSimilarity(pod *corev1.Pod, node *corev1.Node) (float64, bool) {
-	var podVec, nodeVec []float64
-
-	// cpu
-	var scaleFactor float64 = 1000
-	podVec = append(podVec, float64(pod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue())/scaleFactor)
-	nodeVec = append(nodeVec, float64(node.Status.Allocatable.Cpu().MilliValue())/scaleFactor)
-
-	// mem
-	scaleFactor = 1024 * 1024 * 1024
-	podVec = append(podVec, float64(pod.Spec.Containers[0].Resources.Requests.Memory().Value())/scaleFactor)
-	nodeVec = append(nodeVec, float64(node.Status.Allocatable.Memory().Value())/scaleFactor)
-
-	// gpu mem
-	scaleFactor = 1024 * 1024 * 1024
-	if nodeGpuMem, ok := node.Status.Allocatable[gpushareutils.ResourceName]; ok {
-		//nodeVec = append(nodeVec, float64())
-		if podGpuMemAnno, ok := pod.Annotations[gpushareutils.ResourceName]; ok {
-			podGpuMem := resource.MustParse(podGpuMemAnno)
-
-			podGpuCountAnno := pod.Annotations[gpushareutils.CountName]
-			//podGpuCount := resource.MustParse(podGpuCountAnno)
-			podGpuCount, _ := strconv.ParseFloat(podGpuCountAnno, 64)
-
-			fmt.Printf("debug: pod %s, podGpuMemAnno %v, podGpuMem %v, podGpuCountAnno %v, podGpuCount %v\n", utils.GeneratePodKey(pod), podGpuMemAnno, podGpuMem, podGpuCountAnno, podGpuCount)
-
-			podVec = append(podVec, float64(podGpuMem.Value())*podGpuCount/scaleFactor)
-		} else {
-			podVec = append(podVec, 0)
-		}
-		nodeGpuCount := node.Status.Allocatable[gpushareutils.CountName]
-		fmt.Printf("debug: node %s, nodeGpuMem %v, nodeGpuCount %v\n", node.Name, nodeGpuMem, nodeGpuCount)
-		nodeVec = append(nodeVec, float64(nodeGpuMem.Value())*float64(nodeGpuCount.Value())/scaleFactor)
-	}
-
-	similarity, err := calculateVectorSimilarity(podVec, nodeVec)
-	if err != nil {
-		return -1, false
-	}
-	fmt.Printf("similarity of pod %s with node %s is %.2f, pod vec %v, node vec %v\n",
-		utils.GeneratePodKey(pod), node.Name, similarity, podVec, nodeVec)
-	return similarity, true
-}
-
-func calculateVectorSimilarity(vec1, vec2 []float64) (float64, error) {
-	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
-		err := fmt.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
-		return -1, err
-	}
-	var magnitude1, magnitude2, innerProduct float64
-	for index, num1 := range vec1 {
-		num2 := vec2[index]
-		magnitude1 += num1 * num1
-		magnitude2 += num2 * num2
-		innerProduct += num1 * num2
-	}
-	magnitude1 = math.Sqrt(magnitude1)
-	magnitude2 = math.Sqrt(magnitude2)
-
-	if magnitude1 == 0 || magnitude2 == 0 {
-		err := fmt.Errorf("vector(s) of zero magnitude. vec1: %v, vec2: %v", vec1, vec2)
-		return -1, err
-	}
-
-	similarity := innerProduct / (magnitude1 * magnitude2)
-	return similarity, nil
 }
 
 func (sim *Simulator) AddParaSet() {
@@ -658,6 +522,12 @@ func WithSchedulerConfig(schedulerConfig string) Option {
 	}
 }
 
+func WithCustomConfig(customConfig v1alpha1.CustomConfig) Option {
+	return func(o *simulatorOptions) {
+		o.customConfig = customConfig
+	}
+}
+
 // CreateClusterResourceFromClient returns a ResourceTypes struct by kube-client that connects a real cluster
 func CreateClusterResourceFromClient(client externalclientset.Interface) (ResourceTypes, error) {
 	var resource ResourceTypes
@@ -825,4 +695,8 @@ func ownedByCronJob(refs []metav1.OwnerReference) bool {
 		}
 	}
 	return false
+}
+
+func (sim *Simulator) GetCustomConfig() v1alpha1.CustomConfig {
+	return sim.customConfig
 }

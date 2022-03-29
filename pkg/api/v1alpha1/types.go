@@ -12,15 +12,21 @@ type Cluster struct {
 }
 
 type SimonSpec struct {
-	Cluster                Cluster   `json:"cluster"`
-	AppList                []AppInfo `json:"appList"`
-	NewNode                string    `json:"newNode"`
-	ShufflePod             bool      `json:"shufflePod,omitempty"`
-	WorkloadInflationRatio float64   `json:"workloadInflationRatio,omitempty"`
+	Cluster      Cluster      `json:"cluster"`
+	AppList      []AppInfo    `json:"appList"`
+	NewNode      string       `json:"newNode"`
+	CustomConfig CustomConfig `json:"customConfig,omitempty"`
 }
 
 type SimonMetaData struct {
 	Name string `json:"name"`
+}
+
+type CustomConfig struct {
+	ShufflePod             bool    `json:"shufflePod,omitempty"`
+	WorkloadInflationRatio float64 `json:"workloadInflationRatio,omitempty"`
+	DeschedulePodsMax      int     `json:"deschedulePodsMax,omitempty"`
+	DeschedulePolicy       string  `json:"deschedulePolicy,omitempty"`
 }
 
 type Simon struct {

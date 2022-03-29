@@ -48,23 +48,23 @@ func (cache *SchedulerCache) GetGpuNodeinfos() []*GpuNodeInfo {
 //	}
 //}
 
-//func (cache *SchedulerCache) BuildCacheFromPodList(podList []*v1.Pod) error {
-//	//log.Println("debug: begin to build scheduler cache")
-//	for _, pod := range podList {
-//		if utils.GetGpuMilliFromPodAnnotation(pod) <= int64(0) {
-//			continue
-//		}
-//
-//		if len(pod.Spec.NodeName) == 0 {
-//			continue
-//		}
-//
-//		if err := cache.AddOrUpdatePod(pod); err != nil {
-//			return err
-//		}
-//	}
-//	return nil
-//}
+func (cache *SchedulerCache) BuildCacheFromPodList(podList []*v1.Pod) error {
+	//log.Println("debug: begin to build scheduler cache")
+	for _, pod := range podList {
+		if utils.GetGpuMilliFromPodAnnotation(pod) <= int64(0) {
+			continue
+		}
+
+		if len(pod.Spec.NodeName) == 0 {
+			continue
+		}
+
+		if err := cache.AddOrUpdatePod(pod, pod.Spec.NodeName); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 func (cache *SchedulerCache) GetPod(name, namespace string) (*v1.Pod, error) {
 	return cache.getter.PodGet(name, namespace)

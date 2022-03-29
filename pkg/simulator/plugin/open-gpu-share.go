@@ -100,7 +100,7 @@ func (plugin *GpuSharePlugin) updateNode(node *corev1.Node) error {
 	} else {
 		metav1.SetMetaDataAnnotation(&node.ObjectMeta, simontype.AnnoNodeGpuShare, string(data))
 	}
-	//fmt.Printf("updateNode: %v with anno: %s\n", nodeGpuInfo, node.ObjectMeta.Annotations)
+	//fmt.Printf("updateNode: %v with anno: %s\n", nodeGpuInfoStr, node.ObjectMeta.Annotations)
 
 	if _, err := plugin.handle.ClientSet().CoreV1().Nodes().Update(context.Background(), node, metav1.UpdateOptions{}); err != nil {
 		return fmt.Errorf("failed to Update node %s", node.Name)
@@ -128,7 +128,7 @@ func (plugin *GpuSharePlugin) addOrUpdatePod(pod *corev1.Pod, nodeName string) e
 
 func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod, nodeName string) error {
 	if nodeName == "" {
-		return fmt.Errorf("")
+		return fmt.Errorf("removePod get pod(%s) having empty nodeName", utils.GeneratePodKey(pod))
 	}
 	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 	if err != nil {

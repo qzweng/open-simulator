@@ -82,12 +82,7 @@ func ReportNodeAllocationRate(aamap map[string]AllocAmount) {
 }
 
 func GetNodeAllocMap(result *simontype.SimulateResult) (map[string]AllocAmount, error) {
-	var allPods []corev1.Pod
-	for _, ns := range result.NodeStatus {
-		for _, pod := range ns.Pods {
-			allPods = append(allPods, *pod)
-		}
-	}
+	allPods := GetAllPodsPtrFromNodeStatus(result.NodeStatus)
 
 	nodeAllocMap := make(map[string]AllocAmount)
 	for _, ns := range result.NodeStatus {

@@ -86,15 +86,15 @@ func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 	}
 	out.MilliCpu -= tpr.MilliCpu
 
-	if tpr.GpuNumber == 0 {
+	gpuRequest := tpr.GpuNumber
+	if gpuRequest == 0 {
 		return out, nil
 	}
 
-	gpuRequest := tpr.GpuNumber
-	//fmt.Printf("[DEBUG] [ORIN] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
-	sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { return out.MilliGpuLeftList[i] > out.MilliGpuLeftList[j] })
-	//fmt.Printf("[DEBUG] [SORT] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
-
+	// Sort NodeRes's GpuLeft in Descending, then Pack it (Subtract from the most sufficient one).
+	sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { // largest one first
+		return out.MilliGpuLeftList[i] > out.MilliGpuLeftList[j]
+	})
 	for i := 0; i < len(out.MilliGpuLeftList); i++ {
 		if tpr.MilliGpu <= out.MilliGpuLeftList[i] {
 			gpuRequest -= 1
@@ -106,4 +106,50 @@ func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 		}
 	}
 	return out, fmt.Errorf("node: %s failed to accommodate pod: %s (%d GPU requests left)", tnr.Repr(), tpr.Repr(), gpuRequest)
+}
+
+func (tnr NodeResource) Add(tpr PodResource, idl []int) (NodeResource, error) {
+	out := tnr.Copy()
+	out.MilliCpu += tpr.MilliCpu
+
+	gpuRequest := tpr.GpuNumber
+	if tpr.GpuNumber == 0 {
+		return out, nil
+	}
+
+	if len(idl) > 0 || len(idl) != gpuRequest { // input is valid
+		for i := 0; i < len(idl); i++ {
+			if idl[i] > len(out.MilliGpuLeftList)-1 || idl[i] < 0 {
+				err := fmt.Errorf("[ERROR] idl: %v of pod %s", idl, tpr.Repr())
+				fmt.Println(err.Error())
+				return out, err
+			}
+			if out.MilliGpuLeftList[idl[i]]+tpr.MilliGpu > gpushareutils.MILLI {
+				err := fmt.Errorf("[ERROR] idl[%d]=%d of pod %s exceeds %d", i, idl[i], tpr.Repr(), gpushareutils.MILLI)
+				fmt.Println(err.Error())
+				return out, err
+			}
+			out.MilliGpuLeftList[idl[i]] += tpr.MilliGpu
+			gpuRequest -= 1
+		}
+		return out, nil
+
+	} else { // evict pod from the smallest remaining resource GPU, may not reflect the real cases
+		fmt.Printf("[INFO] Pod (%s) has no valid GPU index list: %v\n", tpr.Repr(), idl)
+		sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { // smallest one first
+			return out.MilliGpuLeftList[i] < out.MilliGpuLeftList[j]
+		})
+		for i := 0; i < len(out.MilliGpuLeftList); i++ {
+			if tpr.MilliGpu+out.MilliGpuLeftList[i] <= gpushareutils.MILLI {
+				gpuRequest -= 1
+				out.MilliGpuLeftList[i] += tpr.MilliGpu
+				if gpuRequest <= 0 {
+					//fmt.Printf("[DEBUG] [DONE] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
+					return out, nil
+				}
+			}
+		}
+	}
+
+	return out, fmt.Errorf("node: %s failed to evict pod: %s (%d GPU requests left)", tnr.Repr(), tpr.Repr(), gpuRequest)
 }
