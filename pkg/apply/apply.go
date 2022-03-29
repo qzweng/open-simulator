@@ -442,7 +442,7 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 			var nodeGpuMilliReq int64
 			for _, pod := range allPods {
 				if pod.Spec.NodeName == node.Name {
-					gpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(&pod)
+					gpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(&pod) * int64(gpushareutils.GetGpuCountFromPodAnnotation(&pod))
 					nodeGpuMilliReq += gpuMilli
 				}
 			}
