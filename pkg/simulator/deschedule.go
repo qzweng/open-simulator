@@ -2,11 +2,6 @@ package simulator
 
 import (
 	"fmt"
-	"sort"
-	"strings"
-
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
 	"github.com/alibaba/open-simulator/pkg/utils"
@@ -19,13 +14,7 @@ const (
 )
 
 func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
-	podMap := make(map[string]*corev1.Pod)
-	podList, _ := sim.client.CoreV1().Pods(metav1.NamespaceAll).List(sim.ctx, metav1.ListOptions{})
-	pods := utils.GetPodsPtrFromPods(podList.Items)
-	for _, pod := range pods {
-		podMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)] = pod
-		//fmt.Printf("[DEBUG][Pod] pod %s -> Spec.NodeName %s\n", pod.Name, pod.Spec.NodeName)
-	}
+	podMap := sim.getCurrentPodMap()
 
 	nodeStatus := sim.getClusterNodeStatus() // Note: the resources in nodeStatus.Node is the capacity instead of requests
 	nodeStatusMap := make(map[string]simontype.NodeStatus)
@@ -33,29 +22,21 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 		nodeStatusMap[ns.Node.Name] = ns
 	}
 
-	nodeResourceMap := utils.GetNodeResourceMap(nodeStatus)
-	nodeFragAmountMap := sim.NodeGpuFragAmountMap(nodeResourceMap)
-
-	var nodeFragAmountList []utils.FragAmount
-	for _, v := range nodeFragAmountMap {
-		nodeFragAmountList = append(nodeFragAmountList, v)
-	}
-	sort.Slice(nodeFragAmountList, func(i int, j int) bool {
-		return nodeFragAmountList[i].FragAmountSumExceptQ3() > nodeFragAmountList[j].FragAmountSumExceptQ3()
-	})
-
-	var descheduledPod []string
+	var err error
+	var failedPods []simontype.UnscheduledPod
 	numPodsToDeschedule := sim.customConfig.DeschedulePodsMax
 	fmt.Printf("[INFO] DeschedulePodsMax: %d, DeschedulePolicy: %s\n", numPodsToDeschedule, sim.customConfig.DeschedulePolicy)
+
 	switch sim.customConfig.DeschedulePolicy {
 	case DeschedulePolicyCosSim:
+		var descheduledPodKeys []string
 		for _, ns := range nodeStatus {
 			if numPodsToDeschedule <= 0 {
 				break
 			}
 			victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
 			if victimPod != nil {
-				descheduledPod = append(descheduledPod, utils.GeneratePodKey(victimPod))
+				descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
 				sim.deletePod(victimPod)
 				numPodsToDeschedule -= 1
 			}
@@ -70,8 +51,16 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			//	sim.deletePod(podCopy)
 			//}
 		}
+		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
+		failedPods, err = sim.schedulePods(descheduledPod)
+		if err != nil {
+			fmt.Printf("[Error] [Deschedule] scheduled Pods failed: %s\n", err.Error())
+		}
 
 	case DeschedulePolicyFragOnePod:
+		var descheduledPodKeys []string
+		nodeResourceMap := utils.GetNodeResourceMap(nodeStatus)
+		nodeFragAmountList := sim.getNodeFragAmountList(nodeStatus)
 		for _, nfa := range nodeFragAmountList { // from nodes with the largest amount of fragment
 			if numPodsToDeschedule <= 0 {
 				break
@@ -79,13 +68,22 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			nsPods := nodeStatusMap[nfa.NodeName].Pods
 			victimPod, _ := sim.findVictimPodOnNodeFragAware(nfa, nodeResourceMap[nfa.NodeName], nsPods) // evict one pod per node
 			if victimPod != nil {
-				descheduledPod = append(descheduledPod, utils.GeneratePodKey(victimPod))
+				descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
 				sim.deletePod(victimPod)
 				numPodsToDeschedule -= 1
 			}
 		}
+		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
+		failedPods, err = sim.schedulePods(descheduledPod)
+		if err != nil {
+			fmt.Printf("[Error] [Deschedule] scheduled Pods failed: %s\n", err.Error())
+		}
 
 	case DeschedulePolicyFragMultiPod:
+		var descheduledPodKeys []string
+		nodeResourceMap := utils.GetNodeResourceMap(nodeStatus)
+		nodeFragAmountMap := sim.NodeGpuFragAmountMap(nodeResourceMap)
+		nodeFragAmountList := sim.getNodeFragAmountList(nodeStatus)
 		var fakeNodeFragAmountList []utils.FragAmount
 		for _, v := range nodeFragAmountMap {
 			fakeNodeFragAmountList = append(nodeFragAmountList, v)
@@ -105,7 +103,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 				nsPods := fakeNodeStatusMap[nfa.NodeName].Pods
 				victimPod, victimNodeGpuFrag := sim.findVictimPodOnNodeFragAware(nfa, nodeResourceMap[nfa.NodeName], nsPods) // evict one pod per node
 				if victimPod != nil {
-					descheduledPod = append(descheduledPod, utils.GeneratePodKey(victimPod))
+					descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
 					sim.deletePod(victimPod)
 					fakeNodeFragAmountList[i] = *victimNodeGpuFrag                                       // update the nodeFragAmount
 					oldNode := fakeNodeStatusMap[nfa.NodeName].Node                                      // not changed
@@ -120,24 +118,14 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			}
 			numPodsToDescheduleLast = numPodsToDeschedule
 		}
+		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
+		failedPods, err = sim.schedulePods(descheduledPod)
+		if err != nil {
+			fmt.Printf("[Error] [Deschedule] scheduled Pods failed: %s\n", err.Error())
+		}
+
 	default:
 		fmt.Printf("[ERROR] DeschedulePolicy not found\n")
-	}
-
-	fmt.Printf("[INFO] Deschedule pod list (%d pods): %v\n", len(descheduledPod), descheduledPod)
-	var failedPods []simontype.UnscheduledPod
-	for _, podKey := range descheduledPod {
-		podCopy := podMap[podKey].DeepCopy()
-		MakePodUnassigned(podCopy)
-		sim.createPod(podCopy)
-
-		if strings.Contains(sim.status.stopReason, "failed") {
-			sim.deletePod(podCopy)
-			failedPods = append(failedPods, simontype.UnscheduledPod{
-				Pod:    podCopy,
-				Reason: sim.status.stopReason,
-			})
-		}
 	}
 
 	return &simontype.SimulateResult{

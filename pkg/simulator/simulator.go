@@ -192,6 +192,10 @@ func (sim *Simulator) AddParaSet() {
 
 }
 
+func (sim *Simulator) GetCustomConfig() v1alpha1.CustomConfig {
+	return sim.customConfig
+}
+
 func (sim *Simulator) getClusterNodeStatus() []simontype.NodeStatus {
 	var nodeStatues []simontype.NodeStatus
 	var err error
@@ -279,19 +283,25 @@ func (sim *Simulator) deletePod(p *corev1.Pod) error {
 	return nil
 }
 
+func (sim *Simulator) assumePod(pod *corev1.Pod) *simontype.UnscheduledPod {
+	err := sim.createPod(pod)
+	if err != nil || sim.isPodUnscheduled(pod.Namespace, pod.Name) {
+		if err = sim.deletePod(pod); err != nil {
+			fmt.Printf("[Error] [assumePod] failed to delete pod(%s)\n", utils.GeneratePodKey(pod))
+		}
+		return &simontype.UnscheduledPod{Pod: pod}
+	}
+	return nil
+}
+
 // Run starts to schedule pods
 func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]simontype.UnscheduledPod, error) {
 	var failedPods []simontype.UnscheduledPod
-	var err error
 	for i, pod := range pods {
-		err = sim.createPod(pod)
-		fmt.Printf("[%d] pod %s created\n", i, utils.GeneratePodKey(pod))
-		if err != nil || sim.isPodUnscheduled(pod.Namespace, pod.Name) {
-			if err = sim.deletePod(pod); err != nil {
-				fmt.Printf("[Info] [schedulePods] failed to delete pod(%s)\n", utils.GeneratePodKey(pod))
-				return nil, err
-			}
-			failedPods = append(failedPods, simontype.UnscheduledPod{Pod: pod})
+		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
+			failedPods = append(failedPods, *unscheduledPod)
+		} else {
+			fmt.Printf("[%d] pod %s created\n", i, utils.GeneratePodKey(pod))
 		}
 	}
 	return failedPods, nil
@@ -697,6 +707,35 @@ func ownedByCronJob(refs []metav1.OwnerReference) bool {
 	return false
 }
 
-func (sim *Simulator) GetCustomConfig() v1alpha1.CustomConfig {
-	return sim.customConfig
+func getPodfromPodMap(podKeys []string, podMap map[string]*corev1.Pod) []*corev1.Pod {
+	var podList []*corev1.Pod
+	for _, podKey := range podKeys {
+		podCopy := podMap[podKey].DeepCopy()
+		MakePodUnassigned(podCopy)
+		podList = append(podList, podCopy)
+	}
+	return podList
+}
+
+func (sim *Simulator) getNodeFragAmountList(nodeStatus []simontype.NodeStatus) []utils.FragAmount {
+	nodeResourceMap := utils.GetNodeResourceMap(nodeStatus)
+	nodeFragAmountMap := sim.NodeGpuFragAmountMap(nodeResourceMap)
+
+	var nodeFragAmountList []utils.FragAmount
+	for _, v := range nodeFragAmountMap {
+		nodeFragAmountList = append(nodeFragAmountList, v)
+	}
+	sort.Slice(nodeFragAmountList, func(i int, j int) bool {
+		return nodeFragAmountList[i].FragAmountSumExceptQ3() > nodeFragAmountList[j].FragAmountSumExceptQ3()
+	})
+	return nodeFragAmountList
+}
+
+func (sim *Simulator) getCurrentPodMap() map[string]*corev1.Pod {
+	podMap := make(map[string]*corev1.Pod)
+	podList, _ := sim.client.CoreV1().Pods(metav1.NamespaceAll).List(sim.ctx, metav1.ListOptions{})
+	for _, pod := range podList.Items {
+		podMap[utils.GeneratePodKey(&pod)] = pod.DeepCopy()
+	}
+	return podMap
 }
