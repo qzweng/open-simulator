@@ -16,13 +16,12 @@ const (
 func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 	podMap := sim.getCurrentPodMap()
 
-	nodeStatus := sim.getClusterNodeStatus() // Note: the resources in nodeStatus.Node is the capacity instead of requests
+	nodeStatus := sim.GetClusterNodeStatus() // Note: the resources in nodeStatus.Node is the capacity instead of requests
 	nodeStatusMap := make(map[string]simontype.NodeStatus)
 	for _, ns := range nodeStatus {
 		nodeStatusMap[ns.Node.Name] = ns
 	}
 
-	var err error
 	var failedPods []simontype.UnscheduledPod
 	numPodsToDeschedule := sim.customConfig.DeschedulePodsMax
 	fmt.Printf("[INFO] DeschedulePodsMax: %d, DeschedulePolicy: %s\n", numPodsToDeschedule, sim.customConfig.DeschedulePolicy)
@@ -36,9 +35,12 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			}
 			victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
 			if victimPod != nil {
-				descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
-				sim.deletePod(victimPod)
-				numPodsToDeschedule -= 1
+				if err := sim.deletePod(victimPod); err != nil {
+					fmt.Printf("[Error] [Deschedule] failed to delete pod(%s)\n", utils.GeneratePodKey(victimPod))
+				} else {
+					descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
+					numPodsToDeschedule -= 1
+				}
 			}
 
 			//for _, pod := range ns.Pods {
@@ -52,10 +54,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			//}
 		}
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
-		failedPods, err = sim.schedulePods(descheduledPod)
-		if err != nil {
-			fmt.Printf("[Error] [Deschedule] scheduled Pods failed: %s\n", err.Error())
-		}
+		failedPods = sim.SchedulePods(descheduledPod)
 
 	case DeschedulePolicyFragOnePod:
 		var descheduledPodKeys []string
@@ -74,10 +73,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			}
 		}
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
-		failedPods, err = sim.schedulePods(descheduledPod)
-		if err != nil {
-			fmt.Printf("[Error] [Deschedule] scheduled Pods failed: %s\n", err.Error())
-		}
+		failedPods = sim.SchedulePods(descheduledPod)
 
 	case DeschedulePolicyFragMultiPod:
 		var descheduledPodKeys []string
@@ -119,10 +115,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			numPodsToDescheduleLast = numPodsToDeschedule
 		}
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
-		failedPods, err = sim.schedulePods(descheduledPod)
-		if err != nil {
-			fmt.Printf("[Error] [Deschedule] scheduled Pods failed: %s\n", err.Error())
-		}
+		failedPods = sim.SchedulePods(descheduledPod)
 
 	default:
 		fmt.Printf("[ERROR] DeschedulePolicy not found\n")
@@ -130,6 +123,6 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 
 	return &simontype.SimulateResult{
 		UnscheduledPods: failedPods,
-		NodeStatus:      sim.getClusterNodeStatus(),
+		NodeStatus:      sim.GetClusterNodeStatus(),
 	}, nil
 }

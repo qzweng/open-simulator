@@ -117,6 +117,17 @@ func UpdatePodDeviceAnnoSpec(oldPod *v1.Pod, devId string) (newPod *v1.Pod) {
 	return newPod
 }
 
+func RemovePodDeviceAnnoSpec(oldPod *v1.Pod) (newPod *v1.Pod) {
+	newPod = oldPod.DeepCopy()
+	if newPod.ObjectMeta.Annotations == nil {
+		newPod.ObjectMeta.Annotations = map[string]string{}
+	}
+
+	delete(newPod.ObjectMeta.Annotations, DeviceIndex)
+	delete(newPod.ObjectMeta.Annotations, AssumeTime)
+	return newPod
+}
+
 func GeneratePodKey(pod *v1.Pod) string {
 	return GeneratePodKeyByName(pod.Namespace, pod.Name)
 }

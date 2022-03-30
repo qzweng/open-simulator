@@ -129,9 +129,9 @@ func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.Tar
 	return fragAmount
 }
 
-func GetTypicalPods(allPodsList []*v1.Pod, verbose bool) simontype.TargetPodList {
+func GetTypicalPods(allPods []*v1.Pod, verbose bool) simontype.TargetPodList {
 	tgtPodResCntMap := map[simontype.PodResource]float64{}
-	for _, pod := range allPodsList {
+	for _, pod := range allPods {
 		tgtPodRes := GetPodResource(pod)
 		if cnt, ok := tgtPodResCntMap[tgtPodRes]; ok {
 			tgtPodResCntMap[tgtPodRes] = cnt + 1
@@ -142,10 +142,10 @@ func GetTypicalPods(allPodsList []*v1.Pod, verbose bool) simontype.TargetPodList
 
 	tgtPodList := SortTargetPodInDecreasingCount(tgtPodResCntMap)
 	if verbose {
-		fmt.Printf("\nNum of Total Pods: %d\n", len(allPodsList))
+		fmt.Printf("\nNum of Total Pods: %d\n", len(allPods))
 		fmt.Printf("Num of Total Pod Sepc: %d\n", len(tgtPodList))
 	}
-	ExpectedNumPods := int(simontype.TypicalPodPopularityThreshold * len(allPodsList) / 100)
+	ExpectedNumPods := int(simontype.TypicalPodPopularityThreshold * len(allPods) / 100)
 	var i, podResNum int
 	var numPods float64
 	for int(numPods) < ExpectedNumPods {
@@ -160,7 +160,7 @@ func GetTypicalPods(allPodsList []*v1.Pod, verbose bool) simontype.TargetPodList
 	}
 
 	if verbose {
-		fmt.Printf("\nCount top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPodsList)))
+		fmt.Printf("\nCount top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPods)))
 	}
 	for j, tp := range tgtPodList[:i] {
 		tgtPodList[j].Percentage = tp.Percentage / numPods

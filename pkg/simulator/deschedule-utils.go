@@ -17,7 +17,8 @@ func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod)
 	for _, pod := range pods {
 		similarity, ok := sim.resourceSimilarity(pod, node)
 		if !ok {
-			fmt.Printf("[ERROR] failed to get resource similarity of pod %s to node %s\n", utils.GeneratePodKey(pod), node.Name)
+			fmt.Printf("[Error] [findVictimPodOnNode] failed to get resource similarity of pod(%s) to node(%s)\n",
+				utils.GeneratePodKey(pod), node.Name)
 			continue
 		}
 		if similarity >= 0 && similarity < victimPodSimilarity {
@@ -26,7 +27,8 @@ func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod)
 		}
 	}
 	if victimPod != nil {
-		fmt.Printf("[DEBUG] pod %s is selected to deschedule from node %s, resource similarity %.2f\n", utils.GeneratePodKey(victimPod), node.Name, victimPodSimilarity)
+		fmt.Printf("[Debug] [findVictimPodOnNode] pod(%s) is selected to deschedule from node(%s), resource similarity is %.2f\n",
+			utils.GeneratePodKey(victimPod), node.Name, victimPodSimilarity)
 		return victimPod
 	}
 	return nil

@@ -3,6 +3,8 @@ package simulator
 import (
 	"context"
 	"fmt"
+	"math"
+	"math/rand"
 	"sort"
 	"time"
 
@@ -44,9 +46,10 @@ type Simulator struct {
 	status status
 
 	//
-	typicalPods     simontype.TargetPodList
-	nodeResourceMap map[string]simontype.NodeResource
-	customConfig    v1alpha1.CustomConfig
+	originalWorkloadPods []*corev1.Pod
+	typicalPods          simontype.TargetPodList
+	nodeResourceMap      map[string]simontype.NodeResource
+	customConfig         v1alpha1.CustomConfig
 }
 
 // status captures reason why one pod fails to be scheduled
@@ -177,26 +180,19 @@ func (sim *Simulator) ScheduleApp(apps AppResource) (*simontype.SimulateResult, 
 	sort.Sort(affinityPriority)
 	tolerationPriority := algo.NewTolerationQueue(appPods)
 	sort.Sort(tolerationPriority)
-	failedPod, err := sim.schedulePods(appPods)
-	if err != nil {
-		return nil, err
-	}
+	failedPod := sim.SchedulePods(appPods)
 
 	return &simontype.SimulateResult{
 		UnscheduledPods: failedPod,
-		NodeStatus:      sim.getClusterNodeStatus(),
+		NodeStatus:      sim.GetClusterNodeStatus(),
 	}, nil
-}
-
-func (sim *Simulator) AddParaSet() {
-
 }
 
 func (sim *Simulator) GetCustomConfig() v1alpha1.CustomConfig {
 	return sim.customConfig
 }
 
-func (sim *Simulator) getClusterNodeStatus() []simontype.NodeStatus {
+func (sim *Simulator) GetClusterNodeStatus() []simontype.NodeStatus {
 	var nodeStatues []simontype.NodeStatus
 	var err error
 
@@ -294,17 +290,15 @@ func (sim *Simulator) assumePod(pod *corev1.Pod) *simontype.UnscheduledPod {
 	return nil
 }
 
-// Run starts to schedule pods
-func (sim *Simulator) schedulePods(pods []*corev1.Pod) ([]simontype.UnscheduledPod, error) {
+func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod {
 	var failedPods []simontype.UnscheduledPod
 	for i, pod := range pods {
+		fmt.Printf("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
 		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
 			failedPods = append(failedPods, *unscheduledPod)
-		} else {
-			fmt.Printf("[%d] pod %s created\n", i, utils.GeneratePodKey(pod))
 		}
 	}
-	return failedPods, nil
+	return failedPods
 }
 
 func (sim *Simulator) Close() {
@@ -507,14 +501,11 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*simo
 	}
 
 	// sync pods
-	failedPods, err := sim.schedulePods(resourceList.Pods)
-	if err != nil {
-		return nil, err
-	}
+	failedPods := sim.SchedulePods(resourceList.Pods)
 
 	return &simontype.SimulateResult{
 		UnscheduledPods: failedPods,
-		NodeStatus:      sim.getClusterNodeStatus(),
+		NodeStatus:      sim.GetClusterNodeStatus(),
 	}, nil
 }
 
@@ -710,8 +701,7 @@ func ownedByCronJob(refs []metav1.OwnerReference) bool {
 func getPodfromPodMap(podKeys []string, podMap map[string]*corev1.Pod) []*corev1.Pod {
 	var podList []*corev1.Pod
 	for _, podKey := range podKeys {
-		podCopy := podMap[podKey].DeepCopy()
-		MakePodUnassigned(podCopy)
+		podCopy := MakePodUnassigned(podMap[podKey])
 		podList = append(podList, podCopy)
 	}
 	return podList
@@ -738,4 +728,78 @@ func (sim *Simulator) getCurrentPodMap() map[string]*corev1.Pod {
 		podMap[utils.GeneratePodKey(&pod)] = pod.DeepCopy()
 	}
 	return podMap
+}
+
+func (sim *Simulator) SetOriginalWorkloadPods(pods []*corev1.Pod) {
+	sim.originalWorkloadPods = []*corev1.Pod{}
+	for _, p := range pods {
+		sim.originalWorkloadPods = append(sim.originalWorkloadPods, p.DeepCopy())
+	}
+}
+
+func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
+	var err error
+	shufflePod := sim.customConfig.ShufflePod
+	if shufflePod {
+		rand.Seed(time.Now().UnixNano())
+		rand.Shuffle(len(pods), func(i, j int) {
+			pods[i], pods[j] = pods[j], pods[i]
+		})
+	} else {
+		timeNow := time.Now() //.Format(time.RFC3339)
+		sort.SliceStable(pods, func(i, j int) bool {
+			var timeI, timeJ time.Time
+			if timeStr, ok := pods[i].Annotations[gpushareutils.CreationTime]; ok {
+				timeI, err = time.Parse(time.RFC3339, timeStr)
+				if err != nil {
+					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
+					timeI = timeNow
+				}
+			} else {
+				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
+				timeI = timeNow
+			}
+
+			if timeStr, ok := pods[j].Annotations[gpushareutils.CreationTime]; ok {
+				timeJ, err = time.Parse(time.RFC3339, timeStr)
+				if err != nil {
+					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
+					timeJ = timeNow
+				}
+			} else {
+				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
+				timeJ = timeNow
+			}
+			return timeI.Before(timeJ) || (timeI.Equal(timeJ) && pods[i].Name < pods[j].Name)
+		})
+	}
+}
+
+func (sim *Simulator) GenerateWorkloadInflationPods(tag string) []*corev1.Pod {
+	n := len(sim.originalWorkloadPods)
+	if n == 0 {
+		fmt.Printf("[Info] [GenerateWorkloadInflationPods] original workload is empty\n")
+		return nil
+	}
+
+	workloadInflationRatio := sim.customConfig.WorkloadInflationRatio
+	if workloadInflationRatio > 1 {
+		var inflationPods []*corev1.Pod
+		inflationNum := int(math.Ceil(float64(n)*workloadInflationRatio)) - n
+		fmt.Printf("[INFO] [GenerateWorkloadInflationPods] workload inflation ratio: %.4f, the number of inflation pods: %d\n",
+			workloadInflationRatio, inflationNum)
+		for i := 0; i < inflationNum; i++ {
+			rand.Seed(time.Now().UnixNano())
+			idx := rand.Intn(n)
+			podCloned, err := utils.MakeValidPodByPod(sim.originalWorkloadPods[idx].DeepCopy())
+			if err != nil {
+				fmt.Printf("[Error] failed to clone pod(%s)\n", utils.GeneratePodKey(sim.originalWorkloadPods[idx]))
+				continue
+			}
+			podCloned.Name = fmt.Sprintf("%s-clone-%s-%d", podCloned.Name, tag, i)
+			inflationPods = append(inflationPods, podCloned)
+		}
+		return inflationPods
+	}
+	return nil
 }

@@ -2,10 +2,6 @@ package simulator
 
 import (
 	"fmt"
-	"math"
-	"math/rand"
-	"sort"
-	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -16,7 +12,6 @@ import (
 
 	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
 	"github.com/alibaba/open-simulator/pkg/type"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -44,11 +39,22 @@ type AppResource struct {
 type Interface interface {
 	RunCluster(cluster ResourceTypes) (*simontype.SimulateResult, error)
 	ScheduleApp(AppResource) (*simontype.SimulateResult, error)
-	SetTypicalPods(cluster ResourceTypes)
+	SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod
+
 	ClusterAnalysis(result *simontype.SimulateResult)
-	Deschedule() (*simontype.SimulateResult, error)
+	GetClusterNodeStatus() []simontype.NodeStatus
+
+	SetOriginalWorkloadPods(pods []*corev1.Pod)
+	SetTypicalPods()
+
+	SortClusterPods(pods []*corev1.Pod)
+
+	GenerateWorkloadInflationPods(tag string) []*corev1.Pod
+
 	GetCustomConfig() v1alpha1.CustomConfig
-	AddParaSet()
+
+	Deschedule() (*simontype.SimulateResult, error)
+
 	Close()
 }
 
@@ -72,65 +78,10 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	if err != nil {
 		return nil, err
 	}
-	sim.SetTypicalPods(cluster)
+	sim.SetOriginalWorkloadPods(cluster.Pods)
+	sim.SetTypicalPods()
 
-	shufflePod := sim.GetCustomConfig().ShufflePod
-	if shufflePod {
-		rand.Seed(time.Now().UnixNano())
-		rand.Shuffle(len(cluster.Pods), func(i, j int) {
-			cluster.Pods[i], cluster.Pods[j] = cluster.Pods[j], cluster.Pods[i]
-		})
-	} else {
-		timeNow := time.Now() //.Format(time.RFC3339)
-		sort.SliceStable(cluster.Pods, func(i, j int) bool {
-			var timeI, timeJ time.Time
-			if timeStr, ok := cluster.Pods[i].Annotations[gpushareutils.CreationTime]; ok {
-				timeI, err = time.Parse(time.RFC3339, timeStr)
-				if err != nil {
-					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
-					timeI = timeNow
-				}
-			} else {
-				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
-				timeI = timeNow
-			}
-
-			if timeStr, ok := cluster.Pods[j].Annotations[gpushareutils.CreationTime]; ok {
-				timeJ, err = time.Parse(time.RFC3339, timeStr)
-				if err != nil {
-					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
-					timeJ = timeNow
-				}
-			} else {
-				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
-				timeJ = timeNow
-			}
-			return timeI.Before(timeJ) || (timeI.Equal(timeJ) && cluster.Pods[i].Name < cluster.Pods[j].Name)
-		})
-	}
-
-	// workload inflation
-	workloadInflationRatio := sim.GetCustomConfig().WorkloadInflationRatio
-	if workloadInflationRatio > 1 {
-		var inflationPods []*corev1.Pod
-		numBeforeInflation := len(cluster.Pods)
-		numAfterInflation := int(math.Ceil(float64(numBeforeInflation) * workloadInflationRatio))
-		fmt.Printf("[INFO] workload inflation ratio: %.4f, before: %d, after: %d\n", workloadInflationRatio, numBeforeInflation, numAfterInflation)
-		for i := 0; i < numAfterInflation-numBeforeInflation; i++ {
-			rand.Seed(time.Now().UnixNano())
-			idx := rand.Intn(numBeforeInflation)
-			podCloned, err := utils.MakeValidPodByPod(cluster.Pods[idx].DeepCopy())
-			if err != nil {
-				fmt.Printf("[ERROR] failed to clone pod(%s)\n", utils.GeneratePodKey(cluster.Pods[idx]))
-				continue
-			}
-			podCloned.Name = fmt.Sprintf("%s-clone-%d", podCloned.Name, i)
-			inflationPods = append(inflationPods, podCloned)
-		}
-		cluster.Pods = append(cluster.Pods, inflationPods...)
-	} else {
-		fmt.Printf("[INFO] workload inflation ratio(%.4f) is not larger than than 1\n", workloadInflationRatio)
-	}
+	sim.SortClusterPods(cluster.Pods)
 
 	for _, item := range cluster.DaemonSets {
 		validPods, err := utils.MakeValidPodsByDaemonset(item, cluster.Nodes)
@@ -148,8 +99,13 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		return nil, err
 	}
 	failedPods = append(failedPods, result.UnscheduledPods...)
-	ReportFailedPods(failedPods)
+	reportFailedPods(failedPods)
 	//sim.ClusterAnalysis(result)
+
+	inflationPods := sim.GenerateWorkloadInflationPods("schedule")
+	fp := sim.SchedulePods(inflationPods)
+	reportFailedPods(fp)
+	failedPods = append(failedPods, fp...)
 
 	customConfig := sim.GetCustomConfig()
 	if customConfig.DeschedulePolicy != "" {
@@ -166,13 +122,19 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		}
 		failedPods = append(failedPods, result.UnscheduledPods...)
 	}
-	result.UnscheduledPods = failedPods
+	//result.UnscheduledPods = failedPods
 	//sim.ClusterAnalysis(result)
 
-	return result, nil
+	return &simontype.SimulateResult{
+		UnscheduledPods: failedPods,
+		NodeStatus:      sim.GetClusterNodeStatus(),
+	}, nil
 }
 
-func ReportFailedPods(fp []simontype.UnscheduledPod) {
+func reportFailedPods(fp []simontype.UnscheduledPod) {
+	if len(fp) == 0 {
+		return
+	}
 	fmt.Printf("Failed Pods in detail:\n")
 	for _, up := range fp {
 		podResoure := utils.GetPodResource(up.Pod)

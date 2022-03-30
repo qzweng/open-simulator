@@ -14,6 +14,7 @@ import (
 	"k8s.io/api/policy/v1beta1"
 	v1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	externalclientset "k8s.io/client-go/kubernetes"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/events"
@@ -309,7 +310,10 @@ func MatchAndSetLocalStorageAnnotationOnNode(nodes []*corev1.Node, dir string) {
 	}
 }
 
-func MakePodUnassigned(pod *corev1.Pod) {
-	delete(pod.Annotations, gpushareutils.DeviceIndex)
-	delete(pod.Spec.NodeSelector, simontype.NodeIP)
+func MakePodUnassigned(oldPod *corev1.Pod) (newPod *corev1.Pod) {
+	newPod = gpushareutils.RemovePodDeviceAnnoSpec(oldPod)
+	newPod.UID = uuid.NewUUID()
+	newPod.Spec.NodeName = ""
+	newPod.Status = corev1.PodStatus{}
+	return newPod
 }

@@ -12,7 +12,7 @@ func (sim *Simulator) ClusterAnalysis(result *simontype.SimulateResult) {
 		return
 	}
 	sim.nodeResourceMap = utils.GetNodeResourceMap(result.NodeStatus)
-	
+
 	ch := make(chan utils.FragAmount)
 	for _, ns := range result.NodeStatus {
 		go func(ns simontype.NodeStatus) {
@@ -81,8 +81,8 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 	return utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
 }
 
-func (sim *Simulator) SetTypicalPods(cluster ResourceTypes) {
-	sim.typicalPods = utils.GetTypicalPods(cluster.Pods, true)
+func (sim *Simulator) SetTypicalPods() {
+	sim.typicalPods = utils.GetTypicalPods(sim.originalWorkloadPods, true)
 }
 
 func (sim *Simulator) NodeGpuFragAmountMap(nodeResourceMap map[string]simontype.NodeResource) map[string]utils.FragAmount {
