@@ -11,6 +11,8 @@ const (
 	DeschedulePolicyCosSim       = "cosSim"
 	DeschedulePolicyFragOnePod   = "fragOnePod"
 	DeschedulePolicyFragMultiPod = "fragMultiPod"
+
+	VERBOSE = 1
 )
 
 func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
@@ -53,6 +55,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			//	sim.deletePod(podCopy)
 			//}
 		}
+		sim.ClusterAnalysis(sim.GetClusterNodeStatus(), VERBOSE)
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
@@ -72,6 +75,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 				numPodsToDeschedule -= 1
 			}
 		}
+		sim.ClusterAnalysis(sim.GetClusterNodeStatus(), VERBOSE)
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
@@ -114,6 +118,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			}
 			numPodsToDescheduleLast = numPodsToDeschedule
 		}
+		sim.ClusterAnalysis(sim.GetClusterNodeStatus(), VERBOSE)
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 

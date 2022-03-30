@@ -41,7 +41,7 @@ type Interface interface {
 	ScheduleApp(AppResource) (*simontype.SimulateResult, error)
 	SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod
 
-	ClusterAnalysis(result *simontype.SimulateResult)
+	ClusterAnalysis(result []simontype.NodeStatus, verbose int) (utils.FragAmount, []utils.ResourceSummary)
 	GetClusterNodeStatus() []simontype.NodeStatus
 
 	SetOriginalWorkloadPods(pods []*corev1.Pod)
@@ -100,7 +100,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 	failedPods = append(failedPods, result.UnscheduledPods...)
 	reportFailedPods(failedPods)
-	//sim.ClusterAnalysis(result)
+	sim.ClusterAnalysis(result.NodeStatus, 1)
 
 	inflationPods := sim.GenerateWorkloadInflationPods("schedule")
 	fp := sim.SchedulePods(inflationPods)
@@ -111,7 +111,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	if customConfig.DeschedulePolicy != "" {
 		result, _ = sim.Deschedule()
 		failedPods = append(failedPods, result.UnscheduledPods...)
-		//sim.ClusterAnalysis(result)
+		sim.ClusterAnalysis(result.NodeStatus, 1)
 	}
 
 	// schedule pods

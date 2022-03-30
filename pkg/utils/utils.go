@@ -1002,6 +1002,15 @@ func GetNodeResourceMap(nodeStatus []simontype.NodeStatus) map[string]simontype.
 	return nodeResMap
 }
 
+func ExportNodeStatusToCsv(nodeStatus []simontype.NodeStatus, filePath string) error {
+	f, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return nil
+}
+
 func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeRes *simontype.NodeResource) {
 	nodeInfo, err := handle.SnapshotSharedLister().NodeInfos().Get(node.Name)
 	if err != nil {

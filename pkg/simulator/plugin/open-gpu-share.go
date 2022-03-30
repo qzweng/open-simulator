@@ -147,7 +147,7 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 	plugin.Lock()
 	defer plugin.Unlock()
 
-	fmt.Printf("[Debug] reserve pod(%s) on node(%s)\n", utils.GeneratePodKey(pod), nodeName)
+	//fmt.Printf("[Debug] reserve pod(%s) on node(%s)\n", utils.GeneratePodKey(pod), nodeName)
 	if gpushareutils.GetGpuMilliFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Success) // non-GPU pods are skipped
 	}

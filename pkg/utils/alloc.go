@@ -18,6 +18,12 @@ const (
 
 var resourceList = []string{ResourceMilliCpu, ResourceMemory, ResourceGpu, ResourceMilliGpu}
 
+type ResourceSummary struct {
+	name        string
+	requested   int64
+	allocatable int64
+}
+
 type AllocAmount struct {
 	NodeName    string
 	Requested   map[string]int64
@@ -62,7 +68,7 @@ func (a AllocAmount) Add(b AllocAmount) error {
 	return nil
 }
 
-func ReportNodeAllocationRate(aamap map[string]AllocAmount) {
+func ReportNodeAllocationRate(aamap map[string]AllocAmount, verbose int) (rs []ResourceSummary) {
 	requested := make(map[string]int64)
 	allocatable := make(map[string]int64)
 	clusterAllocAmount := AllocAmount{"cluster", requested, allocatable}
@@ -71,21 +77,26 @@ func ReportNodeAllocationRate(aamap map[string]AllocAmount) {
 		clusterAllocAmount.Add(amount)
 	}
 
-	fmt.Printf("Allocation Ratio:\n")
+	if verbose >= 1 {
+		fmt.Printf("Allocation Ratio:\n")
+	}
 	for _, k := range resourceList {
 		rval := clusterAllocAmount.Requested[k]
 		aval := clusterAllocAmount.Allocatable[k]
 		ratio := 100.0 * float64(rval) / float64(aval)
-		fmt.Printf("    %-8s: %4.1f%% (%d/%d)\n", k, ratio, rval, aval)
+		if verbose >= 1 {
+			fmt.Printf("    %-8s: %4.1f%% (%d/%d)\n", k, ratio, rval, aval)
+		}
+		rs = append(rs, ResourceSummary{k, rval, aval})
 	}
-	fmt.Println()
+	return rs
 }
 
-func GetNodeAllocMap(result *simontype.SimulateResult) (map[string]AllocAmount, error) {
-	allPods := GetAllPodsPtrFromNodeStatus(result.NodeStatus)
+func GetNodeAllocMap(nodeStatus []simontype.NodeStatus) (map[string]AllocAmount, error) {
+	allPods := GetAllPodsPtrFromNodeStatus(nodeStatus)
 
 	nodeAllocMap := make(map[string]AllocAmount)
-	for _, ns := range result.NodeStatus {
+	for _, ns := range nodeStatus {
 		node := ns.Node
 		allocatable := make(map[string]int64)
 		for k, v := range node.Status.Allocatable {
