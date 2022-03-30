@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/alibaba/open-simulator/pkg/type"
+	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
-	"k8s.io/klog/v2"
+
+	"github.com/alibaba/open-simulator/pkg/type"
 )
 
 const (
@@ -97,13 +98,13 @@ func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.Targ
 	for _, pod := range typicalPods {
 		freq := pod.Percentage
 		if freq < 0 || freq > 1 {
-			klog.Errorf("pod %v has bad freq: %f\n", pod.TargetPodResource, freq)
+			log.Errorf("pod %v has bad freq: %f\n", pod.TargetPodResource, freq)
 			continue
 		}
 		fragType := GetNodePodFrag(nodeRes, pod.TargetPodResource)
-		//fmt.Printf("[DEBUG] nodeRes: %s; pod: %s => fragType: %s\n", nodeRes.Repr(), pod.targetPodResource.Repr(), fragType)
+		log.Tracef("nodeRes: %s; pod: %s => fragType: %s\n", nodeRes.Repr(), pod.TargetPodResource.Repr(), fragType)
 		if err := fragRatio.AddRatio(fragType, freq); err != nil {
-			fmt.Println(err.Error())
+			log.Errorln(err.Error())
 		}
 	}
 	return fragRatio
@@ -111,7 +112,7 @@ func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.Targ
 
 func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragAmount {
 	if len(typicalPods) <= 0 {
-		fmt.Printf("[ERROR] Typical Pods list is empty\n")
+		log.Errorf("Typical Pods list is empty\n")
 		return FragAmount{}
 	}
 	fragRatio := NodeGpuFragRatio(nodeRes, typicalPods)
@@ -129,7 +130,7 @@ func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.Tar
 	return fragAmount
 }
 
-func GetTypicalPods(allPods []*v1.Pod, verbose bool) simontype.TargetPodList {
+func GetTypicalPods(allPods []*v1.Pod) simontype.TargetPodList {
 	tgtPodResCntMap := map[simontype.PodResource]float64{}
 	for _, pod := range allPods {
 		tgtPodRes := GetPodResource(pod)
@@ -141,10 +142,8 @@ func GetTypicalPods(allPods []*v1.Pod, verbose bool) simontype.TargetPodList {
 	}
 
 	tgtPodList := SortTargetPodInDecreasingCount(tgtPodResCntMap)
-	if verbose {
-		fmt.Printf("\nNum of Total Pods: %d\n", len(allPods))
-		fmt.Printf("Num of Total Pod Sepc: %d\n", len(tgtPodList))
-	}
+	log.Debugf("\nNum of Total Pods: %d\n", len(allPods))
+	log.Debugf("Num of Total Pod Sepc: %d\n", len(tgtPodList))
 	ExpectedNumPods := int(simontype.TypicalPodPopularityThreshold * len(allPods) / 100)
 	var i, podResNum int
 	var numPods float64
@@ -152,25 +151,20 @@ func GetTypicalPods(allPods []*v1.Pod, verbose bool) simontype.TargetPodList {
 		podResNum += simontype.TypicalPodResourceNumber
 		for i < podResNum && i < len(tgtPodList) {
 			numPods += tgtPodList[i].Percentage
-			if verbose {
-				fmt.Printf("[%d] %s: %.0f\n", i, tgtPodList[i].TargetPodResource.Repr(), tgtPodList[i].Percentage)
-			}
+			log.Debugf("[%d] %s: %.0f\n", i, tgtPodList[i].TargetPodResource.Repr(), tgtPodList[i].Percentage)
 			i += 1
 		}
 	}
 
-	if verbose {
-		fmt.Printf("\nCount top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPods)))
-	}
+	log.Debugf("\nCount top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPods)))
+
 	for j, tp := range tgtPodList[:i] {
 		tgtPodList[j].Percentage = tp.Percentage / numPods
-		if verbose {
-			fmt.Printf("[%d] %s: %.1f%%\n", j, tp.TargetPodResource.Repr(), tgtPodList[j].Percentage*100)
-		}
+		log.Debugf("[%d] %s: %.1f%%\n", j, tp.TargetPodResource.Repr(), tgtPodList[j].Percentage*100)
+
 	}
-	if verbose {
-		fmt.Printf("\n")
-	}
+	log.Debugln()
+
 	return tgtPodList[:i]
 	//sim.typicalPods = tgtPodList[:i]
 }

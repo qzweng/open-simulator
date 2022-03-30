@@ -6,11 +6,11 @@ import (
 	"sync"
 
 	"github.com/pquerna/ffjson/ffjson"
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	schedulerutil "k8s.io/kubernetes/pkg/scheduler/util"
 
@@ -44,7 +44,7 @@ func NewGpuSharePlugin(configuration runtime.Object, handle framework.Handle) (f
 						namespace, name := pod.Namespace, pod.Name
 						err := gpuSharePlugin.removePod(pod, pod.Spec.NodeName)
 						if err != nil {
-							fmt.Printf("[ERROR] removePod (%s) error: %s\n", utils.GeneratePodKeyByName(namespace, name), err.Error())
+							log.Errorf("removePod (%s) error: %s\n", utils.GeneratePodKeyByName(namespace, name), err.Error())
 						}
 					}
 				}
@@ -147,14 +147,14 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 	plugin.Lock()
 	defer plugin.Unlock()
 
-	//fmt.Printf("[Debug] reserve pod(%s) on node(%s)\n", utils.GeneratePodKey(pod), nodeName)
+	log.Debugf("reserve pod(%s) on node(%s)\n", utils.GeneratePodKey(pod), nodeName)
 	if gpushareutils.GetGpuMilliFromPodAnnotation(pod) <= 0 {
 		return framework.NewStatus(framework.Success) // non-GPU pods are skipped
 	}
 
 	podCopy, err := plugin.updatePodGpuAnno(pod, nodeName)
 	if err != nil {
-		klog.Errorf("The node %s can't place the pod %s in ns %s,and the pod spec is %v. err: %s", pod.Spec.NodeName, pod.Name, pod.Namespace, pod, err)
+		log.Errorf("The node %s can't place the pod %s in ns %s,and the pod spec is %v. err: %s", pod.Spec.NodeName, pod.Name, pod.Namespace, pod, err)
 		return framework.NewStatus(framework.Error, err.Error())
 	}
 
@@ -176,7 +176,7 @@ func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.Cy
 	defer plugin.Unlock()
 
 	if err := plugin.removePod(pod, nodeName); err != nil {
-		fmt.Println(err.Error())
+		log.Errorln(err.Error())
 	}
 }
 

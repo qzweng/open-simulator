@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"math"
 
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/klog/v2"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
@@ -70,18 +70,18 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 
 	podRes := utils.GetPodResource(pod)
 	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
-		klog.Error("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
+		log.Error("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
 		return int64(0), framework.NewStatus(framework.Success)
 	}
 	newNodeRes, err := nodeRes.Sub(podRes)
 	if err != nil {
-		klog.Errorf(err.Error())
+		log.Errorf(err.Error())
 		return int64(0), framework.NewStatus(framework.Success)
 	}
 
 	//plugin.SetTypicalPods()
 	if plugin.typicalPods == nil {
-		fmt.Printf("[ERROR] typical pods list is empty\n")
+		log.Errorf("typical pods list is empty\n")
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("typical pods list is empty\n"))
 	}
 	//fmt.Printf("[TYPICAL PODS]\n")
@@ -140,7 +140,7 @@ func (plugin *GpuFragScorePlugin) NormalizeScore(ctx context.Context, state *fra
 			lowest = nodeScore.Score
 		}
 	}
-	//fmt.Printf("[GpuFragScore] [Normalized] highest: %d, lowest: %d\n", highest, lowest)
+	log.Tracef("[GpuFragScore] [Normalized] highest: %d, lowest: %d\n", highest, lowest)
 
 	// Transform the highest to the lowest score range to fit the framework's min to max node score range.
 	oldRange := highest - lowest
@@ -151,7 +151,7 @@ func (plugin *GpuFragScorePlugin) NormalizeScore(ctx context.Context, state *fra
 		} else {
 			scores[i].Score = ((nodeScore.Score - lowest) * newRange / oldRange) + framework.MinNodeScore
 		}
-		//fmt.Printf("[GpuFragScore] [Normalized] Node %s, Score: %d\n", scores[i].Name, scores[i].Score)
+		log.Tracef("[GpuFragScore] [Normalized] Node %s, Score: %d\n", scores[i].Name, scores[i].Score)
 	}
 	return framework.NewStatus(framework.Success)
 }

@@ -109,7 +109,7 @@ func ReadYamlFile(path string) []byte {
 	}
 	yamlFile, err := ioutil.ReadFile(path)
 	if err != nil {
-		fmt.Printf("Error while read file %s: %s\n", path, err.Error())
+		log.Errorf("Error while read file %s: %s\n", path, err.Error())
 		os.Exit(1)
 	}
 	return yamlFile
@@ -122,7 +122,7 @@ func ReadJsonFile(path string) []byte {
 	}
 	jsonFile, err := ioutil.ReadFile(path)
 	if err != nil {
-		fmt.Printf("Error while read file %s: %s\n", path, err.Error())
+		log.Errorf("Error while read file %s: %s\n", path, err.Error())
 		os.Exit(1)
 	}
 
@@ -996,7 +996,7 @@ func GetNodeResourceMap(nodeStatus []simontype.NodeStatus) map[string]simontype.
 		if nodeRes := GetNodeResourceViaPodList(ns.Pods, node); nodeRes != nil {
 			nodeResMap[node.Name] = *nodeRes
 		} else {
-			fmt.Printf("[Error] [GetNodeResourceMap] failed to get nodeRes(%s)\n", node.Name)
+			log.Errorf("[GetNodeResourceMap] failed to get nodeRes(%s)\n", node.Name)
 		}
 	}
 	return nodeResMap
@@ -1057,7 +1057,8 @@ func getGpuMilliLeftListOnNode(node *corev1.Node) []int64 {
 			gpuMilliLeftList[dev.Idx] -= dev.GpuUsedMilli
 		}
 	} else {
-		//fmt.Printf("[Error] [getGpuMilliLeftListOnNode] failed to parse node(%s) gpu info from annotation(%v)\n",
+		// TODO: Add node annotation in the initialization phrase
+		//log.Errorf("[getGpuMilliLeftListOnNode] failed to parse node(%s) gpu info from annotation(%v)\n",
 		//	node.Name, node.ObjectMeta.Annotations)
 	}
 	return gpuMilliLeftList
@@ -1070,7 +1071,7 @@ func GetAllPodsPtrFromNodeStatus(nodeStatus []simontype.NodeStatus) []*corev1.Po
 			if pod != nil {
 				allPods = append(allPods, pod)
 			} else {
-				fmt.Printf("[ERROR] Nil Pod pointer exists in nodeStatus: %v\n", nodeStatus)
+				log.Errorf("Nil Pod pointer exists in nodeStatus: %v\n", nodeStatus)
 			}
 		}
 	}

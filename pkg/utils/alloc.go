@@ -2,6 +2,8 @@ package utils
 
 import (
 	"fmt"
+
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	api "k8s.io/kubernetes/pkg/apis/core"
 
@@ -68,7 +70,7 @@ func (a AllocAmount) Add(b AllocAmount) error {
 	return nil
 }
 
-func ReportNodeAllocationRate(aamap map[string]AllocAmount, verbose int) (rs []ResourceSummary) {
+func ReportNodeAllocationRate(aamap map[string]AllocAmount) (rs []ResourceSummary) {
 	requested := make(map[string]int64)
 	allocatable := make(map[string]int64)
 	clusterAllocAmount := AllocAmount{"cluster", requested, allocatable}
@@ -77,16 +79,12 @@ func ReportNodeAllocationRate(aamap map[string]AllocAmount, verbose int) (rs []R
 		clusterAllocAmount.Add(amount)
 	}
 
-	if verbose >= 1 {
-		fmt.Printf("Allocation Ratio:\n")
-	}
+	log.Infof("Allocation Ratio:\n")
 	for _, k := range resourceList {
 		rval := clusterAllocAmount.Requested[k]
 		aval := clusterAllocAmount.Allocatable[k]
 		ratio := 100.0 * float64(rval) / float64(aval)
-		if verbose >= 1 {
-			fmt.Printf("    %-8s: %4.1f%% (%d/%d)\n", k, ratio, rval, aval)
-		}
+		log.Infof("    %-8s: %4.1f%% (%d/%d)\n", k, ratio, rval, aval)
 		rs = append(rs, ResourceSummary{k, rval, aval})
 	}
 	return rs

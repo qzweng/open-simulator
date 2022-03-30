@@ -1,7 +1,7 @@
 package simulator
 
 import (
-	"fmt"
+	log "github.com/sirupsen/logrus"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
 	"github.com/alibaba/open-simulator/pkg/utils"
@@ -11,8 +11,6 @@ const (
 	DeschedulePolicyCosSim       = "cosSim"
 	DeschedulePolicyFragOnePod   = "fragOnePod"
 	DeschedulePolicyFragMultiPod = "fragMultiPod"
-
-	VERBOSE = 1
 )
 
 func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
@@ -26,7 +24,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 
 	var failedPods []simontype.UnscheduledPod
 	numPodsToDeschedule := sim.customConfig.DeschedulePodsMax
-	fmt.Printf("[INFO] DeschedulePodsMax: %d, DeschedulePolicy: %s\n", numPodsToDeschedule, sim.customConfig.DeschedulePolicy)
+	log.Infof("DeschedulePodsMax: %d, DeschedulePolicy: %s\n", numPodsToDeschedule, sim.customConfig.DeschedulePolicy)
 
 	switch sim.customConfig.DeschedulePolicy {
 	case DeschedulePolicyCosSim:
@@ -38,24 +36,14 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
 			if victimPod != nil {
 				if err := sim.deletePod(victimPod); err != nil {
-					fmt.Printf("[Error] [Deschedule] failed to delete pod(%s)\n", utils.GeneratePodKey(victimPod))
+					log.Errorf("[Deschedule] failed to delete pod(%s)\n", utils.GeneratePodKey(victimPod))
 				} else {
 					descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
 					numPodsToDeschedule -= 1
 				}
 			}
-
-			//for _, pod := range ns.Pods {
-			//	sim.deletePod(pod) // delete all pods
-			//	podCopy := podMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
-			//	sim.createPod(podCopy)
-			//	sim.deletePod(podCopy)
-			//	podCopy = podMap[fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)].DeepCopy()
-			//	sim.createPod(podCopy)
-			//	sim.deletePod(podCopy)
-			//}
 		}
-		sim.ClusterAnalysis(sim.GetClusterNodeStatus(), VERBOSE)
+		sim.ClusterAnalysis(sim.GetClusterNodeStatus())
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
@@ -75,7 +63,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 				numPodsToDeschedule -= 1
 			}
 		}
-		sim.ClusterAnalysis(sim.GetClusterNodeStatus(), VERBOSE)
+		sim.ClusterAnalysis(sim.GetClusterNodeStatus())
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
@@ -95,7 +83,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 		numPodsToDescheduleLast := numPodsToDeschedule
 		for numPodsToDeschedule > 0 {
 			for i := 0; i < len(fakeNodeFragAmountList); i++ {
-				//fmt.Printf("  [DEBUG] i=%d, numPodsToDeschedule=%d\n", i, numPodsToDeschedule)
+				log.Debugf("  i=%d, numPodsToDeschedule=%d\n", i, numPodsToDeschedule)
 				if numPodsToDeschedule <= 0 {
 					break
 				}
@@ -112,18 +100,18 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 					numPodsToDeschedule -= 1
 				}
 			}
-			//fmt.Printf(" [DEBUG] numPodsToDeschedule=%d, numPodsToDescheduleLast=%d\n", numPodsToDeschedule, numPodsToDescheduleLast)
+			log.Debugf(" numPodsToDeschedule=%d, numPodsToDescheduleLast=%d\n", numPodsToDeschedule, numPodsToDescheduleLast)
 			if numPodsToDescheduleLast == numPodsToDeschedule {
 				break
 			}
 			numPodsToDescheduleLast = numPodsToDeschedule
 		}
-		sim.ClusterAnalysis(sim.GetClusterNodeStatus(), VERBOSE)
+		sim.ClusterAnalysis(sim.GetClusterNodeStatus())
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
 	default:
-		fmt.Printf("[ERROR] DeschedulePolicy not found\n")
+		log.Errorf("DeschedulePolicy not found\n")
 	}
 
 	return &simontype.SimulateResult{

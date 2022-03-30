@@ -1,14 +1,13 @@
 package simulator
 
 import (
-	"fmt"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/alibaba/open-simulator/pkg/type"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-func (sim *Simulator) ClusterAnalysis(nodeStatus []simontype.NodeStatus, verbose int) (utils.FragAmount, []utils.ResourceSummary) {
-	// verbose: 0 -- no print; 1 -- only cluster analysis; 2 -- all info
+func (sim *Simulator) ClusterAnalysis(nodeStatus []simontype.NodeStatus) (utils.FragAmount, []utils.ResourceSummary) {
 	if len(nodeStatus) == 0 {
 		return utils.FragAmount{}, nil
 	}
@@ -21,7 +20,7 @@ func (sim *Simulator) ClusterAnalysis(nodeStatus []simontype.NodeStatus, verbose
 			if nodeRes, ok := sim.nodeResourceMap[ns.Node.Name]; ok {
 				nodeFragAmount = sim.NodeGpuFragAmount(nodeRes)
 			} else {
-				fmt.Printf("[ERROR] nodeName %s not found in nodeResourceMap\n", ns.Node.Name)
+				log.Errorf("nodeName %s not found in nodeResourceMap\n", ns.Node.Name)
 			}
 			ch <- nodeFragAmount
 		}(ns)
@@ -32,13 +31,9 @@ func (sim *Simulator) ClusterAnalysis(nodeStatus []simontype.NodeStatus, verbose
 	clusterFragAmount := utils.FragAmount{NodeName: "cluster", Data: data}
 	for nodeFragAmount := range ch {
 		if err := clusterFragAmount.Add(nodeFragAmount); err != nil {
-			fmt.Printf("[ERROR][ClusterAnalysis] %s\n", err.Error())
+			log.Errorf("[ClusterAnalysis] %s\n", err.Error())
 		}
-		if verbose >= 2 {
-			fmt.Printf("[%3d] Frag %s\n", chCount, nodeFragAmount.Repr())
-		}
-		//fmt.Printf("[%3d] Collected: %s\n", chCount, clusterFragAmount.Repr())
-		//fmt.Printf("[%3d] Frag %s\n", chCount, nodeFragAmount.Repr())
+		log.Debugf("[%3d] Frag %s\n", chCount, nodeFragAmount.Repr())
 		chCount += 1
 		if chCount == len(nodeStatus) {
 			break
@@ -47,13 +42,11 @@ func (sim *Simulator) ClusterAnalysis(nodeStatus []simontype.NodeStatus, verbose
 
 	nodeAllocMap, err := utils.GetNodeAllocMap(nodeStatus)
 	if err != nil {
-		fmt.Printf("[ERROR][ClusterAnalysis] %s\n", err.Error())
+		log.Errorf("[ClusterAnalysis] %s\n", err.Error())
 	}
 
-	if verbose >= 1 {
-		fmt.Println("\n========== Cluster Analysis Results ==========")
-	}
-	resourceSummaries := utils.ReportNodeAllocationRate(nodeAllocMap, verbose)
+	log.Infof("\n========== Cluster Analysis Results ==========")
+	resourceSummaries := utils.ReportNodeAllocationRate(nodeAllocMap)
 
 	var gpuFragSum float64
 	var FragRatioDataReverseMap = map[int]string{}
@@ -66,30 +59,28 @@ func (sim *Simulator) ClusterAnalysis(nodeStatus []simontype.NodeStatus, verbose
 	for v := 0; v < len(utils.FragRatioDataMap); v++ {
 		k := FragRatioDataReverseMap[v]
 		val := clusterFragAmount.Data[v]
-		if verbose >= 1 {
-			fmt.Printf("\n%-13s: %6.2f x 10^3 (%5.2f%%)", k, val/1000, 100*val/gpuFragSum)
-		}
+		log.Infof("%-13s: %6.2f x 10^3 (%5.2f%%)\n", k, val/1000, 100*val/gpuFragSum)
+
 	}
-	if verbose >= 1 {
-		fmt.Printf("\n--------------------\n")
-		fmt.Printf("%-13s: %6.2f x 10^3 (100.0%%)\n", "Idle GPU Milli", gpuFragSum/1000)
-		val := clusterFragAmount.FragAmountSumExceptQ3()
-		fmt.Printf("%-13s: %6.2f x 10^3 (%5.2f%%)\n", "Frag GPU Milli", val/1000, 100*val/gpuFragSum)
-		fmt.Printf("==============================================\n\n")
-	}
+	log.Infof("--------------------\n")
+	log.Infof("%-13s: %6.2f x 10^3 (100.0%%)\n", "Idle GPU Milli", gpuFragSum/1000)
+	val := clusterFragAmount.FragAmountSumExceptQ3()
+	log.Infof("%-13s: %6.2f x 10^3 (%5.2f%%)\n", "Frag GPU Milli", val/1000, 100*val/gpuFragSum)
+	log.Infof("==============================================\n\n")
+
 	return clusterFragAmount, resourceSummaries
 }
 
 func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.FragAmount {
 	if len(sim.typicalPods) <= 0 {
-		fmt.Printf("[ERROR] Typical pods are not set.\n")
+		log.Errorf("Typical pods are not set.\n")
 		return utils.FragAmount{}
 	}
 	return utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
 }
 
 func (sim *Simulator) SetTypicalPods() {
-	sim.typicalPods = utils.GetTypicalPods(sim.originalWorkloadPods, true)
+	sim.typicalPods = utils.GetTypicalPods(sim.originalWorkloadPods)
 }
 
 func (sim *Simulator) NodeGpuFragAmountMap(nodeResourceMap map[string]simontype.NodeResource) map[string]utils.FragAmount {

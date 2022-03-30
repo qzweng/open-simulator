@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sort"
 
+	log "github.com/sirupsen/logrus"
+
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
@@ -121,12 +123,12 @@ func (tnr NodeResource) Add(tpr PodResource, idl []int) (NodeResource, error) {
 		for i := 0; i < len(idl); i++ {
 			if idl[i] > len(out.MilliGpuLeftList)-1 || idl[i] < 0 {
 				err := fmt.Errorf("[ERROR] idl: %v of pod %s", idl, tpr.Repr())
-				fmt.Println(err.Error())
+				log.Errorln(err.Error())
 				return out, err
 			}
 			if out.MilliGpuLeftList[idl[i]]+tpr.MilliGpu > gpushareutils.MILLI {
 				err := fmt.Errorf("[ERROR] idl[%d]=%d of pod %s exceeds %d", i, idl[i], tpr.Repr(), gpushareutils.MILLI)
-				fmt.Println(err.Error())
+				log.Errorln(err.Error())
 				return out, err
 			}
 			out.MilliGpuLeftList[idl[i]] += tpr.MilliGpu
@@ -135,7 +137,7 @@ func (tnr NodeResource) Add(tpr PodResource, idl []int) (NodeResource, error) {
 		return out, nil
 
 	} else { // evict pod from the smallest remaining resource GPU, may not reflect the real cases
-		fmt.Printf("[INFO] Pod (%s) has no valid GPU index list: %v\n", tpr.Repr(), idl)
+		log.Infof("Pod (%s) has no valid GPU index list: %v\n", tpr.Repr(), idl)
 		sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { // smallest one first
 			return out.MilliGpuLeftList[i] < out.MilliGpuLeftList[j]
 		})

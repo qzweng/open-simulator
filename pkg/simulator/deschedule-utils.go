@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
@@ -17,7 +18,7 @@ func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod)
 	for _, pod := range pods {
 		similarity, ok := sim.resourceSimilarity(pod, node)
 		if !ok {
-			fmt.Printf("[Error] [findVictimPodOnNode] failed to get resource similarity of pod(%s) to node(%s)\n",
+			log.Errorf("[findVictimPodOnNode] failed to get resource similarity of pod(%s) to node(%s)\n",
 				utils.GeneratePodKey(pod), node.Name)
 			continue
 		}
@@ -27,7 +28,7 @@ func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod)
 		}
 	}
 	if victimPod != nil {
-		fmt.Printf("[Debug] [findVictimPodOnNode] pod(%s) is selected to deschedule from node(%s), resource similarity is %.2f\n",
+		log.Debugf("[findVictimPodOnNode] pod(%s) is selected to deschedule from node(%s), resource similarity is %.2f\n",
 			utils.GeneratePodKey(victimPod), node.Name, victimPodSimilarity)
 		return victimPod
 	}
@@ -65,7 +66,7 @@ func (sim *Simulator) resourceSimilarity(pod *corev1.Pod, node *corev1.Node) (fl
 	if err != nil {
 		return -1, false
 	}
-	fmt.Printf("similarity of pod %s with node %s is %.2f, pod vec %v, node vec %v\n", utils.GeneratePodKey(pod), node.Name, similarity, podVec, nodeVec)
+	log.Debugf("similarity of pod %s with node %s is %.2f, pod vec %v, node vec %v\n", utils.GeneratePodKey(pod), node.Name, similarity, podVec, nodeVec)
 	return similarity, true
 }
 
@@ -98,17 +99,17 @@ func (sim *Simulator) findVictimPodOnNodeFragAware(nodeGpuFrag utils.FragAmount,
 	victimScore := int64(0) // if score < victimScore, i.e., negative, it means descheduling brings more fragment.
 	var victimPod *corev1.Pod
 	var victimNodeGpuFrag *utils.FragAmount
-	fmt.Printf(" [DEBUG] node:%s (%s)\n", nodeRes.Repr(), nodeRes.NodeName)
+	log.Debugf(" node:%s (%s)\n", nodeRes.Repr(), nodeRes.NodeName)
 	for _, pod := range pods {
 		podRes := utils.GetPodResource(pod)
 		podGpuIdList, err := gpushareutils.GetGpuIdListFromAnnotation(pod)
 		if err != nil {
-			fmt.Printf("[ERROR][Deschedule][FragOnePod] podGpuIdList of podRes(%s) error:%s\n", podRes.Repr(), err.Error())
+			log.Errorf("[Deschedule][FragOnePod] podGpuIdList of podRes(%s) error:%s\n", podRes.Repr(), err.Error())
 			continue
 		}
 		newNodeRes, err := nodeRes.Add(podRes, podGpuIdList) // in contrast to schedule's "nodeRes.Sub()"
 		if err != nil {
-			fmt.Printf("[ERROR][Deschedule][FragOnePod] findVictimPodOnNodeFragAware: nodeRes(%s).Add(podRes(%s)) error:%s\n", nodeRes.Repr(), podRes.Repr(), err.Error())
+			log.Errorf("[Deschedule][FragOnePod] findVictimPodOnNodeFragAware: nodeRes(%s).Add(podRes(%s)) error:%s\n", nodeRes.Repr(), podRes.Repr(), err.Error())
 			continue
 		}
 		newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, sim.typicalPods)
@@ -118,12 +119,12 @@ func (sim *Simulator) findVictimPodOnNodeFragAware(nodeGpuFrag utils.FragAmount,
 			victimPod = pod
 			victimNodeGpuFrag = &newNodeGpuFrag
 		}
-		fmt.Printf("  [DEBUG] pod:%s, newNodeRes:%s, score:%.2f-%.2f=%d (%s)\n", podRes.Repr(), newNodeRes.Repr(), nodeGpuFrag.FragAmountSumExceptQ3(), newNodeGpuFrag.FragAmountSumExceptQ3(), score, pod.Name)
+		log.Debugf("  pod:%s, newNodeRes:%s, score:%.2f-%.2f=%d (%s)\n", podRes.Repr(), newNodeRes.Repr(), nodeGpuFrag.FragAmountSumExceptQ3(), newNodeGpuFrag.FragAmountSumExceptQ3(), score, pod.Name)
 	}
 	if victimPod != nil {
-		fmt.Printf("[DEBUG] [Deschedule][FragOnePod] pod %s is selected to deschedule from node %s, score %d\n", utils.GeneratePodKey(victimPod), nodeGpuFrag.NodeName, victimScore)
+		log.Debugf("[Deschedule][FragOnePod] pod %s is selected to deschedule from node %s, score %d\n", utils.GeneratePodKey(victimPod), nodeGpuFrag.NodeName, victimScore)
 		return victimPod, victimNodeGpuFrag
 	}
-	fmt.Printf("[DEBUG] [Deschedule][FragOnePod] no pod is evicted from node %s\n", nodeGpuFrag.NodeName)
+	log.Debugf("[Deschedule][FragOnePod] no pod is evicted from node %s\n", nodeGpuFrag.NodeName)
 	return nil, nil
 }

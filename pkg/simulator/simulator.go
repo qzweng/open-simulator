@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -92,7 +93,7 @@ func New(opts ...Option) (Interface, error) {
 	if options.kubeconfig != "" {
 		config, err := clientcmd.BuildConfigFromFlags("", options.kubeconfig)
 		if err != nil {
-			fmt.Printf("[Error] %s\n", err.Error())
+			log.Errorf("%s\n", err.Error())
 		}
 		client, err = externalclientset.NewForConfig(config)
 	} else {
@@ -249,7 +250,7 @@ func (sim *Simulator) createPod(p *corev1.Pod) error {
 			sim.syncNodeUpdateOnPodCreate(pod.Spec.NodeName, pod, 2*time.Millisecond)
 		}
 	} else {
-		fmt.Printf("[Error] [createPod] pod(%s) not created, should not happen", utils.GeneratePodKey(p))
+		log.Errorf("[createPod] pod(%s) not created, should not happen", utils.GeneratePodKey(p))
 	}
 	return nil
 }
@@ -260,7 +261,7 @@ func (sim *Simulator) deletePod(p *corev1.Pod) error {
 	if pod != nil {
 		nodeName = pod.Spec.NodeName
 	} else {
-		fmt.Printf("[Info] [deletePod] attempt to delete a non-existed pod(%s)\n", utils.GeneratePodKey(p))
+		log.Infof("[deletePod] attempt to delete a non-existed pod(%s)\n", utils.GeneratePodKey(p))
 		return nil
 	}
 
@@ -274,7 +275,7 @@ func (sim *Simulator) deletePod(p *corev1.Pod) error {
 	if nodeName != "" {
 		sim.syncNodeUpdateOnPodDelete(nodeName, pod, 2*time.Millisecond)
 	} else {
-		fmt.Printf("[Info] [deletePod] attempt to delete a non-scheduled pod(%s)\n", utils.GeneratePodKey(p))
+		log.Infof("[deletePod] attempt to delete a non-scheduled pod(%s)\n", utils.GeneratePodKey(p))
 	}
 	return nil
 }
@@ -283,7 +284,7 @@ func (sim *Simulator) assumePod(pod *corev1.Pod) *simontype.UnscheduledPod {
 	err := sim.createPod(pod)
 	if err != nil || sim.isPodUnscheduled(pod.Namespace, pod.Name) {
 		if err = sim.deletePod(pod); err != nil {
-			fmt.Printf("[Error] [assumePod] failed to delete pod(%s)\n", utils.GeneratePodKey(pod))
+			log.Errorf("[assumePod] failed to delete pod(%s)\n", utils.GeneratePodKey(pod))
 		}
 		return &simontype.UnscheduledPod{Pod: pod}
 	}
@@ -293,7 +294,7 @@ func (sim *Simulator) assumePod(pod *corev1.Pod) *simontype.UnscheduledPod {
 func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod {
 	var failedPods []simontype.UnscheduledPod
 	for i, pod := range pods {
-		fmt.Printf("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
+		log.Infof("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
 		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
 			failedPods = append(failedPods, *unscheduledPod)
 		}
@@ -367,7 +368,7 @@ func (sim *Simulator) syncPodCreate(ns, name string, d time.Duration) {
 
 func (sim *Simulator) syncPodDelete(ns, name string, d time.Duration) {
 	for {
-		fmt.Printf("[Debug] check if pod(%s) has been deleted\n", name)
+		log.Debugf("check if pod(%s) has been deleted\n", name)
 		if sim.isPodDeleted(ns, name) {
 			break
 		}
@@ -379,7 +380,7 @@ func (sim *Simulator) syncNodeUpdateOnPodCreate(nodeName string, p *corev1.Pod, 
 	for {
 		node, _ := sim.client.CoreV1().Nodes().Get(sim.ctx, nodeName, metav1.GetOptions{})
 		if node == nil {
-			fmt.Printf("[Error] [syncNodeUpdateOnPodCreate] failed to get node(%s) when creating pod(%s)\n",
+			log.Errorf("syncNodeUpdateOnPodCreate] failed to get node(%s) when creating pod(%s)\n",
 				nodeName, utils.GeneratePodKey(p))
 			break
 		}
@@ -401,7 +402,7 @@ func (sim *Simulator) syncNodeUpdateOnPodDelete(nodeName string, p *corev1.Pod, 
 	for {
 		node, _ := sim.client.CoreV1().Nodes().Get(sim.ctx, nodeName, metav1.GetOptions{})
 		if node == nil {
-			fmt.Printf("[Error] [syncNodeUpdateOnPodDelete] failed to get node(%s)\n", nodeName)
+			log.Errorf("[syncNodeUpdateOnPodDelete] failed to get node(%s)\n", nodeName)
 			break
 		}
 
@@ -425,7 +426,7 @@ func (sim *Simulator) syncNodeCreate(name string, d time.Duration) {
 		}
 		time.Sleep(d)
 	}
-	fmt.Printf("[Debug] node(%s) has been successfully created\n", name)
+	log.Debugf("node(%s) has been successfully created\n", name)
 }
 
 func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*simontype.SimulateResult, error) {
@@ -752,22 +753,20 @@ func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
 			if timeStr, ok := pods[i].Annotations[gpushareutils.CreationTime]; ok {
 				timeI, err = time.Parse(time.RFC3339, timeStr)
 				if err != nil {
-					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
+					log.Errorf("Time Parse %s err: %s\n", timeStr, err.Error())
 					timeI = timeNow
 				}
 			} else {
-				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
 				timeI = timeNow
 			}
 
 			if timeStr, ok := pods[j].Annotations[gpushareutils.CreationTime]; ok {
 				timeJ, err = time.Parse(time.RFC3339, timeStr)
 				if err != nil {
-					fmt.Printf("[Error] Time Parse %s err: %s\n", timeStr, err.Error())
+					log.Errorf("Time Parse %s err: %s\n", timeStr, err.Error())
 					timeJ = timeNow
 				}
 			} else {
-				//fmt.Printf("[Info] No timestamp for pod %s\n", utils.GeneratePodKey(cluster.Pods[i]))
 				timeJ = timeNow
 			}
 			return timeI.Before(timeJ) || (timeI.Equal(timeJ) && pods[i].Name < pods[j].Name)
@@ -778,7 +777,7 @@ func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
 func (sim *Simulator) GenerateWorkloadInflationPods(tag string) []*corev1.Pod {
 	n := len(sim.originalWorkloadPods)
 	if n == 0 {
-		fmt.Printf("[Info] [GenerateWorkloadInflationPods] original workload is empty\n")
+		log.Infof("[GenerateWorkloadInflationPods] original workload is empty\n")
 		return nil
 	}
 
@@ -786,14 +785,14 @@ func (sim *Simulator) GenerateWorkloadInflationPods(tag string) []*corev1.Pod {
 	if workloadInflationRatio > 1 {
 		var inflationPods []*corev1.Pod
 		inflationNum := int(math.Ceil(float64(n)*workloadInflationRatio)) - n
-		fmt.Printf("[INFO] [GenerateWorkloadInflationPods] workload inflation ratio: %.4f, the number of inflation pods: %d\n",
+		log.Infof("[GenerateWorkloadInflationPods] workload inflation ratio: %.4f, the number of inflation pods: %d\n",
 			workloadInflationRatio, inflationNum)
 		for i := 0; i < inflationNum; i++ {
 			rand.Seed(time.Now().UnixNano())
 			idx := rand.Intn(n)
 			podCloned, err := utils.MakeValidPodByPod(sim.originalWorkloadPods[idx].DeepCopy())
 			if err != nil {
-				fmt.Printf("[Error] failed to clone pod(%s)\n", utils.GeneratePodKey(sim.originalWorkloadPods[idx]))
+				log.Errorf("failed to clone pod(%s)\n", utils.GeneratePodKey(sim.originalWorkloadPods[idx]))
 				continue
 			}
 			podCloned.Name = fmt.Sprintf("%s-clone-%s-%d", podCloned.Name, tag, i)

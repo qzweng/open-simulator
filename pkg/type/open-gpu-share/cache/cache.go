@@ -1,9 +1,9 @@
 package cache
 
 import (
-	"fmt"
 	"sync"
 
+	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -89,7 +89,7 @@ func (cache *SchedulerCache) AddOrUpdatePod(pod *v1.Pod, nodeName string) error 
 		// put it into known pod
 		cache.rememberPod(podCopy)
 	} else {
-		fmt.Printf("[Error] [AddOrUpdatePod] failed to addOrUpdate pod(%s) on node(%s)\n",
+		log.Errorf("[AddOrUpdatePod] failed to addOrUpdate pod(%s) on node(%s)\n",
 			utils.GeneratePodKey(pod), nodeName)
 	}
 
@@ -102,7 +102,7 @@ func (cache *SchedulerCache) RemovePod(pod *v1.Pod, nodeName string) {
 	if err == nil {
 		n.removePod(pod)
 	} else {
-		fmt.Printf("[Error] [RemovePod] failed to remove pod(%s) from node(%s)\n",
+		log.Errorf("[RemovePod] failed to remove pod(%s) from node(%s)\n",
 			utils.GeneratePodKey(pod), nodeName)
 	}
 
@@ -123,15 +123,6 @@ func (cache *SchedulerCache) GetGpuNodeInfo(name string) (*GpuNodeInfo, error) {
 	if !ok {
 		n = NewGpuNodeInfo(node)
 		cache.nodes[name] = n
-		//} else {
-		//	//cache.nodes[name].Reset(node)
-		//	if len(cache.nodes[name].devs) == 0 ||
-		//		utils.GetGpuMilliOfNode(n.node) <= 0 ||
-		//		utils.GetGpuCountOfNode(n.node) <= 0 {
-		//		cache.nodes[name].Reset(node)
-		//	} else {
-		//		fmt.Printf("[ERROR]: GetGpuNodeInfo() can neither find or build GpuNodeInfo of %s", name)
-		//	}
 	}
 	return n, nil
 }

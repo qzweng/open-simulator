@@ -105,7 +105,7 @@ func (plugin *SimonPlugin) NormalizeScore(ctx context.Context, state *framework.
 
 // BindPodToNode bind pod to a node and trigger pod update event
 func (plugin *SimonPlugin) BindPodToNode(ctx context.Context, state *framework.CycleState, p *corev1.Pod, nodeName string) *framework.Status {
-	//fmt.Printf("[Debug] bind pod(%s) to node(%s)\n", utils.GeneratePodKey(p), nodeName)
+	log.Debugf("bind pod(%s) to node(%s)\n", utils.GeneratePodKey(p), nodeName)
 	switch t := plugin.handle.ClientSet().(type) {
 	case *externalclientset.Clientset:
 		// production env

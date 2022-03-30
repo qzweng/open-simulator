@@ -1,8 +1,7 @@
 package simulator
 
 import (
-	"fmt"
-
+	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	batchv1beta1 "k8s.io/api/batch/v1beta1"
@@ -41,7 +40,7 @@ type Interface interface {
 	ScheduleApp(AppResource) (*simontype.SimulateResult, error)
 	SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod
 
-	ClusterAnalysis(result []simontype.NodeStatus, verbose int) (utils.FragAmount, []utils.ResourceSummary)
+	ClusterAnalysis(result []simontype.NodeStatus) (utils.FragAmount, []utils.ResourceSummary)
 	GetClusterNodeStatus() []simontype.NodeStatus
 
 	SetOriginalWorkloadPods(pods []*corev1.Pod)
@@ -100,7 +99,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 	failedPods = append(failedPods, result.UnscheduledPods...)
 	reportFailedPods(failedPods)
-	sim.ClusterAnalysis(result.NodeStatus, 1)
+	sim.ClusterAnalysis(result.NodeStatus)
 
 	inflationPods := sim.GenerateWorkloadInflationPods("schedule")
 	fp := sim.SchedulePods(inflationPods)
@@ -111,7 +110,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	if customConfig.DeschedulePolicy != "" {
 		result, _ = sim.Deschedule()
 		failedPods = append(failedPods, result.UnscheduledPods...)
-		sim.ClusterAnalysis(result.NodeStatus, 1)
+		sim.ClusterAnalysis(result.NodeStatus)
 	}
 
 	// schedule pods
@@ -135,10 +134,10 @@ func reportFailedPods(fp []simontype.UnscheduledPod) {
 	if len(fp) == 0 {
 		return
 	}
-	fmt.Printf("Failed Pods in detail:\n")
+	log.Infof("Failed Pods in detail:\n")
 	for _, up := range fp {
 		podResoure := utils.GetPodResource(up.Pod)
-		fmt.Printf("  %s: %s\n", utils.GeneratePodKey(up.Pod), podResoure.Repr())
+		log.Infof("  %s: %s\n", utils.GeneratePodKey(up.Pod), podResoure.Repr())
 	}
-	fmt.Println()
+	log.Infoln()
 }
