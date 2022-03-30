@@ -36,11 +36,11 @@ type AppResource struct {
 }
 
 type Interface interface {
-	RunCluster(cluster ResourceTypes) (*simontype.SimulateResult, error)
-	ScheduleApp(AppResource) (*simontype.SimulateResult, error)
+	RunCluster(cluster ResourceTypes) ([]simontype.UnscheduledPod, error)
+	ScheduleApp(AppResource) ([]simontype.UnscheduledPod, error)
 	SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod
 
-	ClusterAnalysis(result []simontype.NodeStatus) (utils.FragAmount, []utils.ResourceSummary)
+	ClusterAnalysis() (utils.FragAmount, []utils.ResourceSummary)
 	GetClusterNodeStatus() []simontype.NodeStatus
 
 	SetOriginalWorkloadPods(pods []*corev1.Pod)
@@ -52,7 +52,7 @@ type Interface interface {
 
 	GetCustomConfig() v1alpha1.CustomConfig
 
-	Deschedule() (*simontype.SimulateResult, error)
+	DescheduleCluster() ([]simontype.UnscheduledPod, error)
 
 	Close()
 }
@@ -93,33 +93,33 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	var failedPods []simontype.UnscheduledPod
 
 	// run cluster
-	result, err := sim.RunCluster(cluster) // Existing pods in the cluster are scheduled here.
+	unscheduledPods, err := sim.RunCluster(cluster) // Existing pods in the cluster are scheduled here.
 	if err != nil {
 		return nil, err
 	}
-	failedPods = append(failedPods, result.UnscheduledPods...)
+	failedPods = append(failedPods, unscheduledPods...)
 	reportFailedPods(failedPods)
-	sim.ClusterAnalysis(result.NodeStatus)
+	sim.ClusterAnalysis()
 
 	inflationPods := sim.GenerateWorkloadInflationPods("schedule")
-	fp := sim.SchedulePods(inflationPods)
-	reportFailedPods(fp)
-	failedPods = append(failedPods, fp...)
+	unscheduledPods = sim.SchedulePods(inflationPods)
+	reportFailedPods(unscheduledPods)
+	failedPods = append(failedPods, unscheduledPods...)
 
 	customConfig := sim.GetCustomConfig()
 	if customConfig.DeschedulePolicy != "" {
-		result, _ = sim.Deschedule()
-		failedPods = append(failedPods, result.UnscheduledPods...)
-		sim.ClusterAnalysis(result.NodeStatus)
+		unscheduledPods, _ = sim.DescheduleCluster()
+		failedPods = append(failedPods, unscheduledPods...)
+		sim.ClusterAnalysis()
 	}
 
 	// schedule pods
 	for _, app := range apps {
-		result, err = sim.ScheduleApp(app)
+		unscheduledPods, err = sim.ScheduleApp(app)
 		if err != nil {
 			return nil, err
 		}
-		failedPods = append(failedPods, result.UnscheduledPods...)
+		failedPods = append(failedPods, unscheduledPods...)
 	}
 	//result.UnscheduledPods = failedPods
 	//sim.ClusterAnalysis(result)

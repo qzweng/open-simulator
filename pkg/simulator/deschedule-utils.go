@@ -104,12 +104,12 @@ func (sim *Simulator) findVictimPodOnNodeFragAware(nodeGpuFrag utils.FragAmount,
 		podRes := utils.GetPodResource(pod)
 		podGpuIdList, err := gpushareutils.GetGpuIdListFromAnnotation(pod)
 		if err != nil {
-			log.Errorf("[Deschedule][FragOnePod] podGpuIdList of podRes(%s) error:%s\n", podRes.Repr(), err.Error())
+			log.Errorf("[DescheduleCluster][FragOnePod] podGpuIdList of podRes(%s) error:%s\n", podRes.Repr(), err.Error())
 			continue
 		}
 		newNodeRes, err := nodeRes.Add(podRes, podGpuIdList) // in contrast to schedule's "nodeRes.Sub()"
 		if err != nil {
-			log.Errorf("[Deschedule][FragOnePod] findVictimPodOnNodeFragAware: nodeRes(%s).Add(podRes(%s)) error:%s\n", nodeRes.Repr(), podRes.Repr(), err.Error())
+			log.Errorf("[DescheduleCluster][FragOnePod] findVictimPodOnNodeFragAware: nodeRes(%s).Add(podRes(%s)) error:%s\n", nodeRes.Repr(), podRes.Repr(), err.Error())
 			continue
 		}
 		newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, sim.typicalPods)
@@ -122,9 +122,9 @@ func (sim *Simulator) findVictimPodOnNodeFragAware(nodeGpuFrag utils.FragAmount,
 		log.Debugf("  pod:%s, newNodeRes:%s, score:%.2f-%.2f=%d (%s)\n", podRes.Repr(), newNodeRes.Repr(), nodeGpuFrag.FragAmountSumExceptQ3(), newNodeGpuFrag.FragAmountSumExceptQ3(), score, pod.Name)
 	}
 	if victimPod != nil {
-		log.Debugf("[Deschedule][FragOnePod] pod %s is selected to deschedule from node %s, score %d\n", utils.GeneratePodKey(victimPod), nodeGpuFrag.NodeName, victimScore)
+		log.Debugf("[DescheduleCluster][FragOnePod] pod %s is selected to deschedule from node %s, score %d\n", utils.GeneratePodKey(victimPod), nodeGpuFrag.NodeName, victimScore)
 		return victimPod, victimNodeGpuFrag
 	}
-	log.Debugf("[Deschedule][FragOnePod] no pod is evicted from node %s\n", nodeGpuFrag.NodeName)
+	log.Debugf("[DescheduleCluster][FragOnePod] no pod is evicted from node %s\n", nodeGpuFrag.NodeName)
 	return nil, nil
 }

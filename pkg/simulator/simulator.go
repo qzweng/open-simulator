@@ -157,13 +157,13 @@ func New(opts ...Option) (Interface, error) {
 }
 
 // RunCluster
-func (sim *Simulator) RunCluster(cluster ResourceTypes) (*simontype.SimulateResult, error) {
+func (sim *Simulator) RunCluster(cluster ResourceTypes) ([]simontype.UnscheduledPod, error) {
 	// start scheduler
 	sim.runScheduler()
 
 	switch t := sim.client.(type) {
 	case *externalclientset.Clientset:
-		return &simontype.SimulateResult{}, nil
+		return nil, nil
 	case *fakeclientset.Clientset:
 		return sim.syncClusterResourceList(cluster)
 	default:
@@ -171,7 +171,7 @@ func (sim *Simulator) RunCluster(cluster ResourceTypes) (*simontype.SimulateResu
 	}
 }
 
-func (sim *Simulator) ScheduleApp(apps AppResource) (*simontype.SimulateResult, error) {
+func (sim *Simulator) ScheduleApp(apps AppResource) ([]simontype.UnscheduledPod, error) {
 	// 由 AppResource 生成 Pods
 	appPods, err := GenerateValidPodsFromAppResources(sim.client, apps.Name, apps.Resource)
 	if err != nil {
@@ -183,10 +183,7 @@ func (sim *Simulator) ScheduleApp(apps AppResource) (*simontype.SimulateResult, 
 	sort.Sort(tolerationPriority)
 	failedPod := sim.SchedulePods(appPods)
 
-	return &simontype.SimulateResult{
-		UnscheduledPods: failedPod,
-		NodeStatus:      sim.GetClusterNodeStatus(),
-	}, nil
+	return failedPod, nil
 }
 
 func (sim *Simulator) GetCustomConfig() v1alpha1.CustomConfig {
@@ -429,7 +426,7 @@ func (sim *Simulator) syncNodeCreate(name string, d time.Duration) {
 	log.Debugf("node(%s) has been successfully created\n", name)
 }
 
-func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*simontype.SimulateResult, error) {
+func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]simontype.UnscheduledPod, error) {
 	//sync node
 	for _, item := range resourceList.Nodes {
 		if _, err := sim.client.CoreV1().Nodes().Create(context.TODO(), item, metav1.CreateOptions{}); err != nil {
@@ -504,10 +501,7 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) (*simo
 	// sync pods
 	failedPods := sim.SchedulePods(resourceList.Pods)
 
-	return &simontype.SimulateResult{
-		UnscheduledPods: failedPods,
-		NodeStatus:      sim.GetClusterNodeStatus(),
-	}, nil
+	return failedPods, nil
 }
 
 // WithKubeConfig sets kubeconfig for Simulator, the default value is ""

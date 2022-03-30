@@ -13,7 +13,7 @@ const (
 	DeschedulePolicyFragMultiPod = "fragMultiPod"
 )
 
-func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
+func (sim *Simulator) DescheduleCluster() ([]simontype.UnscheduledPod, error) {
 	podMap := sim.getCurrentPodMap()
 
 	nodeStatus := sim.GetClusterNodeStatus() // Note: the resources in nodeStatus.Node is the capacity instead of requests
@@ -36,14 +36,14 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
 			if victimPod != nil {
 				if err := sim.deletePod(victimPod); err != nil {
-					log.Errorf("[Deschedule] failed to delete pod(%s)\n", utils.GeneratePodKey(victimPod))
+					log.Errorf("[DescheduleCluster] failed to delete pod(%s)\n", utils.GeneratePodKey(victimPod))
 				} else {
 					descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
 					numPodsToDeschedule -= 1
 				}
 			}
 		}
-		sim.ClusterAnalysis(sim.GetClusterNodeStatus())
+		sim.ClusterAnalysis()
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
@@ -63,7 +63,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 				numPodsToDeschedule -= 1
 			}
 		}
-		sim.ClusterAnalysis(sim.GetClusterNodeStatus())
+		sim.ClusterAnalysis()
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
@@ -106,7 +106,7 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 			}
 			numPodsToDescheduleLast = numPodsToDeschedule
 		}
-		sim.ClusterAnalysis(sim.GetClusterNodeStatus())
+		sim.ClusterAnalysis()
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
 		failedPods = sim.SchedulePods(descheduledPod)
 
@@ -114,8 +114,5 @@ func (sim *Simulator) Deschedule() (*simontype.SimulateResult, error) {
 		log.Errorf("DeschedulePolicy not found\n")
 	}
 
-	return &simontype.SimulateResult{
-		UnscheduledPods: failedPods,
-		NodeStatus:      sim.GetClusterNodeStatus(),
-	}, nil
+	return failedPods, nil
 }

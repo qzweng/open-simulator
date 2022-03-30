@@ -7,7 +7,8 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-func (sim *Simulator) ClusterAnalysis(nodeStatus []simontype.NodeStatus) (utils.FragAmount, []utils.ResourceSummary) {
+func (sim *Simulator) ClusterAnalysis() (utils.FragAmount, []utils.ResourceSummary) {
+	nodeStatus := sim.GetClusterNodeStatus()
 	if len(nodeStatus) == 0 {
 		return utils.FragAmount{}, nil
 	}
