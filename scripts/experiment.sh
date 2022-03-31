@@ -47,9 +47,33 @@ for CONFIG in $(ls example/scheduler-config); do
 done
 # </LOCAL INF=100 RUN>
 
+
 # 2022.03.31
+IR=11
+DR=01
+DP=1
+SC1=100
+SC2=900
+for ITER in {1..2}; do
+  bin/simon apply --extended-resources "gpu" \
+    -f "example/cluster-config/cluster-config-ir${IR}-dr${DR}-dp${DP}.yaml" \
+    --default-scheduler-config "example/scheduler-config/scheduler-config-${SC1}x${SC2}.yaml" \
+    > "logs/paib-2022_03_18_11_36_45-ir${IR}-dr${DR}-dp${DP}-${SC1}x${SC2}-${ITER}.log" 2>&1 & date
+done
+  ITER=$((ITER + 1))
+  bin/simon apply --extended-resources "gpu" \
+    -f "example/cluster-config/cluster-config-ir${IR}-dr${DR}-dp${DP}.yaml" \
+    --default-scheduler-config "example/scheduler-config/scheduler-config-${SC1}x${SC2}.yaml" \
+    > "logs/paib-2022_03_18_11_36_45-ir${IR}-dr${DR}-dp${DP}-${SC1}x${SC2}-${ITER}.log" 2>&1
+
+# SINGLE TRIAL
+IR=11
+DR=01
+DP=1
+SC1=100
+SC2=900
+ITER=TEST
 bin/simon apply --extended-resources "gpu" \
-  -f example/paib/2022_03_18_11_36_45/paib_config_2022_03_18_11_36_45_customconfig.yaml  \
-  --default-scheduler-config example/scheduler-config.yaml \
-  > logs/paib_test_0331_multipod.out \
-  2> logs/paib_test_0331_multipod.log
+  -f "example/cluster-config/cluster-config-ir${IR}-dr${DR}-dp${DP}.yaml" \
+  --default-scheduler-config "example/scheduler-config/scheduler-config-${SC1}x${SC2}.yaml" \
+  > "logs/paib-2022_03_18_11_36_45-ir${IR}-dr${DR}-dp${DP}-${SC1}x${SC2}-${ITER}.log" 2>&1

@@ -1,7 +1,7 @@
 apiVersion: kubescheduler.config.k8s.io/v1beta1
 kind: KubeSchedulerConfiguration
 profiles:
-  - schedulerName: default-scheduler
+  - schedulerName: simon-scheduler
     plugins:
       filter:
         enabled:
@@ -11,7 +11,6 @@ profiles:
         disabled:
           - name: Gpu-Packing-Score
           - name: Gpu-Frag-Score
-          - name: Open-Gpu-Share
           - name: Simon
         enabled:
           - name: Gpu-Packing-Score
@@ -24,7 +23,6 @@ profiles:
       bind:
         disabled:
           - name: DefaultBinder
+          - name: Open-Local
         enabled:
           - name: Simon
-          - name: Open-Local
-          - name: Open-Gpu-Share
