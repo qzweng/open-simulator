@@ -48,11 +48,11 @@ type Interface interface {
 
 	SortClusterPods(pods []*corev1.Pod)
 
-	GenerateWorkloadInflationPods(tag string) []*corev1.Pod
+	RunWorkloadInflationEvaluation()
 
 	GetCustomConfig() v1alpha1.CustomConfig
 
-	DescheduleCluster() ([]simontype.UnscheduledPod, error)
+	DescheduleCluster() []simontype.UnscheduledPod
 
 	Close()
 }
@@ -101,16 +101,13 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	reportFailedPods(failedPods)
 	sim.ClusterAnalysis()
 
-	inflationPods := sim.GenerateWorkloadInflationPods("schedule")
-	unscheduledPods = sim.SchedulePods(inflationPods)
-	reportFailedPods(unscheduledPods)
-	failedPods = append(failedPods, unscheduledPods...)
+	sim.RunWorkloadInflationEvaluation()
 
 	customConfig := sim.GetCustomConfig()
 	if customConfig.DeschedulePolicy != "" {
-		unscheduledPods, _ = sim.DescheduleCluster()
+		unscheduledPods = sim.DescheduleCluster()
 		failedPods = append(failedPods, unscheduledPods...)
-		sim.ClusterAnalysis()
+		sim.RunWorkloadInflationEvaluation()
 	}
 
 	// schedule pods

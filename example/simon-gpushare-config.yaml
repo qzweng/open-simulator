@@ -21,7 +21,7 @@ spec:
   customConfig:
     shufflePod: false
     workloadInflationRatio: 1
-    deschedulePodsMax: 10
+    descheduleRatio: 0.1
     # deschedulePolicy: cosSim
     # deschedulePolicy: fragOnePod
     deschedulePolicy: fragMultiPod

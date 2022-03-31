@@ -46,7 +46,8 @@ func (sim *Simulator) ClusterAnalysis() (utils.FragAmount, []utils.ResourceSumma
 		log.Errorf("[ClusterAnalysis] %s\n", err.Error())
 	}
 
-	log.Infof("\n========== Cluster Analysis Results ==========")
+	log.Infoln()
+	log.Infof("========== Cluster Analysis Results ==========\n")
 	resourceSummaries := utils.ReportNodeAllocationRate(nodeAllocMap)
 
 	var gpuFragSum float64
@@ -61,13 +62,13 @@ func (sim *Simulator) ClusterAnalysis() (utils.FragAmount, []utils.ResourceSumma
 		k := FragRatioDataReverseMap[v]
 		val := clusterFragAmount.Data[v]
 		log.Infof("%-13s: %6.2f x 10^3 (%5.2f%%)\n", k, val/1000, 100*val/gpuFragSum)
-
 	}
-	log.Infof("--------------------\n")
+	log.Infoln("--------------------")
 	log.Infof("%-13s: %6.2f x 10^3 (100.0%%)\n", "Idle GPU Milli", gpuFragSum/1000)
 	val := clusterFragAmount.FragAmountSumExceptQ3()
 	log.Infof("%-13s: %6.2f x 10^3 (%5.2f%%)\n", "Frag GPU Milli", val/1000, 100*val/gpuFragSum)
-	log.Infof("==============================================\n\n")
+	log.Infoln("==============================================")
+	log.Infoln()
 
 	return clusterFragAmount, resourceSummaries
 }

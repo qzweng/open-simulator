@@ -86,7 +86,7 @@ func (fa FragAmount) Repr() (outStr string) {
 		if i > 0 {
 			outStr += ", "
 		}
-		outStr += fmt.Sprintf("%5.1f", v)
+		outStr += fmt.Sprintf("%6.1f", v)
 	}
 	outStr += "]"
 	return outStr
@@ -142,7 +142,7 @@ func GetTypicalPods(allPods []*v1.Pod) simontype.TargetPodList {
 	}
 
 	tgtPodList := SortTargetPodInDecreasingCount(tgtPodResCntMap)
-	log.Debugf("\nNum of Total Pods: %d\n", len(allPods))
+	log.Debugf("Num of Total Pods: %d\n", len(allPods))
 	log.Debugf("Num of Total Pod Sepc: %d\n", len(tgtPodList))
 	ExpectedNumPods := int(simontype.TypicalPodPopularityThreshold * len(allPods) / 100)
 	var i, podResNum int
@@ -156,12 +156,11 @@ func GetTypicalPods(allPods []*v1.Pod) simontype.TargetPodList {
 		}
 	}
 
-	log.Debugf("\nCount top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPods)))
+	log.Debugf("Count top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPods)))
 
 	for j, tp := range tgtPodList[:i] {
 		tgtPodList[j].Percentage = tp.Percentage / numPods
 		log.Debugf("[%d] %s: %.1f%%\n", j, tp.TargetPodResource.Repr(), tgtPodList[j].Percentage*100)
-
 	}
 	log.Debugln()
 

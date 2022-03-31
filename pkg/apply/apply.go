@@ -319,7 +319,7 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 		header = append(header, "Volume Request")
 	}
 	if containGpu(extendedResources) {
-		header = append(header, "GPU Requests")
+		header = append(header, "GPU MILLI Requests")
 	}
 	header = append(header, "APP Name")
 	podTable.SetHeader(header)
@@ -399,7 +399,7 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 	if containGpu(extendedResources) {
 		nodeTableHeader = append(nodeTableHeader, []string{
 			"GPU",
-			"GPU Requests",
+			"GPU MILLI Requests",
 		}...)
 	}
 	nodeTableHeader = append(nodeTableHeader, []string{
@@ -515,7 +515,7 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 			var podList []*corev1.Pod
 			fmt.Println("GPU Node Resource")
 			nodeGpuTable := tablewriter.NewWriter(os.Stdout)
-			nodeGpuTable.SetHeader([]string{"Node", "GPU ID", "GPU Request/Capacity", "Pod List"})
+			nodeGpuTable.SetHeader([]string{"Node", "GPU ID", "GPU MILLI Request/Capacity", "Pod List"})
 			for _, status := range nodeStatuses {
 				node := status.Node
 				podList = append(podList, status.Pods...)
@@ -551,7 +551,7 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 
 			fmt.Println("\nPod -> Node Map")
 			podGpuTable := tablewriter.NewWriter(os.Stdout)
-			podGpuTable.SetHeader([]string{"Pod", "CPU Req", "Mem Req", "GPU Req", "Host Node", "GPU IDX"})
+			podGpuTable.SetHeader([]string{"Pod", "CPU Req", "Mem Req", "GPU MILLI Req", "Host Node", "GPU IDX"})
 			sort.Slice(podList, func(i, j int) bool { return podList[i].Name < podList[j].Name })
 			for _, pod := range podList {
 				req, limit := resourcehelper.PodRequestsAndLimits(pod)

@@ -293,6 +293,7 @@ func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPo
 	for i, pod := range pods {
 		log.Infof("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
 		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
+			log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
 			failedPods = append(failedPods, *unscheduledPod)
 		}
 	}
@@ -768,10 +769,33 @@ func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
 	}
 }
 
-func (sim *Simulator) GenerateWorkloadInflationPods(tag string) []*corev1.Pod {
+func (sim *Simulator) RunWorkloadInflationEvaluation() {
+	// 1. Generate a batch of inflation pods
+	inflationPods := sim.generateWorkloadInflationPods()
+	if len(inflationPods) == 0 {
+		return
+	}
+
+	// 2. Schedule them
+	sim.SchedulePods(inflationPods)
+
+	// 3. Analyze the current state of the cluster
+	sim.ClusterAnalysis()
+
+	// 4. Clean up all the inflation pods from the cluster
+	for _, pod := range inflationPods {
+		err := sim.deletePod(pod)
+		if err != nil {
+			log.Errorf("[RunWorkloadInflationEvaluation] failed to delete inflation pod(%s)\n",
+				utils.GeneratePodKey(pod))
+		}
+	}
+}
+
+func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 	n := len(sim.originalWorkloadPods)
 	if n == 0 {
-		log.Infof("[GenerateWorkloadInflationPods] original workload is empty\n")
+		log.Infof("[generateWorkloadInflationPods] original workload is empty\n")
 		return nil
 	}
 
@@ -779,17 +803,18 @@ func (sim *Simulator) GenerateWorkloadInflationPods(tag string) []*corev1.Pod {
 	if workloadInflationRatio > 1 {
 		var inflationPods []*corev1.Pod
 		inflationNum := int(math.Ceil(float64(n)*workloadInflationRatio)) - n
-		log.Infof("[GenerateWorkloadInflationPods] workload inflation ratio: %.4f, the number of inflation pods: %d\n",
+		log.Infof("workload inflation ratio: %.4f, the number of inflation pods: %d\n",
 			workloadInflationRatio, inflationNum)
 		for i := 0; i < inflationNum; i++ {
 			rand.Seed(time.Now().UnixNano())
 			idx := rand.Intn(n)
 			podCloned, err := utils.MakeValidPodByPod(sim.originalWorkloadPods[idx].DeepCopy())
 			if err != nil {
-				log.Errorf("failed to clone pod(%s)\n", utils.GeneratePodKey(sim.originalWorkloadPods[idx]))
+				log.Errorf("[generateWorkloadInflationPods] failed to clone pod(%s)\n",
+					utils.GeneratePodKey(sim.originalWorkloadPods[idx]))
 				continue
 			}
-			podCloned.Name = fmt.Sprintf("%s-clone-%s-%d", podCloned.Name, tag, i)
+			podCloned.Name = fmt.Sprintf("%s-clone-%d", podCloned.Name, i)
 			inflationPods = append(inflationPods, podCloned)
 		}
 		return inflationPods

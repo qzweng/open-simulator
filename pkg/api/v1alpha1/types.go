@@ -25,7 +25,7 @@ type SimonMetaData struct {
 type CustomConfig struct {
 	ShufflePod             bool    `json:"shufflePod,omitempty"`
 	WorkloadInflationRatio float64 `json:"workloadInflationRatio,omitempty"`
-	DeschedulePodsMax      int     `json:"deschedulePodsMax,omitempty"`
+	DescheduleRatio        float64 `json:"descheduleRatio,omitempty"`
 	DeschedulePolicy       string  `json:"deschedulePolicy,omitempty"`
 }
 

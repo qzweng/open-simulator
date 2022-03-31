@@ -3,6 +3,7 @@ package simulator
 import (
 	"fmt"
 	"math"
+	"sort"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -92,6 +93,38 @@ func calculateVectorSimilarity(vec1, vec2 []float64) (float64, error) {
 
 	similarity := innerProduct / (magnitude1 * magnitude2)
 	return similarity, nil
+}
+
+func sortNodeStatusByResource(milliCpuBar int64, nodeStatus []simontype.NodeStatus, nodeResMap map[string]simontype.NodeResource) {
+	sort.SliceStable(nodeStatus, func(i, j int) bool {
+		nodeI := nodeStatus[i].Node.Name
+		nodeResI := nodeResMap[nodeI]
+		milliGpuLeftI := int64(0)
+		for _, milliGpuLeft := range nodeResI.MilliGpuLeftList {
+			milliGpuLeftI += milliGpuLeft
+		}
+
+		nodeJ := nodeStatus[j].Node.Name
+		nodeResJ := nodeResMap[nodeJ]
+		milliGpuLeftJ := int64(0)
+		for _, milliGpuLeft := range nodeResJ.MilliGpuLeftList {
+			milliGpuLeftJ += milliGpuLeft
+		}
+
+		if nodeResI.MilliCpu < milliCpuBar {
+			if nodeResJ.MilliCpu < milliCpuBar {
+				return milliGpuLeftI > milliGpuLeftJ || (milliGpuLeftI == milliGpuLeftJ && nodeI < nodeJ)
+			} else {
+				return true
+			}
+		} else {
+			if nodeResJ.MilliCpu < milliCpuBar {
+				return false
+			} else {
+				return milliGpuLeftI > milliGpuLeftJ || (milliGpuLeftI == milliGpuLeftJ && nodeI < nodeJ)
+			}
+		}
+	})
 }
 
 func (sim *Simulator) findVictimPodOnNodeFragAware(nodeGpuFrag utils.FragAmount, nodeRes simontype.NodeResource, pods []*corev1.Pod) (*corev1.Pod, *utils.FragAmount) {

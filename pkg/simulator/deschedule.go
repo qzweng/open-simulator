@@ -1,7 +1,10 @@
 package simulator
 
 import (
+	"math"
+
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
 	"github.com/alibaba/open-simulator/pkg/utils"
@@ -13,7 +16,7 @@ const (
 	DeschedulePolicyFragMultiPod = "fragMultiPod"
 )
 
-func (sim *Simulator) DescheduleCluster() ([]simontype.UnscheduledPod, error) {
+func (sim *Simulator) DescheduleCluster() []simontype.UnscheduledPod {
 	podMap := sim.getCurrentPodMap()
 
 	nodeStatus := sim.GetClusterNodeStatus() // Note: the resources in nodeStatus.Node is the capacity instead of requests
@@ -21,42 +24,26 @@ func (sim *Simulator) DescheduleCluster() ([]simontype.UnscheduledPod, error) {
 	for _, ns := range nodeStatus {
 		nodeStatusMap[ns.Node.Name] = ns
 	}
+	nodeResMap := utils.GetNodeResourceMap(nodeStatus)
 
 	var failedPods []simontype.UnscheduledPod
-	numPodsToDeschedule := sim.customConfig.DeschedulePodsMax
-	log.Infof("DeschedulePodsMax: %d, DeschedulePolicy: %s\n", numPodsToDeschedule, sim.customConfig.DeschedulePolicy)
+	numPodsToDeschedule := int(math.Ceil(sim.customConfig.DescheduleRatio * float64(len(sim.originalWorkloadPods))))
+	log.Infof("maximum number of pods that can be descheduled: %d, deschedule policy: %s\n",
+		numPodsToDeschedule, sim.customConfig.DeschedulePolicy)
 
 	switch sim.customConfig.DeschedulePolicy {
 	case DeschedulePolicyCosSim:
-		var descheduledPodKeys []string
-		for _, ns := range nodeStatus {
-			if numPodsToDeschedule <= 0 {
-				break
-			}
-			victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
-			if victimPod != nil {
-				if err := sim.deletePod(victimPod); err != nil {
-					log.Errorf("[DescheduleCluster] failed to delete pod(%s)\n", utils.GeneratePodKey(victimPod))
-				} else {
-					descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
-					numPodsToDeschedule -= 1
-				}
-			}
-		}
-		sim.ClusterAnalysis()
-		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
-		failedPods = sim.SchedulePods(descheduledPod)
+		failedPods = sim.descheduleClusterOnCosSim(numPodsToDeschedule, nodeStatus, nodeResMap, podMap)
 
 	case DeschedulePolicyFragOnePod:
 		var descheduledPodKeys []string
-		nodeResourceMap := utils.GetNodeResourceMap(nodeStatus)
 		nodeFragAmountList := sim.getNodeFragAmountList(nodeStatus)
 		for _, nfa := range nodeFragAmountList { // from nodes with the largest amount of fragment
 			if numPodsToDeschedule <= 0 {
 				break
 			}
 			nsPods := nodeStatusMap[nfa.NodeName].Pods
-			victimPod, _ := sim.findVictimPodOnNodeFragAware(nfa, nodeResourceMap[nfa.NodeName], nsPods) // evict one pod per node
+			victimPod, _ := sim.findVictimPodOnNodeFragAware(nfa, nodeResMap[nfa.NodeName], nsPods) // evict one pod per node
 			if victimPod != nil {
 				descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
 				sim.deletePod(victimPod)
@@ -69,8 +56,7 @@ func (sim *Simulator) DescheduleCluster() ([]simontype.UnscheduledPod, error) {
 
 	case DeschedulePolicyFragMultiPod:
 		var descheduledPodKeys []string
-		nodeResourceMap := utils.GetNodeResourceMap(nodeStatus)
-		nodeFragAmountMap := sim.NodeGpuFragAmountMap(nodeResourceMap)
+		nodeFragAmountMap := sim.NodeGpuFragAmountMap(nodeResMap)
 		nodeFragAmountList := sim.getNodeFragAmountList(nodeStatus)
 		var fakeNodeFragAmountList []utils.FragAmount
 		for _, v := range nodeFragAmountMap {
@@ -89,7 +75,7 @@ func (sim *Simulator) DescheduleCluster() ([]simontype.UnscheduledPod, error) {
 				}
 				nfa := fakeNodeFragAmountList[i]
 				nsPods := fakeNodeStatusMap[nfa.NodeName].Pods
-				victimPod, victimNodeGpuFrag := sim.findVictimPodOnNodeFragAware(nfa, nodeResourceMap[nfa.NodeName], nsPods) // evict one pod per node
+				victimPod, victimNodeGpuFrag := sim.findVictimPodOnNodeFragAware(nfa, nodeResMap[nfa.NodeName], nsPods) // evict one pod per node
 				if victimPod != nil {
 					descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
 					sim.deletePod(victimPod)
@@ -114,5 +100,32 @@ func (sim *Simulator) DescheduleCluster() ([]simontype.UnscheduledPod, error) {
 		log.Errorf("DeschedulePolicy not found\n")
 	}
 
-	return failedPods, nil
+	return failedPods
+}
+
+func (sim *Simulator) descheduleClusterOnCosSim(numPodsToDeschedule int, nodeStatus []simontype.NodeStatus,
+	nodeResMap map[string]simontype.NodeResource, podMap map[string]*corev1.Pod) []simontype.UnscheduledPod {
+
+	milliCpuBar := int64(2000) // temporarily hard-code
+	sortNodeStatusByResource(milliCpuBar, nodeStatus, nodeResMap)
+
+	var descheduledPodKeys []string
+	for _, ns := range nodeStatus {
+		if numPodsToDeschedule <= 0 {
+			break
+		}
+		victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
+		if victimPod != nil {
+			if err := sim.deletePod(victimPod); err != nil {
+				log.Errorf("[descheduleClusterOnCosSim] failed to delete pod(%s)\n",
+					utils.GeneratePodKey(victimPod))
+			} else {
+				descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
+				numPodsToDeschedule -= 1
+			}
+		}
+	}
+	sim.ClusterAnalysis()
+	descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
+	return sim.SchedulePods(descheduledPod)
 }
