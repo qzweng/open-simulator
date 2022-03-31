@@ -7,7 +7,15 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-func (sim *Simulator) ClusterAnalysis() (utils.FragAmount, []utils.ResourceSummary) {
+const (
+	TagInitSchedule        = "InitSchedule"
+	TagPostEviction        = "PostEviction"
+	TagPostDeschedule      = "PostDeschedule"
+	TagScheduleInflation   = "ScheduleInflation"
+	TagDescheduleInflation = "DescheduleInflation"
+)
+
+func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary) {
 	nodeStatus := sim.GetClusterNodeStatus()
 	if len(nodeStatus) == 0 {
 		return utils.FragAmount{}, nil
@@ -34,7 +42,7 @@ func (sim *Simulator) ClusterAnalysis() (utils.FragAmount, []utils.ResourceSumma
 		if err := clusterFragAmount.Add(nodeFragAmount); err != nil {
 			log.Errorf("[ClusterAnalysis] %s\n", err.Error())
 		}
-		log.Debugf("[%3d] Frag %s\n", chCount, nodeFragAmount.Repr())
+		log.Tracef("[%3d] Frag %s\n", chCount, nodeFragAmount.Repr())
 		chCount += 1
 		if chCount == len(nodeStatus) {
 			break
@@ -47,7 +55,7 @@ func (sim *Simulator) ClusterAnalysis() (utils.FragAmount, []utils.ResourceSumma
 	}
 
 	log.Infoln()
-	log.Infof("========== Cluster Analysis Results ==========\n")
+	log.Infof("========== Cluster Analysis Results (%s) ==========", tag)
 	resourceSummaries := utils.ReportNodeAllocationRate(nodeAllocMap)
 
 	var gpuFragSum float64

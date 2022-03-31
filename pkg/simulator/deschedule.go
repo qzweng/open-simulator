@@ -1,6 +1,7 @@
 package simulator
 
 import (
+	"container/heap"
 	"math"
 
 	log "github.com/sirupsen/logrus"
@@ -50,56 +51,73 @@ func (sim *Simulator) DescheduleCluster() []simontype.UnscheduledPod {
 				numPodsToDeschedule -= 1
 			}
 		}
-		sim.ClusterAnalysis()
+		sim.ClusterAnalysis(TagPostEviction)
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
+		log.Infof("[DescheduleCluster] Num of Descheduled Pods: %d\n", len(descheduledPod))
 		failedPods = sim.SchedulePods(descheduledPod)
 
 	case DeschedulePolicyFragMultiPod:
 		var descheduledPodKeys []string
 		nodeFragAmountMap := sim.NodeGpuFragAmountMap(nodeResMap)
-		nodeFragAmountList := sim.getNodeFragAmountList(nodeStatus)
-		var fakeNodeFragAmountList []utils.FragAmount
+
+		i := 0
+		nodeFragQueue := make(PriorityQueue, len(nodeFragAmountMap))
 		for _, v := range nodeFragAmountMap {
-			fakeNodeFragAmountList = append(nodeFragAmountList, v)
-		}
-		fakeNodeStatusMap := make(map[string]simontype.NodeStatus)
-		for _, ns := range nodeStatus {
-			fakeNodeStatusMap[ns.Node.Name] = ns // should not touch ns.Node since it is a pointer
-		}
-		numPodsToDescheduleLast := numPodsToDeschedule
-		for numPodsToDeschedule > 0 {
-			for i := 0; i < len(fakeNodeFragAmountList); i++ {
-				log.Debugf("  i=%d, numPodsToDeschedule=%d\n", i, numPodsToDeschedule)
-				if numPodsToDeschedule <= 0 {
-					break
-				}
-				nfa := fakeNodeFragAmountList[i]
-				nsPods := fakeNodeStatusMap[nfa.NodeName].Pods
-				victimPod, victimNodeGpuFrag := sim.findVictimPodOnNodeFragAware(nfa, nodeResMap[nfa.NodeName], nsPods) // evict one pod per node
-				if victimPod != nil {
-					descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
-					sim.deletePod(victimPod)
-					fakeNodeFragAmountList[i] = *victimNodeGpuFrag                                       // update the nodeFragAmount
-					oldNode := fakeNodeStatusMap[nfa.NodeName].Node                                      // not changed
-					newPods := utils.RemovePodFromPodSliceByPod(nsPods, victimPod)                       // remove one pod
-					fakeNodeStatusMap[nfa.NodeName] = simontype.NodeStatus{Node: oldNode, Pods: newPods} // update the nodeStatus
-					numPodsToDeschedule -= 1
-				}
+			nodeFragQueue[i] = &Item{
+				value:    v,
+				priority: v.FragAmountSumExceptQ3(),
+				index:    i,
 			}
-			log.Debugf(" numPodsToDeschedule=%d, numPodsToDescheduleLast=%d\n", numPodsToDeschedule, numPodsToDescheduleLast)
-			if numPodsToDescheduleLast == numPodsToDeschedule {
+			i++
+		}
+		heap.Init(&nodeFragQueue)
+
+		tempNodeStatusMap := make(map[string]simontype.NodeStatus)
+		for _, ns := range nodeStatus {
+			tempNodeStatusMap[ns.Node.Name] = ns // should not touch ns.Node since it is a pointer
+		}
+
+		nodeDescheduleCount := make(map[string]int)
+		popCount := 0
+		for numPodsToDeschedule > 0 {
+			if nodeFragQueue.Len() == 0 {
 				break
 			}
-			numPodsToDescheduleLast = numPodsToDeschedule
+
+			popCount += 1
+			item := heap.Pop(&nodeFragQueue).(*Item)
+			log.Debugf(" POP: [%d][pri:%.2f] %s\n", popCount, item.priority, item.value.Repr())
+			nodeFragQueue.show()
+
+			nsPods := tempNodeStatusMap[item.value.NodeName].Pods
+			victimPod, victimNodeGpuFrag := sim.findVictimPodOnNodeFragAware(item.value, nodeResMap[item.value.NodeName], nsPods) // evict one pod per node
+			if victimPod != nil {
+				descheduledPodKeys = append(descheduledPodKeys, utils.GeneratePodKey(victimPod))
+				nodeDescheduleCount[item.value.NodeName] += 1
+				sim.deletePod(victimPod)
+
+				item.value = *victimNodeGpuFrag
+				item.priority = victimNodeGpuFrag.FragAmountSumExceptQ3()
+				nodeFragQueue.Push(item) // update the nodeFragQueue
+				nodeFragQueue.show()
+
+				oldNode := tempNodeStatusMap[item.value.NodeName].Node                                      // not changed
+				newPods := utils.RemovePodFromPodSliceByPod(nsPods, victimPod)                              // remove one pod
+				tempNodeStatusMap[item.value.NodeName] = simontype.NodeStatus{Node: oldNode, Pods: newPods} // update the nodeStatus
+				numPodsToDeschedule -= 1
+			}
 		}
-		sim.ClusterAnalysis()
+		log.Debugf("[DescheduleCluster] nodeDescheduleCount: %v\n", nodeDescheduleCount)
+		sim.ClusterAnalysis(TagPostEviction)
 		descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
+		log.Infof("[DescheduleCluster] Num of Descheduled Pods: %d\n", len(descheduledPod))
 		failedPods = sim.SchedulePods(descheduledPod)
 
 	default:
 		log.Errorf("DeschedulePolicy not found\n")
 	}
 
+	log.Infof("[DescheduleCluster] Num of Failed Pods: %d\n", len(failedPods))
 	return failedPods
 }
 
@@ -107,6 +125,7 @@ func (sim *Simulator) descheduleClusterOnCosSim(numPodsToDeschedule int, nodeSta
 	nodeResMap map[string]simontype.NodeResource, podMap map[string]*corev1.Pod) []simontype.UnscheduledPod {
 
 	milliCpuBar := int64(2000) // temporarily hard-code
+	milliGpuBar := int64(500)
 	sortNodeStatusByResource(milliCpuBar, nodeStatus, nodeResMap)
 
 	var descheduledPodKeys []string
@@ -114,6 +133,22 @@ func (sim *Simulator) descheduleClusterOnCosSim(numPodsToDeschedule int, nodeSta
 		if numPodsToDeschedule <= 0 {
 			break
 		}
+		// nodeFilter
+		nodeRes := nodeResMap[ns.Node.Name]
+		if nodeRes.MilliCpu >= milliCpuBar {
+			continue
+		}
+		gpuBarPass := false
+		for _, v := range nodeRes.MilliGpuLeftList {
+			if v > milliGpuBar {
+				gpuBarPass = true
+				break
+			}
+		}
+		if !gpuBarPass {
+			continue
+		}
+
 		victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
 		if victimPod != nil {
 			if err := sim.deletePod(victimPod); err != nil {
@@ -125,7 +160,8 @@ func (sim *Simulator) descheduleClusterOnCosSim(numPodsToDeschedule int, nodeSta
 			}
 		}
 	}
-	sim.ClusterAnalysis()
+	sim.ClusterAnalysis(TagPostEviction)
 	descheduledPod := getPodfromPodMap(descheduledPodKeys, podMap)
+	log.Infof("[DescheduleCluster] Num of Descheduled Pods: %d\n", len(descheduledPod))
 	return sim.SchedulePods(descheduledPod)
 }

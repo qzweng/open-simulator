@@ -46,3 +46,10 @@ for CONFIG in $(ls example/scheduler-config); do
   done
 done
 # </LOCAL INF=100 RUN>
+
+# 2022.03.31
+bin/simon apply --extended-resources "gpu" \
+  -f example/paib/2022_03_18_11_36_45/paib_config_2022_03_18_11_36_45_customconfig.yaml  \
+  --default-scheduler-config example/scheduler-config.yaml \
+  > logs/paib_test_0331_multipod.out \
+  2> logs/paib_test_0331_multipod.log

@@ -3,6 +3,7 @@ package simulator
 import (
 	"context"
 	"fmt"
+	"k8s.io/kubernetes/cmd/kube-scheduler/app/config"
 	"math"
 	"math/rand"
 	"sort"
@@ -87,6 +88,8 @@ func New(opts ...Option) (Interface, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	displaySchedulerConfig(kubeSchedulerConfig)
 
 	// Step 3: create fake client
 	var client externalclientset.Interface
@@ -258,7 +261,7 @@ func (sim *Simulator) deletePod(p *corev1.Pod) error {
 	if pod != nil {
 		nodeName = pod.Spec.NodeName
 	} else {
-		log.Infof("[deletePod] attempt to delete a non-existed pod(%s)\n", utils.GeneratePodKey(p))
+		log.Debugf("[deletePod] attempt to delete a non-existed pod(%s)\n", utils.GeneratePodKey(p))
 		return nil
 	}
 
@@ -769,7 +772,7 @@ func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
 	}
 }
 
-func (sim *Simulator) RunWorkloadInflationEvaluation() {
+func (sim *Simulator) RunWorkloadInflationEvaluation(tag string) {
 	// 1. Generate a batch of inflation pods
 	inflationPods := sim.generateWorkloadInflationPods()
 	if len(inflationPods) == 0 {
@@ -780,7 +783,7 @@ func (sim *Simulator) RunWorkloadInflationEvaluation() {
 	sim.SchedulePods(inflationPods)
 
 	// 3. Analyze the current state of the cluster
-	sim.ClusterAnalysis()
+	sim.ClusterAnalysis(tag)
 
 	// 4. Clean up all the inflation pods from the cluster
 	for _, pod := range inflationPods {
@@ -820,4 +823,38 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 		return inflationPods
 	}
 	return nil
+}
+
+func displaySchedulerConfig(config *config.CompletedConfig) {
+	profiles := config.ComponentConfig.Profiles
+	if profiles == nil || len(profiles) < 1 {
+		return
+	}
+	for _, profile := range profiles {
+		log.Infof("Scheduler Config: %s\n", profile.SchedulerName)
+		// Filter
+		log.Infof("  Filter Plugin")
+		for _, plugin := range profile.Plugins.Filter.Enabled {
+			log.Infof("    %s\n", plugin.Name)
+		}
+		log.Infoln()
+		// Score
+		log.Infof("  Score Plugin")
+		for _, plugin := range profile.Plugins.Score.Enabled {
+			log.Infof("    %s: %d\n", plugin.Name, plugin.Weight)
+		}
+		log.Infoln()
+		// Reserve
+		log.Infof("  Reserve Plugin")
+		for _, plugin := range profile.Plugins.Reserve.Enabled {
+			log.Infof("    %s\n", plugin.Name)
+		}
+		log.Infoln()
+		// Bind
+		log.Infof("  Bind Plugin")
+		for _, plugin := range profile.Plugins.Bind.Enabled {
+			log.Infof("    %s\n", plugin.Name)
+		}
+		log.Infoln()
+	}
 }

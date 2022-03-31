@@ -40,7 +40,7 @@ type Interface interface {
 	ScheduleApp(AppResource) ([]simontype.UnscheduledPod, error)
 	SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod
 
-	ClusterAnalysis() (utils.FragAmount, []utils.ResourceSummary)
+	ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary)
 	GetClusterNodeStatus() []simontype.NodeStatus
 
 	SetOriginalWorkloadPods(pods []*corev1.Pod)
@@ -48,7 +48,7 @@ type Interface interface {
 
 	SortClusterPods(pods []*corev1.Pod)
 
-	RunWorkloadInflationEvaluation()
+	RunWorkloadInflationEvaluation(tag string)
 
 	GetCustomConfig() v1alpha1.CustomConfig
 
@@ -99,15 +99,16 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	}
 	failedPods = append(failedPods, unscheduledPods...)
 	reportFailedPods(failedPods)
-	sim.ClusterAnalysis()
+	sim.ClusterAnalysis(TagInitSchedule)
 
-	sim.RunWorkloadInflationEvaluation()
+	sim.RunWorkloadInflationEvaluation(TagScheduleInflation)
 
 	customConfig := sim.GetCustomConfig()
 	if customConfig.DeschedulePolicy != "" {
 		unscheduledPods = sim.DescheduleCluster()
 		failedPods = append(failedPods, unscheduledPods...)
-		sim.RunWorkloadInflationEvaluation()
+		sim.ClusterAnalysis(TagPostDeschedule)
+		sim.RunWorkloadInflationEvaluation(TagDescheduleInflation)
 	}
 
 	// schedule pods

@@ -16,7 +16,7 @@ log_path = script_path.parent / LOG_RELATIVE_PATH
 out_path = script_path.parent / "scripts" / OUT_CSVNAME
 print("Handling logs under:", log_path)
 
-NUM_CLUSTER_ANALYSIS_LINE = 15
+NUM_CLUSTER_ANALYSIS_LINE = 16
 out_row_list = []
 for log in os.listdir(log_path):
     file = log_path / log

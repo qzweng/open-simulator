@@ -206,6 +206,7 @@ func (applier *Applier) Run() (err error) {
 			}
 		} else {
 			fmt.Printf(utils.ColorRed+"there are %d unscheduled pods\n"+utils.ColorReset, len(result.UnscheduledPods))
+			log.Infof("there are %d unscheduled pods\n", len(result.UnscheduledPods))
 			allDaemonSets := newClusterResource.DaemonSets
 			for _, app := range selectedResourceList {
 				allDaemonSets = append(allDaemonSets, app.Resource.DaemonSets...)
