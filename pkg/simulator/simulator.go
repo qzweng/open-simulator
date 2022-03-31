@@ -428,15 +428,17 @@ func (sim *Simulator) syncNodeCreate(name string, d time.Duration) {
 		time.Sleep(d)
 	}
 	log.Debugf("node(%s) has been successfully created\n", name)
+	time.Sleep(d) // sleep for a while to avoid event channel full
 }
 
 func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]simontype.UnscheduledPod, error) {
 	//sync node
-	for _, item := range resourceList.Nodes {
+	for i, item := range resourceList.Nodes {
+		log.Debugf("[%d] attempt to create node(%s)\n", i, item.Name)
 		if _, err := sim.client.CoreV1().Nodes().Create(context.TODO(), item, metav1.CreateOptions{}); err != nil {
 			return nil, fmt.Errorf("unable to copy node: %v", err)
 		}
-		sim.syncNodeCreate(item.Name, 2*time.Millisecond)
+		sim.syncNodeCreate(item.Name, 1*time.Millisecond)
 	}
 
 	//sync pdb
