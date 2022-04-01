@@ -13,14 +13,14 @@ import (
 )
 
 const (
-	EnvLogLevel = "LogLevel"
-	LogPanic    = "Panic"
-	LogFatal    = "Fatal"
-	LogError    = "Error"
-	LogWarn     = "Warn"
-	LogInfo     = "Info"
-	LogDebug    = "Debug"
-	LogTrace    = "Trace"
+	EnvLogLevel = "LOGLEVEL"
+	LogPanic    = "PANIC"
+	LogFatal    = "FATAL"
+	LogError    = "ERROR"
+	LogWarn     = "WARN"
+	LogInfo     = "INFO"
+	LogDebug    = "DEBUG"
+	LogTrace    = "TRACE"
 )
 
 func NewSimonCommand() *cobra.Command {

@@ -446,7 +446,7 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]sim
 	//sync node
 	for i, item := range resourceList.Nodes {
 		log.Debugf("[%d] attempt to create node(%s)\n", i, item.Name)
-		if _, err := sim.client.CoreV1().Nodes().Create(context.TODO(), item, metav1.CreateOptions{}); err != nil {
+		if _, err := sim.client.CoreV1().Nodes().Create(sim.ctx, item, metav1.CreateOptions{}); err != nil {
 			return nil, fmt.Errorf("unable to copy node: %v", err)
 		}
 		sim.syncNodeCreate(item.Name, 1*time.Millisecond)
