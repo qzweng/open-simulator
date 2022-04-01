@@ -78,6 +78,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("Number of original workload pods: %d", len(cluster.Pods))
 	sim.SetOriginalWorkloadPods(cluster.Pods)
 	sim.SetTypicalPods()
 

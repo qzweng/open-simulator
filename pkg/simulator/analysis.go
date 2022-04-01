@@ -72,9 +72,9 @@ func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.Res
 		log.Infof("%-13s: %6.2f x 10^3 (%5.2f%%)\n", k, val/1000, 100*val/gpuFragSum)
 	}
 	log.Infoln("--------------------")
-	log.Infof("%-13s: %6.2f x 10^3 (100.0%%)\n", "Idle GPU Milli", gpuFragSum/1000)
+	log.Infof("%-13s: %6.2f x 10^3 (100.0%%)\n", "idle_gpu_milli", gpuFragSum/1000)
 	val := clusterFragAmount.FragAmountSumExceptQ3()
-	log.Infof("%-13s: %6.2f x 10^3 (%5.2f%%)\n", "Frag GPU Milli", val/1000, 100*val/gpuFragSum)
+	log.Infof("%-13s: %6.2f x 10^3 (%5.2f%%)\n", "frag_gpu_milli", val/1000, 100*val/gpuFragSum)
 	log.Infoln("==============================================")
 	log.Infoln()
 
