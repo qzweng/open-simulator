@@ -21,6 +21,8 @@ spec:
   customConfig:
     shufflePod: false
     workloadInflationRatio: 1
+    exportScheduleSnapshot: true
+    snapshotFilePath: example/test.yaml
     descheduleRatio: 0.1
     # deschedulePolicy: cosSim
     # deschedulePolicy: fragOnePod

@@ -3,9 +3,9 @@ package simulator
 import (
 	"context"
 	"fmt"
-	"k8s.io/kubernetes/cmd/kube-scheduler/app/config"
 	"math"
 	"math/rand"
+	"os"
 	"sort"
 	"time"
 
@@ -13,11 +13,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/cli-runtime/pkg/printers"
 	"k8s.io/client-go/informers"
 	externalclientset "k8s.io/client-go/kubernetes"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/kubernetes/cmd/kube-scheduler/app/config"
 	kubetypes "k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/scheduler"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -294,6 +296,15 @@ func (sim *Simulator) assumePod(pod *corev1.Pod) *simontype.UnscheduledPod {
 func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod {
 	var failedPods []simontype.UnscheduledPod
 	for i, pod := range pods {
+		if IsPodMarkedUnscheduledAnno(pod) {
+			log.Infof("[%d] pod(%s) has unscheduled annotation\n", i, utils.GeneratePodKey(pod))
+			failedPods = append(failedPods, simontype.UnscheduledPod{
+				Pod:    pod,
+				Reason: fmt.Sprintf("pod(%s) has unscheduled annotation", utils.GeneratePodKey(pod)),
+			})
+			continue
+		}
+
 		log.Infof("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
 		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
 			log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
@@ -734,7 +745,67 @@ func (sim *Simulator) getCurrentPodMap() map[string]*corev1.Pod {
 func (sim *Simulator) SetOriginalWorkloadPods(pods []*corev1.Pod) {
 	sim.originalWorkloadPods = []*corev1.Pod{}
 	for _, p := range pods {
-		sim.originalWorkloadPods = append(sim.originalWorkloadPods, p.DeepCopy())
+		pod := MakePodUnassigned(p.DeepCopy())
+		if pod.Spec.NodeSelector != nil {
+			delete(pod.Spec.NodeSelector, simontype.HostName)
+		}
+		ClearPodUnscheduledAnno(pod)
+		sim.originalWorkloadPods = append(sim.originalWorkloadPods, pod)
+	}
+}
+
+func (sim *Simulator) ExportScheduleSnapshot(unschedulePods []simontype.UnscheduledPod, filePath string) {
+	var err error
+	if filePath == "" {
+		log.Infof("[ExportScheduleSnapshot] the file path is empty\n")
+		return
+	}
+
+	var podList *corev1.PodList
+	podList, err = sim.client.CoreV1().Pods(corev1.NamespaceAll).List(sim.ctx, metav1.ListOptions{})
+	if err != nil {
+		log.Errorf("[ExportScheduleSnapshot] failed to get pod list\n")
+		return
+	}
+
+	var file *os.File
+	file, err = os.Create(filePath)
+	if err != nil {
+		log.Errorf("[ExportScheduleSnapshot] failed to create file(%s)\n", filePath)
+		return
+	}
+	defer file.Close()
+
+	y := printers.YAMLPrinter{}
+	for _, p := range podList.Items {
+		pod := p.DeepCopy()
+		if pod.Spec.NodeSelector == nil {
+			pod.Spec.NodeSelector = map[string]string{}
+		}
+		if pod.Spec.NodeName == "" {
+			MarkPodUnscheduledAnno(pod)
+		} else {
+			pod.Spec.NodeSelector[simontype.HostName] = pod.Spec.NodeName
+			pod.Spec.NodeName = ""
+			pod.Status = corev1.PodStatus{}
+		}
+		err = y.PrintObj(pod, file)
+		if err != nil {
+			log.Errorf("[ExportScheduleSnapshot] failed to export pod(%s) yaml to file(%s)\n",
+				utils.GeneratePodKey(pod), filePath)
+			return
+		}
+	}
+
+	for _, unschedulePod := range unschedulePods {
+		pod := unschedulePod.Pod.DeepCopy()
+		MarkPodUnscheduledAnno(pod)
+		err = y.PrintObj(pod, file)
+		if err != nil {
+			log.Errorf("[ExportScheduleSnapshot] failed to export pod(%s) yaml to file(%s)\n",
+				utils.GeneratePodKey(pod), filePath)
+			return
+		}
 	}
 }
 

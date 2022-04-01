@@ -45,6 +45,7 @@ type Interface interface {
 
 	SetOriginalWorkloadPods(pods []*corev1.Pod)
 	SetTypicalPods()
+	ExportScheduleSnapshot(unschedulePods []simontype.UnscheduledPod, filePath string)
 
 	SortClusterPods(pods []*corev1.Pod)
 
@@ -97,13 +98,16 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	if err != nil {
 		return nil, err
 	}
+	customConfig := sim.GetCustomConfig()
+	if customConfig.ExportScheduleSnapshot {
+		sim.ExportScheduleSnapshot(unscheduledPods, customConfig.SnapshotFilePath)
+	}
 	failedPods = append(failedPods, unscheduledPods...)
 	reportFailedPods(failedPods)
 	sim.ClusterAnalysis(TagInitSchedule)
 
 	sim.RunWorkloadInflationEvaluation(TagScheduleInflation)
 
-	customConfig := sim.GetCustomConfig()
 	if customConfig.DeschedulePolicy != "" {
 		unscheduledPods = sim.DescheduleCluster()
 		failedPods = append(failedPods, unscheduledPods...)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -316,4 +317,38 @@ func MakePodUnassigned(oldPod *corev1.Pod) (newPod *corev1.Pod) {
 	newPod.Spec.NodeName = ""
 	newPod.Status = corev1.PodStatus{}
 	return newPod
+}
+
+// MarkPodUnscheduledAnno will directly modify the input and add an unscheduled annotation
+func MarkPodUnscheduledAnno(pod *corev1.Pod) {
+	if pod.ObjectMeta.Annotations == nil {
+		pod.ObjectMeta.Annotations = map[string]string{}
+	}
+	pod.ObjectMeta.Annotations[simontype.AnnoPodUnscheduled] = "true"
+}
+
+func IsPodMarkedUnscheduledAnno(pod *corev1.Pod) bool {
+	if pod.ObjectMeta.Annotations == nil {
+		return false
+	}
+
+	str, ok := pod.ObjectMeta.Annotations[simontype.AnnoPodUnscheduled]
+	if !ok {
+		return false
+	}
+
+	v, err := strconv.ParseBool(str)
+	if err != nil {
+		log.Errorf("failed to parse the pod(%s) unscheduled annotation(%s): %s\n",
+			utils.GeneratePodKey(pod), str, err.Error())
+	}
+
+	return v
+}
+
+func ClearPodUnscheduledAnno(pod *corev1.Pod) {
+	if pod.ObjectMeta.Annotations == nil {
+		return
+	}
+	delete(pod.ObjectMeta.Annotations, simontype.AnnoPodUnscheduled)
 }

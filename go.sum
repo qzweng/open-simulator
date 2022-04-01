@@ -514,6 +514,7 @@ github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0/go.mod h1:vmVJ0l/dxyfGW6Fm
 github.com/lib/pq v1.2.0/go.mod h1:5WUZQaWbwv1U+lTReE5YruASi9Al49XbQIvNi/34Woo=
 github.com/lib/pq v1.10.0/go.mod h1:AlVN5x4E4T544tWzH6hKfbfQvm3HdbOxrmggDNAPY9o=
 github.com/libopenstorage/openstorage v1.0.0/go.mod h1:Sp1sIObHjat1BeXhfMqLZ14wnOzEhNx2YQedreMcUyc=
+github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de h1:9TO3cAIGXtEhnIaL+V+BEER86oLrvS+kWobKpbJuye0=
 github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de/go.mod h1:zAbeS9B/r2mtpb6U+EI2rYA5OAXxsYw6wTamcNW+zcE=
 github.com/lightstep/lightstep-tracer-common/golang/gogo v0.0.0-20190605223551-bc2310a04743/go.mod h1:qklhhLq1aX+mtWk9cPHPzaBjWImj5ULL6C7HFJtXQMM=
 github.com/lightstep/lightstep-tracer-go v0.18.1/go.mod h1:jlF1pusYV4pidLvZ+XD0UBX0ZE6WURAspgAczcDHrL4=
@@ -1218,6 +1219,7 @@ k8s.io/apimachinery v0.20.5 h1:wO/FxMVRn223rAKxnBbwCyuN96bS9MFTIvP0e/V7cps=
 k8s.io/apimachinery v0.20.5/go.mod h1:WlLqWAHZGg07AeltaI0MV5uk1Omp8xaN0JGLY6gkRpU=
 k8s.io/apiserver v0.20.5 h1:J8l/MJ9pdYncrc1lhxzObDa7jgrUNfettKGNF8mFV+c=
 k8s.io/apiserver v0.20.5/go.mod h1:AY3lKhcJ2Tm81XvvcBzk2VnKINSoN+qczYsdo2YEvIc=
+k8s.io/cli-runtime v0.20.5 h1:VIT1Y6ty6TsZaKXiyqH94U+7vR0pUpBQ1UCrTNoS+UU=
 k8s.io/cli-runtime v0.20.5/go.mod h1:ihjPeQWDk7NGVIkNEvpwxA3gJvqtU+LtkDj11TvyXn4=
 k8s.io/client-go v0.20.5 h1:dJGtYUvFrFGjQ+GjXEIby0gZWdlAOc0xJBJqY3VyDxA=
 k8s.io/client-go v0.20.5/go.mod h1:Ee5OOMMYvlH8FCZhDsacjMlCBwetbGZETwo1OA+e6Zw=

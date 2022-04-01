@@ -27,6 +27,8 @@ type CustomConfig struct {
 	WorkloadInflationRatio float64 `json:"workloadInflationRatio,omitempty"`
 	DescheduleRatio        float64 `json:"descheduleRatio,omitempty"`
 	DeschedulePolicy       string  `json:"deschedulePolicy,omitempty"`
+	ExportScheduleSnapshot bool    `json:"exportScheduleSnapshot,omitempty"`
+	SnapshotFilePath       string  `json:"snapshotFilePath,omitempty"`
 }
 
 type Simon struct {

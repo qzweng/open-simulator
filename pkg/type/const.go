@@ -25,6 +25,7 @@ const (
 	AnnoNodeLocalStorage  = "simon/node-local-storage"
 	AnnoPodLocalStorage   = "simon/pod-local-storage"
 	AnnoNodeGpuShare      = "simon/node-gpu-share"
+	AnnoPodUnscheduled    = "simon/pod-unscheduled"
 
 	LabelNewNode = "simon/new-node"
 	LabelAppName = "simon/app-name"
@@ -42,7 +43,7 @@ const (
 	Job                   = "Job"
 	CronJob               = "CronJob"
 
-	NodeIP = "node-ip"
+	HostName = "kubernetes.io/hostname"
 
 	ConfigMapName      = "simulator-plan"
 	ConfigMapNamespace = metav1.NamespaceSystem

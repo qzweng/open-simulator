@@ -147,6 +147,15 @@ func (n *GpuNodeInfo) AllocateGpuId(pod *v1.Pod) (candDevId string, found bool) 
 
 	if id := utils.GetGpuIdFromAnnotation(pod); len(id) > 0 {
 		if idl, err := utils.GpuIdStrToIntList(id); err == nil && len(idl) > 0 { // just to validate id; not return idl.
+			for _, devId := range idl {
+				if idleGpuMilli, ok := idleGpus[devId]; ok {
+					if idleGpuMilli < reqGpuMilli {
+						return "", false
+					}
+				} else {
+					return "", false
+				}
+			}
 			return id, true
 		} else {
 			log.Printf("warn: pod (%s) %s has invalid GPU ID in Annotation %s: %s", pod.Namespace, pod.Name, utils.DeviceIndex, id)

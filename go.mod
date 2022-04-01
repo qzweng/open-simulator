@@ -16,9 +16,10 @@ require (
 	helm.sh/helm/v3 v3.6.2
 	k8s.io/api v0.23.1
 	k8s.io/apimachinery v0.23.1
+	k8s.io/cli-runtime v0.21.0
 	k8s.io/client-go v0.21.0
 	k8s.io/component-base v0.20.5
-	k8s.io/klog/v2 v2.9.0
+	k8s.io/klog/v2 v2.9.0 // indirect
 	k8s.io/kube-scheduler v0.23.1
 	k8s.io/kubectl v0.21.0
 	k8s.io/kubernetes v1.20.5
