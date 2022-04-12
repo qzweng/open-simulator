@@ -23,12 +23,31 @@ type SimonMetaData struct {
 }
 
 type CustomConfig struct {
-	ShufflePod             bool    `json:"shufflePod,omitempty"`
-	WorkloadInflationRatio float64 `json:"workloadInflationRatio,omitempty"`
-	DescheduleRatio        float64 `json:"descheduleRatio,omitempty"`
-	DeschedulePolicy       string  `json:"deschedulePolicy,omitempty"`
-	ExportScheduleSnapshot bool    `json:"exportScheduleSnapshot,omitempty"`
-	SnapshotFilePath       string  `json:"snapshotFilePath,omitempty"`
+	ShufflePod              bool                    `json:"shufflePod,omitempty"`
+	ExportConfig            ExportConfig            `json:"exportConfig,omitempty"`
+	WorkloadInflationConfig WorkloadInflationConfig `json:"workloadInflationConfig,omitempty"`
+	DescheduleConfig        DescheduleConfig        `json:"descheduleConfig,omitempty"`
+	TypicalPodsConfig       TypicalPodsConfig       `json:"typicalPodsConfig,omitempty"`
+}
+
+type ExportConfig struct {
+	PodSnapshotYamlFilePrefix string `json:"podSnapshotYamlFilePrefix,omitempty"`
+	NodeSnapshotCSVFilePrefix string `json:"nodeSnapshotCSVFilePrefix,omitempty"`
+}
+
+type WorkloadInflationConfig struct {
+	Ratio float64 `json:"ratio,omitempty"`
+}
+
+type DescheduleConfig struct {
+	Ratio  float64 `json:"ratio,omitempty"`
+	Policy string  `json:"policy,omitempty"`
+}
+
+type TypicalPodsConfig struct {
+	IsInvolvedCpuPods        bool `json:"isInvolvedCpuPods,omitempty"`
+	PodPopularityThreshold   int  `json:"podPopularityThreshold,omitempty"` // [0-100]
+	IsConsideredGpuResWeight bool `json:"isConsideredGpuResWeight,omitempty"`
 }
 
 type Simon struct {

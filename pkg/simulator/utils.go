@@ -243,6 +243,9 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 			{
 				Name: simontype.GpuPackingScorePluginName,
 			},
+			{
+				Name: simontype.ResourceSimilarityPluginName,
+			},
 		},
 	}
 	kcfg.Profiles[0].Plugins.Filter = &kubeschedulerconfig.PluginSet{

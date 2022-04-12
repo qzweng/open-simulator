@@ -28,11 +28,11 @@ func (sim *Simulator) DescheduleCluster() []simontype.UnscheduledPod {
 	nodeResMap := utils.GetNodeResourceMap(nodeStatus)
 
 	var failedPods []simontype.UnscheduledPod
-	numPodsToDeschedule := int(math.Ceil(sim.customConfig.DescheduleRatio * float64(len(sim.originalWorkloadPods))))
+	numPodsToDeschedule := int(math.Ceil(sim.customConfig.DescheduleConfig.Ratio * float64(len(sim.originalWorkloadPods))))
 	log.Infof("maximum number of pods that can be descheduled: %d, deschedule policy: %s\n",
-		numPodsToDeschedule, sim.customConfig.DeschedulePolicy)
+		numPodsToDeschedule, sim.customConfig.DescheduleConfig.Policy)
 
-	switch sim.customConfig.DeschedulePolicy {
+	switch sim.customConfig.DescheduleConfig.Policy {
 	case DeschedulePolicyCosSim:
 		failedPods = sim.descheduleClusterOnCosSim(numPodsToDeschedule, nodeStatus, nodeResMap, podMap)
 
@@ -149,7 +149,7 @@ func (sim *Simulator) descheduleClusterOnCosSim(numPodsToDeschedule int, nodeSta
 			continue
 		}
 
-		victimPod := sim.findVictimPodOnNode(ns.Node, ns.Pods)
+		victimPod := sim.findVictimPodOnCosSim(nodeRes, ns.Pods)
 		if victimPod != nil {
 			if err := sim.deletePod(victimPod); err != nil {
 				log.Errorf("[descheduleClusterOnCosSim] failed to delete pod(%s)\n",

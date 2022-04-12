@@ -5,14 +5,15 @@ import (
 )
 
 const (
-	SimonPluginName           = "Simon"
-	OpenLocalPluginName       = "Open-Local"
-	OpenGpuSharePluginName    = "Open-Gpu-Share"
-	GpuFragScorePluginName    = "Gpu-Frag-Score"
-	GpuPackingScorePluginName = "Gpu-Packing-Score"
-	NewNodeNamePrefix         = "simon"
-	SimulatorName             = "Main"
-	DefaultSchedulerName      = "simon-scheduler"
+	SimonPluginName              = "Simon"
+	OpenLocalPluginName          = "Open-Local"
+	OpenGpuSharePluginName       = "Open-Gpu-Share"
+	GpuFragScorePluginName       = "Gpu-Frag-Score"
+	GpuPackingScorePluginName    = "Gpu-Packing-Score"
+	ResourceSimilarityPluginName = "ResourceSimilarity"
+	NewNodeNamePrefix            = "simon"
+	SimulatorName                = "Main"
+	DefaultSchedulerName         = "simon-scheduler"
 
 	StopReasonSuccess   = "everything is ok"
 	StopReasonDoNotStop = "do not stop"
@@ -44,6 +45,7 @@ const (
 	CronJob               = "CronJob"
 
 	HostName = "kubernetes.io/hostname"
+	NodeIp   = "node-ip"
 
 	ConfigMapName      = "simulator-plan"
 	ConfigMapNamespace = metav1.NamespaceSystem

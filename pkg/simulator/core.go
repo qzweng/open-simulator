@@ -1,6 +1,8 @@
 package simulator
 
 import (
+	"fmt"
+
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -45,7 +47,8 @@ type Interface interface {
 
 	SetOriginalWorkloadPods(pods []*corev1.Pod)
 	SetTypicalPods()
-	ExportScheduleSnapshot(unschedulePods []simontype.UnscheduledPod, filePath string)
+	ExportPodSnapshotInYaml(unschedulePods []simontype.UnscheduledPod, filePath string)
+	ExportNodeSnapshotInCSV(filePath string)
 
 	SortClusterPods(pods []*corev1.Pod)
 
@@ -100,20 +103,35 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		return nil, err
 	}
 	customConfig := sim.GetCustomConfig()
-	if customConfig.ExportScheduleSnapshot {
-		sim.ExportScheduleSnapshot(unscheduledPods, customConfig.SnapshotFilePath)
+	if customConfig.ExportConfig.PodSnapshotYamlFilePrefix != "" {
+		sim.ExportPodSnapshotInYaml(unscheduledPods,
+			fmt.Sprintf("%s_%s.yaml", customConfig.ExportConfig.PodSnapshotYamlFilePrefix, TagInitSchedule))
+	}
+	if customConfig.ExportConfig.NodeSnapshotCSVFilePrefix != "" {
+		sim.ExportNodeSnapshotInCSV(
+			fmt.Sprintf("%s_%s.csv", customConfig.ExportConfig.NodeSnapshotCSVFilePrefix, TagInitSchedule))
 	}
 	failedPods = append(failedPods, unscheduledPods...)
 	reportFailedPods(failedPods)
 	sim.ClusterAnalysis(TagInitSchedule)
 
-	sim.RunWorkloadInflationEvaluation(TagScheduleInflation)
+	if customConfig.WorkloadInflationConfig.Ratio > 1 {
+		sim.RunWorkloadInflationEvaluation(TagScheduleInflation)
+	}
 
-	if customConfig.DeschedulePolicy != "" {
+	if customConfig.DescheduleConfig.Policy != "" {
 		unscheduledPods = sim.DescheduleCluster()
 		failedPods = append(failedPods, unscheduledPods...)
 		sim.ClusterAnalysis(TagPostDeschedule)
-		sim.RunWorkloadInflationEvaluation(TagDescheduleInflation)
+
+		if customConfig.ExportConfig.NodeSnapshotCSVFilePrefix != "" {
+			sim.ExportNodeSnapshotInCSV(
+				fmt.Sprintf("%s_%s.csv", customConfig.ExportConfig.NodeSnapshotCSVFilePrefix, TagPostDeschedule))
+		}
+
+		if customConfig.WorkloadInflationConfig.Ratio > 1 {
+			sim.RunWorkloadInflationEvaluation(TagDescheduleInflation)
+		}
 	}
 
 	// schedule pods

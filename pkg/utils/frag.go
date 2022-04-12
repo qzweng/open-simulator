@@ -7,6 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
 
+	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
 	"github.com/alibaba/open-simulator/pkg/type"
 )
 
@@ -130,25 +131,40 @@ func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.Tar
 	return fragAmount
 }
 
-func GetTypicalPods(allPods []*v1.Pod) simontype.TargetPodList {
+func GetTypicalPods(allPods []*v1.Pod, config v1alpha1.TypicalPodsConfig) simontype.TargetPodList {
 	tgtPodResCntMap := map[simontype.PodResource]float64{}
+	var total float64 = 0
 	for _, pod := range allPods {
 		tgtPodRes := GetPodResource(pod)
-		if cnt, ok := tgtPodResCntMap[tgtPodRes]; ok {
-			tgtPodResCntMap[tgtPodRes] = cnt + 1
-		} else {
-			tgtPodResCntMap[tgtPodRes] = 1
+		if !config.IsInvolvedCpuPods && tgtPodRes.GpuNumber == 0 {
+			continue
 		}
+
+		var weightedCnt float64 = 1
+		if config.IsConsideredGpuResWeight {
+			weightedCnt = float64(int64(tgtPodRes.GpuNumber) * tgtPodRes.MilliGpu)
+		}
+		if cnt, ok := tgtPodResCntMap[tgtPodRes]; ok {
+			tgtPodResCntMap[tgtPodRes] = cnt + weightedCnt
+		} else {
+			tgtPodResCntMap[tgtPodRes] = weightedCnt
+		}
+		total += weightedCnt
 	}
 
 	tgtPodList := SortTargetPodInDecreasingCount(tgtPodResCntMap)
 	log.Debugf("Num of Total Pods: %d\n", len(allPods))
 	log.Debugf("Num of Total Pod Sepc: %d\n", len(tgtPodList))
-	ExpectedNumPods := int(simontype.TypicalPodPopularityThreshold * len(allPods) / 100)
+	var expectedNumPods float64 = 0
+	if config.PodPopularityThreshold > 0 {
+		expectedNumPods = float64(config.PodPopularityThreshold) * total / 100.0
+	} else {
+		expectedNumPods = float64(simontype.DefaultTypicalPodPopularityThreshold) * total / 100.0
+	}
 	var i, podResNum int
-	var numPods float64
-	for int(numPods) < ExpectedNumPods {
-		podResNum += simontype.TypicalPodResourceNumber
+	var numPods float64 = 0
+	for numPods < expectedNumPods {
+		podResNum += simontype.DefaultTypicalPodResourceNumber
 		for i < podResNum && i < len(tgtPodList) {
 			numPods += tgtPodList[i].Percentage
 			log.Debugf("[%d] %s: %.0f\n", i, tgtPodList[i].TargetPodResource.Repr(), tgtPodList[i].Percentage)
@@ -156,10 +172,10 @@ func GetTypicalPods(allPods []*v1.Pod) simontype.TargetPodList {
 		}
 	}
 
-	log.Debugf("Count top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*float64(numPods)/float64(len(allPods)))
+	log.Debugf("Count top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*numPods/total)
 
 	for j, tp := range tgtPodList[:i] {
-		tgtPodList[j].Percentage = tp.Percentage / numPods
+		tgtPodList[j].Percentage = tp.Percentage / total
 		log.Debugf("[%d] %s: %.1f%%\n", j, tp.TargetPodResource.Repr(), tgtPodList[j].Percentage*100)
 	}
 	log.Debugln()

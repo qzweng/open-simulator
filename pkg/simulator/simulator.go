@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"os"
 	"sort"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/cli-runtime/pkg/printers"
 	"k8s.io/client-go/informers"
 	externalclientset "k8s.io/client-go/kubernetes"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
@@ -139,6 +137,9 @@ func New(opts ...Option) (Interface, error) {
 		},
 		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuPackingScorePlugin(configuration, handle)
+		},
+		simontype.ResourceSimilarityPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewResourceSimilarityPlugin(configuration, handle)
 		},
 	}
 	sim.scheduler, err = scheduler.New(
@@ -754,61 +755,6 @@ func (sim *Simulator) SetOriginalWorkloadPods(pods []*corev1.Pod) {
 	}
 }
 
-func (sim *Simulator) ExportScheduleSnapshot(unschedulePods []simontype.UnscheduledPod, filePath string) {
-	var err error
-	if filePath == "" {
-		log.Infof("[ExportScheduleSnapshot] the file path is empty\n")
-		return
-	}
-
-	var podList *corev1.PodList
-	podList, err = sim.client.CoreV1().Pods(corev1.NamespaceAll).List(sim.ctx, metav1.ListOptions{})
-	if err != nil {
-		log.Errorf("[ExportScheduleSnapshot] failed to get pod list\n")
-		return
-	}
-
-	var file *os.File
-	file, err = os.Create(filePath)
-	if err != nil {
-		log.Errorf("[ExportScheduleSnapshot] failed to create file(%s)\n", filePath)
-		return
-	}
-	defer file.Close()
-
-	y := printers.YAMLPrinter{}
-	for _, p := range podList.Items {
-		pod := p.DeepCopy()
-		if pod.Spec.NodeSelector == nil {
-			pod.Spec.NodeSelector = map[string]string{}
-		}
-		if pod.Spec.NodeName == "" {
-			MarkPodUnscheduledAnno(pod)
-		} else {
-			pod.Spec.NodeSelector[simontype.HostName] = pod.Spec.NodeName
-			pod.Spec.NodeName = ""
-			pod.Status = corev1.PodStatus{}
-		}
-		err = y.PrintObj(pod, file)
-		if err != nil {
-			log.Errorf("[ExportScheduleSnapshot] failed to export pod(%s) yaml to file(%s)\n",
-				utils.GeneratePodKey(pod), filePath)
-			return
-		}
-	}
-
-	for _, unschedulePod := range unschedulePods {
-		pod := unschedulePod.Pod.DeepCopy()
-		MarkPodUnscheduledAnno(pod)
-		err = y.PrintObj(pod, file)
-		if err != nil {
-			log.Errorf("[ExportScheduleSnapshot] failed to export pod(%s) yaml to file(%s)\n",
-				utils.GeneratePodKey(pod), filePath)
-			return
-		}
-	}
-}
-
 func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
 	var err error
 	shufflePod := sim.customConfig.ShufflePod
@@ -875,7 +821,7 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 		return nil
 	}
 
-	workloadInflationRatio := sim.customConfig.WorkloadInflationRatio
+	workloadInflationRatio := sim.customConfig.WorkloadInflationConfig.Ratio
 	if workloadInflationRatio > 1 {
 		var inflationPods []*corev1.Pod
 		inflationNum := int(math.Ceil(float64(n)*workloadInflationRatio)) - n

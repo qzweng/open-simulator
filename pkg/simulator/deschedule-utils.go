@@ -2,8 +2,6 @@ package simulator
 
 import (
 	"container/heap"
-	"fmt"
-	"math"
 	"sort"
 
 	log "github.com/sirupsen/logrus"
@@ -14,86 +12,36 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-func (sim *Simulator) findVictimPodOnNode(node *corev1.Node, pods []*corev1.Pod) *corev1.Pod {
+func (sim *Simulator) findVictimPodOnCosSim(nodeRes simontype.NodeResource, pods []*corev1.Pod) *corev1.Pod {
 	var victimPod *corev1.Pod
 	var victimPodSimilarity float64 = 1
 	for _, pod := range pods {
-		similarity, ok := sim.resourceSimilarity(pod, node)
-		if !ok {
-			log.Errorf("[findVictimPodOnNode] failed to get resource similarity of pod(%s) to node(%s)\n",
-				utils.GeneratePodKey(pod), node.Name)
+		podRes := utils.GetPodResource(pod)
+		podGpuIdList, err := gpushareutils.GetGpuIdListFromAnnotation(pod)
+		if err != nil {
+			log.Errorf("[findVictimPodOnCosSim] failed to get podGpuIdList of podRes(%s): %v\n",
+				podRes.Repr(), err)
 			continue
 		}
+		newNodeRes, err := nodeRes.Add(podRes, podGpuIdList)
+		if err != nil {
+			log.Errorf("[findVictimPodOnCosSim] nodeRes(%s) failed to add podRes(%s): %v\n",
+				nodeRes.Repr(), podRes.Repr(), err)
+			continue
+		}
+
+		similarity := utils.GetResourceSimilarity(newNodeRes, podRes)
 		if similarity >= 0 && similarity < victimPodSimilarity {
 			victimPod = pod
 			victimPodSimilarity = similarity
 		}
 	}
 	if victimPod != nil {
-		log.Debugf("[findVictimPodOnNode] pod(%s) is selected to deschedule from node(%s), resource similarity is %.2f\n",
-			utils.GeneratePodKey(victimPod), node.Name, victimPodSimilarity)
+		log.Debugf("[findVictimPodOnCosSim] pod(%s) is selected to deschedule from node(%s), resource similarity is %.2f\n",
+			utils.GeneratePodKey(victimPod), nodeRes.NodeName, victimPodSimilarity)
 		return victimPod
 	}
 	return nil
-}
-
-func (sim *Simulator) resourceSimilarity(pod *corev1.Pod, node *corev1.Node) (float64, bool) {
-	var podVec, nodeVec []float64
-
-	// cpu
-	var scaleFactor float64 = 1000
-	podVec = append(podVec, float64(pod.Spec.Containers[0].Resources.Requests.Cpu().MilliValue())/scaleFactor)
-	nodeVec = append(nodeVec, float64(node.Status.Allocatable.Cpu().MilliValue())/scaleFactor)
-
-	// mem
-	scaleFactor = 1024 * 1024 * 1024
-	podVec = append(podVec, float64(pod.Spec.Containers[0].Resources.Requests.Memory().Value())/scaleFactor)
-	nodeVec = append(nodeVec, float64(node.Status.Allocatable.Memory().Value())/scaleFactor)
-
-	// gpu milli
-	scaleFactor = 1000
-	if nodeGpuMilli := gpushareutils.GetGpuMilliOfNode(node); nodeGpuMilli > 0 {
-		//nodeVec = append(nodeVec, float64())
-		podGpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
-		podGpuCount := gpushareutils.GetGpuCountFromPodAnnotation(pod)
-		podVec = append(podVec, float64(podGpuMilli*int64(podGpuCount))/scaleFactor)
-		//fmt.Printf("debug: pod %s, podGpuMilli %d, podGpuCount %d\n", utils.GeneratePodKey(pod), podGpuMilli, podGpuCount)
-
-		nodeGpuCount := gpushareutils.GetGpuCountOfNode(node)
-		//fmt.Printf("debug: node %s, nodeGpuMilli %d, nodeGpuCount %d\n", node.Name, nodeGpuMilli, nodeGpuCount)
-		nodeVec = append(nodeVec, float64(nodeGpuMilli*nodeGpuCount)/scaleFactor)
-	}
-
-	similarity, err := calculateVectorSimilarity(podVec, nodeVec)
-	if err != nil {
-		return -1, false
-	}
-	log.Debugf("similarity of pod %s with node %s is %.2f, pod vec %v, node vec %v\n", utils.GeneratePodKey(pod), node.Name, similarity, podVec, nodeVec)
-	return similarity, true
-}
-
-func calculateVectorSimilarity(vec1, vec2 []float64) (float64, error) {
-	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
-		err := fmt.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
-		return -1, err
-	}
-	var magnitude1, magnitude2, innerProduct float64
-	for index, num1 := range vec1 {
-		num2 := vec2[index]
-		magnitude1 += num1 * num1
-		magnitude2 += num2 * num2
-		innerProduct += num1 * num2
-	}
-	magnitude1 = math.Sqrt(magnitude1)
-	magnitude2 = math.Sqrt(magnitude2)
-
-	if magnitude1 == 0 || magnitude2 == 0 {
-		err := fmt.Errorf("vector(s) of zero magnitude. vec1: %v, vec2: %v", vec1, vec2)
-		return -1, err
-	}
-
-	similarity := innerProduct / (magnitude1 * magnitude2)
-	return similarity, nil
 }
 
 func sortNodeStatusByResource(milliCpuBar int64, nodeStatus []simontype.NodeStatus, nodeResMap map[string]simontype.NodeResource) {

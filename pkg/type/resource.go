@@ -21,8 +21,8 @@ func (p TargetPodList) Less(i, j int) bool { return p[i].Percentage < p[j].Perce
 func (p TargetPodList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 const (
-	TypicalPodPopularityThreshold = 60 // 60%
-	TypicalPodResourceNumber      = 10
+	DefaultTypicalPodPopularityThreshold = 60 // 60%
+	DefaultTypicalPodResourceNumber      = 10
 )
 
 type PodResource struct { // typical pod, without name and namespace.
@@ -66,6 +66,43 @@ func (tnr NodeResource) Repr() string {
 	return outStr
 }
 
+// ToResourceVec returns a resource vector: [milli cpu request, milli gpu request].
+func (tpr PodResource) ToResourceVec() []float64 {
+	var vec []float64
+	// milli cpu left
+	vec = append(vec, float64(tpr.MilliCpu))
+
+	// milli gpu request, e.g., 500, 2000
+	vec = append(vec, float64(tpr.MilliGpu*int64(tpr.GpuNumber)))
+	return vec
+}
+
+// ToResourceVec returns a resource vector: [milli cpu left, flatten milli gpu left].
+func (tnr NodeResource) ToResourceVec() []float64 {
+	var vec []float64
+	// milli cpu left
+	vec = append(vec, float64(tnr.MilliCpu))
+
+	// flatten milli gpu left: free gpu + max(milli gpu left in used gpu)
+	// e.g., [1000, 1000, 500, 300] = 2000 + max(500, 300) = 2500
+	var flattenMilliGpuLeft int64 = 0
+	var maxMilliGpuLeftInUsedGpu int64 = 0
+	for _, milliGpuLeft := range tnr.MilliGpuLeftList {
+		if milliGpuLeft == gpushareutils.MILLI {
+			// free gpu
+			flattenMilliGpuLeft += milliGpuLeft
+		} else if milliGpuLeft > maxMilliGpuLeftInUsedGpu {
+			// update to max(milli gpu left in used gpu)
+			maxMilliGpuLeftInUsedGpu = milliGpuLeft
+		}
+	}
+	// max(milli gpu left in used gpu)
+	flattenMilliGpuLeft += maxMilliGpuLeftInUsedGpu
+	// flatten milli gpu left
+	vec = append(vec, float64(flattenMilliGpuLeft))
+	return vec
+}
+
 func (tnr NodeResource) Copy() NodeResource {
 	milliGpuLeftList := make([]int64, len(tnr.MilliGpuLeftList))
 	for i := 0; i < len(tnr.MilliGpuLeftList); i++ {
@@ -93,9 +130,9 @@ func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 		return out, nil
 	}
 
-	// Sort NodeRes's GpuLeft in Descending, then Pack it (Subtract from the most sufficient one).
-	sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { // largest one first
-		return out.MilliGpuLeftList[i] > out.MilliGpuLeftList[j]
+	// Sort NodeRes's GpuLeft in ascending, then Pack it (Subtract from the least sufficient one).
+	sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { // smallest one first
+		return out.MilliGpuLeftList[i] < out.MilliGpuLeftList[j]
 	})
 	for i := 0; i < len(out.MilliGpuLeftList); i++ {
 		if tpr.MilliGpu <= out.MilliGpuLeftList[i] {

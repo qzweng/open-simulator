@@ -90,7 +90,7 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 }
 
 func (sim *Simulator) SetTypicalPods() {
-	sim.typicalPods = utils.GetTypicalPods(sim.originalWorkloadPods)
+	sim.typicalPods = utils.GetTypicalPods(sim.originalWorkloadPods, sim.customConfig.TypicalPodsConfig)
 }
 
 func (sim *Simulator) NodeGpuFragAmountMap(nodeResourceMap map[string]simontype.NodeResource) map[string]utils.FragAmount {

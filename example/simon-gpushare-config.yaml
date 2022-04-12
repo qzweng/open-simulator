@@ -20,10 +20,17 @@ spec:
   newNode: example/newnode/gpushare
   customConfig:
     shufflePod: false
-    workloadInflationRatio: 1
-    exportScheduleSnapshot: true
-    snapshotFilePath: example/test.yaml
-    descheduleRatio: 0.1
-    # deschedulePolicy: cosSim
-    # deschedulePolicy: fragOnePod
-    deschedulePolicy: fragMultiPod
+    exportConfig:
+    #      podSnapshotYamlFilePrefix: ""
+    #      nodeSnapshotCSVFilePrefix: "example/yuyuan_test/node_snapshot"
+    workloadInflationConfig:
+      ratio: 1.5
+    descheduleConfig:
+      ratio: 0.1
+      #      policy: cosSim
+      #      policy: fragOnePod
+      policy: fragMultiPod
+    typicalPodsConfig:
+      isInvolvedCpuPods: true
+      podPopularityThreshold: 95
+      isConsideredGpuResWeight: false

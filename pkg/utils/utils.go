@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -1093,4 +1094,41 @@ func RemovePodFromPodSliceByPod(pods []*corev1.Pod, pod *corev1.Pod) []*corev1.P
 		}
 	}
 	return ret
+}
+
+func GetResourceSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodResource) float64 {
+	freeVec := nodeRes.ToResourceVec()
+	requestVec := podRes.ToResourceVec()
+
+	similarity := calculateVectorSimilarity(freeVec, requestVec)
+	if similarity < 0 || similarity > 1 {
+		log.Errorf("similarity is not in the range [0,1], should not happen. freeVec: %v, requestVec: %v\n",
+			freeVec, requestVec)
+		return -1
+	}
+	return similarity
+}
+
+func calculateVectorSimilarity(vec1, vec2 []float64) float64 {
+	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
+		log.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
+		return -1
+	}
+	var magnitude1, magnitude2, innerProduct float64
+	for index, num1 := range vec1 {
+		num2 := vec2[index]
+		magnitude1 += num1 * num1
+		magnitude2 += num2 * num2
+		innerProduct += num1 * num2
+	}
+	magnitude1 = math.Sqrt(magnitude1)
+	magnitude2 = math.Sqrt(magnitude2)
+
+	if magnitude1 == 0 || magnitude2 == 0 {
+		log.Errorf("vector(s) of zero magnitude. vec1: %v, vec2: %v\n", vec1, vec2)
+		return -1
+	}
+
+	similarity := innerProduct / (magnitude1 * magnitude2)
+	return similarity
 }
