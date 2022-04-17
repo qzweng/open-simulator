@@ -5,15 +5,11 @@ from pathlib import Path
 
 # LOG_RELATIVE_PATH = 'muchong/logs/logs'
 # OUT_CSVNAME = 'analysis_0316.csv'
-LOG_RELATIVE_PATH = 'muchong/logs/logs/0331_gopanic_run'
-OUT_CSVNAME = 'muchong/results/analysis_0331_gopanic.csv'
+LOG_RELATIVE_PATH = 'muchong/logs/logs/0402_snapshot_sc/'
+OUT_CSVNAME = 'muchong/results/analysis_0402_snapshot_sc.csv'
+# LOG_RELATIVE_PATH = 'muchong/logs/logs/testing/'
 # LOG_RELATIVE_PATH = 'muchong/logs/test'
 # OUT_CSVNAME = 'analysis_test.csv'
-
-script_path = Path(os.path.dirname(os.path.realpath(__file__)))
-log_path = script_path.parent / LOG_RELATIVE_PATH
-out_path = script_path.parent / OUT_CSVNAME
-print("Handling logs under:", log_path)
 
 ALLO_KEYS = ['MilliCpu','Memory','Gpu','MilliGpu']
 QUAD_KEYS = ["q1_lack_both", 'q2_lack_gpu', 'q3_satisfied', 'q4_lack_cpu', 'xl_satisfied', 'xr_lack_cpu', 'no_access', "frag_gpu_milli"]
@@ -34,7 +30,7 @@ TAG_SNAKE_LIST = [camel_to_snake(x) for x in TAG_LIST]
 HASTAG_COL = [camel_to_snake(x) for x in ALLO_KEYS]
 HASTAG_COL.extend([camel_to_snake(x) for x in [ y + "Amount" for y in ALLO_KEYS]])
 HASTAG_COL.extend(QUAD_KEYS)
-NONTAG_COL = ['data_date','inflation','deschedule_ratio','deschedule_policy','gpu_pack_score','trial','unscheduled']
+NONTAG_COL = ['data_date','inflation','deschedule_ratio','deschedule_policy','snapshot_sc','gpu_pack_score','gpu_frag_score','pack_x_frag','trial','unscheduled','origin_pods']
 NONTAG_COL.extend([camel_to_snake(x) for x in [y+"Total" for y in ALLO_KEYS]])
 
 def move_tag_to_new_column(df):
@@ -60,6 +56,11 @@ def move_tag_to_new_column(df):
     return pd.concat(out_row_list)
 
 def log_to_csv():
+    script_path = Path(os.path.dirname(os.path.realpath(__file__)))
+    log_path = script_path.parent / LOG_RELATIVE_PATH
+    out_path = script_path.parent / OUT_CSVNAME
+    print("Handling logs under:", log_path)
+    
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
     for log in os.listdir(log_path):
@@ -70,26 +71,34 @@ def log_to_csv():
         with open(file, 'r') as f:
             try:
                 meta = log.split('-')
-
-                inflation = meta[2] # ir15
-                inflation = int(inflation.split('ir')[1]) * 10 # 150
-                
-                deschedule_ratio = meta[3] # dr01
-                deschedule_ratio = int(deschedule_ratio.split('dr')[1]) * 10 # 10
-
-                deschedule_policy = meta[4] # dp1
-                deschedule_policy = deschedule_policy.split('dp')[1] # 1
-                deschedule_policy = DESCHEDULE_POLICY_DICT.get(deschedule_policy, deschedule_policy) # cosSim
-
-                score_weights = meta[5].split('.yaml')[0]
-                [pack, frag] = score_weights.split('x')
-                
-                meta_dict = {'data_date': meta[1],
-                            'inflation': inflation, # meta[2]
-                            'deschedule_ratio': deschedule_ratio, # meta[3]
-                            'deschedule_policy': deschedule_policy, # meta[4]
-                            'gpu_pack_score': pack, 'gpu_frag_score': frag, # meta[5]
-                            'trial': meta[6].split('.log')[0]}
+                _, data_date = meta[0], meta[1] # paib, 2022_03_18_11_36_45
+                meta_dict = {'data_date': data_date}
+                for item in meta[2:]:
+                    if 'ir' in item:
+                        inflation = item # ir15
+                        inflation = int(inflation.split('ir')[1]) * 10 # 150
+                        meta_dict['inflation'] = inflation
+                    elif 'dr' in item:                
+                        deschedule_ratio = item # dr01
+                        deschedule_ratio = int(deschedule_ratio.split('dr')[1]) * 10 # 10
+                        meta_dict['deschedule_ratio'] = deschedule_ratio
+                    elif 'dp' in item:
+                        deschedule_policy = item # dp1
+                        deschedule_policy = deschedule_policy.split('dp')[1] # 1
+                        deschedule_policy = DESCHEDULE_POLICY_DICT.get(deschedule_policy, deschedule_policy) # cosSim
+                        meta_dict['deschedule_policy'] = deschedule_policy
+                    elif 'ss' in item and 'x' in item:
+                        snapshot_sc = item # ss900x100
+                        snapshot_sc = snapshot_sc.split('ss')[1]  # 900x100
+                        meta_dict['snapshot_sc'] = snapshot_sc
+                    elif 'x' in item:
+                        score_weights = item # 900x100
+                        [pack, frag] = score_weights.split('x') # 900,100
+                        meta_dict['pack_x_frag'] = score_weights
+                        meta_dict['pack'], meta_dict['frag'] = pack, frag
+                    elif '.log' in item:
+                        trial = item.split('.log')[0] # 1.log
+                        meta_dict['trial'] = trial
                 print('  Log: %s => %s' % (log, meta_dict))
 
                 fail_dict = {'unscheduled': 0}
@@ -106,6 +115,9 @@ def log_to_csv():
                         continue
                     line = line.split(INFOMSG)[1]
                     line = line[1:-2] # get rid of " and \n"
+
+                    if "Number of original workload pods" in line:
+                        fail_dict['origin_pods'] = int(line.split(":")[1].strip())
 
                     if 'there are' in line:
                         fail_dict['unscheduled'] = int(line.split("unscheduled pods")[0].split("there are")[1].strip())
