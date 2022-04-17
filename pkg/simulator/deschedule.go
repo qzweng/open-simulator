@@ -28,7 +28,7 @@ func (sim *Simulator) DescheduleCluster() []simontype.UnscheduledPod {
 	nodeResMap := utils.GetNodeResourceMap(nodeStatus)
 
 	var failedPods []simontype.UnscheduledPod
-	numPodsToDeschedule := int(math.Ceil(sim.customConfig.DescheduleConfig.Ratio * float64(len(sim.originalWorkloadPods))))
+	numPodsToDeschedule := int(math.Ceil(sim.customConfig.DescheduleConfig.Ratio * float64(len(sim.workloadPods))))
 	log.Infof("maximum number of pods that can be descheduled: %d, deschedule policy: %s\n",
 		numPodsToDeschedule, sim.customConfig.DescheduleConfig.Policy)
 

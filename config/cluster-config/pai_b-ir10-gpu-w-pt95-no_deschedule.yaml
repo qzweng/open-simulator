@@ -1,0 +1,27 @@
+apiVersion: simon/v1alpha1
+kind: Config
+metadata:
+  name: simon-paib-config
+spec:
+  appList:
+  - name: pai_gpu
+    path: data/pai_b/application
+  cluster:
+    customConfig: data/pai_b/cluster
+  newNode: example/newnode/gpushare
+  customConfig:
+    shufflePod: false
+    exportConfig:
+#      nodeSnapshotCSVFilePrefix: "example/yuyuan_test/exp/snapshot/node_snapshot_900_100"
+    workloadInflationConfig:
+      ratio: 1.0
+    descheduleConfig:
+      ratio: 0.1
+      # policy: cosSim
+      # policy: fragOnePod
+      # policy: fragMultiPod
+    typicalPodsConfig:
+      isInvolvedCpuPods: false
+      podPopularityThreshold: 95
+      podIncreaseStep: 1
+      isConsideredGpuResWeight: true

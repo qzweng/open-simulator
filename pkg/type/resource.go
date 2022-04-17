@@ -22,7 +22,7 @@ func (p TargetPodList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 const (
 	DefaultTypicalPodPopularityThreshold = 60 // 60%
-	DefaultTypicalPodResourceNumber      = 10
+	DefaultTypicalPodIncreaseStep        = 10
 )
 
 type PodResource struct { // typical pod, without name and namespace.
@@ -77,29 +77,18 @@ func (tpr PodResource) ToResourceVec() []float64 {
 	return vec
 }
 
-// ToResourceVec returns a resource vector: [milli cpu left, flatten milli gpu left].
+// ToResourceVec returns a resource vector: [milli cpu left, total milli gpu left].
 func (tnr NodeResource) ToResourceVec() []float64 {
 	var vec []float64
 	// milli cpu left
 	vec = append(vec, float64(tnr.MilliCpu))
 
-	// flatten milli gpu left: free gpu + max(milli gpu left in used gpu)
-	// e.g., [1000, 1000, 500, 300] = 2000 + max(500, 300) = 2500
-	var flattenMilliGpuLeft int64 = 0
-	var maxMilliGpuLeftInUsedGpu int64 = 0
+	var totalMilliGpuLeft int64 = 0
 	for _, milliGpuLeft := range tnr.MilliGpuLeftList {
-		if milliGpuLeft == gpushareutils.MILLI {
-			// free gpu
-			flattenMilliGpuLeft += milliGpuLeft
-		} else if milliGpuLeft > maxMilliGpuLeftInUsedGpu {
-			// update to max(milli gpu left in used gpu)
-			maxMilliGpuLeftInUsedGpu = milliGpuLeft
-		}
+		totalMilliGpuLeft += milliGpuLeft
 	}
-	// max(milli gpu left in used gpu)
-	flattenMilliGpuLeft += maxMilliGpuLeftInUsedGpu
-	// flatten milli gpu left
-	vec = append(vec, float64(flattenMilliGpuLeft))
+	// total milli gpu left
+	vec = append(vec, float64(totalMilliGpuLeft))
 	return vec
 }
 

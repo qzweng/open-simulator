@@ -2,8 +2,10 @@ package simulator
 
 import (
 	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -89,8 +91,42 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 	return utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
 }
 
+// RecordPodTotalResourceReq will record the total resource requests of all pods,
+// and return the list: [total milli cpu request of all pods, total milli gpu request of all pods]
+func (sim *Simulator) RecordPodTotalResourceReq(pods []*corev1.Pod) (int64, int64) {
+	// initialization
+	sim.podTotalMilliCpuReq = 0
+	sim.podTotalMilliGpuReq = 0
+
+	// count them all
+	for _, p := range pods {
+		podRes := utils.GetPodResource(p)
+		sim.podTotalMilliCpuReq += podRes.MilliCpu
+		sim.podTotalMilliGpuReq += podRes.MilliGpu * int64(podRes.GpuNumber)
+	}
+	log.Infof("Total milli cpu request of all pods: %d, milli gpu request: %d\n",
+		sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq)
+	return sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq
+}
+
+// RecordNodeTotalResource will record the total resources of all nodes,
+// and return the list: [total milli cpu of all nodes, total milli gpu of all nodes]
+func (sim *Simulator) RecordNodeTotalResource(nodes []*corev1.Node) (int64, int64) {
+	// initialization
+	sim.nodeTotalMilliCpu = 0
+	sim.nodeTotalMilliGpu = 0
+
+	// count them all
+	for _, n := range nodes {
+		sim.nodeTotalMilliCpu += n.Status.Capacity.Cpu().MilliValue()
+		sim.nodeTotalMilliGpu += int64(gpushareutils.GetGpuMilliOfNode(n))
+	}
+	log.Infof("Total milli cpu of all nodes: %d, milli gpu: %d\n", sim.nodeTotalMilliCpu, sim.nodeTotalMilliGpu)
+	return sim.nodeTotalMilliCpu, sim.nodeTotalMilliGpu
+}
+
 func (sim *Simulator) SetTypicalPods() {
-	sim.typicalPods = utils.GetTypicalPods(sim.originalWorkloadPods, sim.customConfig.TypicalPodsConfig)
+	sim.typicalPods = utils.GetTypicalPods(sim.workloadPods, sim.customConfig.TypicalPodsConfig)
 }
 
 func (sim *Simulator) NodeGpuFragAmountMap(nodeResourceMap map[string]simontype.NodeResource) map[string]utils.FragAmount {

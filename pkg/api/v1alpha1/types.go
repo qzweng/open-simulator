@@ -26,6 +26,7 @@ type CustomConfig struct {
 	ShufflePod              bool                    `json:"shufflePod,omitempty"`
 	ExportConfig            ExportConfig            `json:"exportConfig,omitempty"`
 	WorkloadInflationConfig WorkloadInflationConfig `json:"workloadInflationConfig,omitempty"`
+	NewWorkloadConfig       string                  `json:"newWorkloadConfig,omitempty"`
 	DescheduleConfig        DescheduleConfig        `json:"descheduleConfig,omitempty"`
 	TypicalPodsConfig       TypicalPodsConfig       `json:"typicalPodsConfig,omitempty"`
 }
@@ -37,6 +38,7 @@ type ExportConfig struct {
 
 type WorkloadInflationConfig struct {
 	Ratio float64 `json:"ratio,omitempty"`
+	Seed  int64   `json:"seed,omitempty"`
 }
 
 type DescheduleConfig struct {
@@ -47,6 +49,7 @@ type DescheduleConfig struct {
 type TypicalPodsConfig struct {
 	IsInvolvedCpuPods        bool `json:"isInvolvedCpuPods,omitempty"`
 	PodPopularityThreshold   int  `json:"podPopularityThreshold,omitempty"` // [0-100]
+	PodIncreaseStep          int  `json:"podIncreaseStep,omitempty"`
 	IsConsideredGpuResWeight bool `json:"isConsideredGpuResWeight,omitempty"`
 }
 

@@ -164,7 +164,11 @@ func GetTypicalPods(allPods []*v1.Pod, config v1alpha1.TypicalPodsConfig) simont
 	var i, podResNum int
 	var numPods float64 = 0
 	for numPods < expectedNumPods {
-		podResNum += simontype.DefaultTypicalPodResourceNumber
+		if config.PodIncreaseStep > 0 {
+			podResNum += config.PodIncreaseStep
+		} else {
+			podResNum += simontype.DefaultTypicalPodIncreaseStep
+		}
 		for i < podResNum && i < len(tgtPodList) {
 			numPods += tgtPodList[i].Percentage
 			log.Debugf("[%d] %s: %.0f\n", i, tgtPodList[i].TargetPodResource.Repr(), tgtPodList[i].Percentage)

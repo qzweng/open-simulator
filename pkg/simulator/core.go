@@ -45,8 +45,10 @@ type Interface interface {
 	ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary)
 	GetClusterNodeStatus() []simontype.NodeStatus
 
-	SetOriginalWorkloadPods(pods []*corev1.Pod)
+	SetWorkloadPods(pods []*corev1.Pod)
 	SetTypicalPods()
+	RecordPodTotalResourceReq(pods []*corev1.Pod) (int64, int64)
+	RecordNodeTotalResource(nodes []*corev1.Node) (int64, int64)
 	ExportPodSnapshotInYaml(unschedulePods []simontype.UnscheduledPod, filePath string)
 	ExportNodeSnapshotInCSV(filePath string)
 
@@ -82,10 +84,8 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		return nil, err
 	}
 	log.Infof("Number of original workload pods: %d", len(cluster.Pods))
-	sim.SetOriginalWorkloadPods(cluster.Pods)
+	sim.SetWorkloadPods(cluster.Pods)
 	sim.SetTypicalPods()
-
-	sim.SortClusterPods(cluster.Pods)
 
 	for _, item := range cluster.DaemonSets {
 		validPods, err := utils.MakeValidPodsByDaemonset(item, cluster.Nodes)
@@ -98,10 +98,17 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	var failedPods []simontype.UnscheduledPod
 
 	// run cluster
+	sim.SortClusterPods(cluster.Pods)
+	sim.RecordPodTotalResourceReq(cluster.Pods)
+	sim.RecordNodeTotalResource(cluster.Nodes)
 	unscheduledPods, err := sim.RunCluster(cluster) // Existing pods in the cluster are scheduled here.
 	if err != nil {
 		return nil, err
 	}
+	failedPods = append(failedPods, unscheduledPods...)
+	reportFailedPods(failedPods)
+	sim.ClusterAnalysis(TagInitSchedule)
+
 	customConfig := sim.GetCustomConfig()
 	if customConfig.ExportConfig.PodSnapshotYamlFilePrefix != "" {
 		sim.ExportPodSnapshotInYaml(unscheduledPods,
@@ -111,27 +118,40 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		sim.ExportNodeSnapshotInCSV(
 			fmt.Sprintf("%s_%s.csv", customConfig.ExportConfig.NodeSnapshotCSVFilePrefix, TagInitSchedule))
 	}
-	failedPods = append(failedPods, unscheduledPods...)
-	reportFailedPods(failedPods)
-	sim.ClusterAnalysis(TagInitSchedule)
 
 	if customConfig.WorkloadInflationConfig.Ratio > 1 {
 		sim.RunWorkloadInflationEvaluation(TagScheduleInflation)
 	}
 
+	if customConfig.NewWorkloadConfig != "" {
+		resources, err := CreateClusterResourceFromClusterConfig(customConfig.NewWorkloadConfig)
+		if err != nil {
+			return nil, err
+		}
+		newWorkloadPods, err := GetValidPodExcludeDaemonSet(resources)
+		if err != nil {
+			return nil, err
+		}
+		log.Infof("Number of new workload pods: %d\n", len(newWorkloadPods))
+		sim.SetWorkloadPods(newWorkloadPods)
+		sim.SetTypicalPods()
+	}
 	if customConfig.DescheduleConfig.Policy != "" {
 		unscheduledPods = sim.DescheduleCluster()
 		failedPods = append(failedPods, unscheduledPods...)
 		sim.ClusterAnalysis(TagPostDeschedule)
 
+		if customConfig.ExportConfig.PodSnapshotYamlFilePrefix != "" {
+			sim.ExportPodSnapshotInYaml(unscheduledPods,
+				fmt.Sprintf("%s_%s.yaml", customConfig.ExportConfig.PodSnapshotYamlFilePrefix, TagPostDeschedule))
+		}
 		if customConfig.ExportConfig.NodeSnapshotCSVFilePrefix != "" {
 			sim.ExportNodeSnapshotInCSV(
 				fmt.Sprintf("%s_%s.csv", customConfig.ExportConfig.NodeSnapshotCSVFilePrefix, TagPostDeschedule))
 		}
-
-		if customConfig.WorkloadInflationConfig.Ratio > 1 {
-			sim.RunWorkloadInflationEvaluation(TagDescheduleInflation)
-		}
+	}
+	if customConfig.WorkloadInflationConfig.Ratio > 1 {
+		sim.RunWorkloadInflationEvaluation(TagDescheduleInflation)
 	}
 
 	// schedule pods

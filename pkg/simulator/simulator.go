@@ -48,10 +48,15 @@ type Simulator struct {
 	status status
 
 	//
-	originalWorkloadPods []*corev1.Pod
-	typicalPods          simontype.TargetPodList
-	nodeResourceMap      map[string]simontype.NodeResource
-	customConfig         v1alpha1.CustomConfig
+	workloadPods    []*corev1.Pod
+	typicalPods     simontype.TargetPodList
+	nodeResourceMap map[string]simontype.NodeResource
+	customConfig    v1alpha1.CustomConfig
+
+	podTotalMilliCpuReq int64
+	podTotalMilliGpuReq int64
+	nodeTotalMilliCpu   int64
+	nodeTotalMilliGpu   int64
 }
 
 // status captures reason why one pod fails to be scheduled
@@ -743,15 +748,15 @@ func (sim *Simulator) getCurrentPodMap() map[string]*corev1.Pod {
 	return podMap
 }
 
-func (sim *Simulator) SetOriginalWorkloadPods(pods []*corev1.Pod) {
-	sim.originalWorkloadPods = []*corev1.Pod{}
+func (sim *Simulator) SetWorkloadPods(pods []*corev1.Pod) {
+	sim.workloadPods = []*corev1.Pod{}
 	for _, p := range pods {
 		pod := MakePodUnassigned(p.DeepCopy())
 		if pod.Spec.NodeSelector != nil {
 			delete(pod.Spec.NodeSelector, simontype.HostName)
 		}
 		ClearPodUnscheduledAnno(pod)
-		sim.originalWorkloadPods = append(sim.originalWorkloadPods, pod)
+		sim.workloadPods = append(sim.workloadPods, pod)
 	}
 }
 
@@ -815,30 +820,54 @@ func (sim *Simulator) RunWorkloadInflationEvaluation(tag string) {
 }
 
 func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
-	n := len(sim.originalWorkloadPods)
+	n := len(sim.workloadPods)
 	if n == 0 {
 		log.Infof("[generateWorkloadInflationPods] original workload is empty\n")
 		return nil
 	}
 
-	workloadInflationRatio := sim.customConfig.WorkloadInflationConfig.Ratio
-	if workloadInflationRatio > 1 {
+	ratio := sim.customConfig.WorkloadInflationConfig.Ratio
+	if ratio > 1 {
 		var inflationPods []*corev1.Pod
-		inflationNum := int(math.Ceil(float64(n)*workloadInflationRatio)) - n
-		log.Infof("workload inflation ratio: %.4f, the number of inflation pods: %d\n",
-			workloadInflationRatio, inflationNum)
+		inflationNum := int(math.Ceil(float64(n)*ratio)) - n
+		log.Infof("workload inflation ratio: %.4f, the expected number of inflation pods: %d\n",
+			ratio, inflationNum)
+		seed := sim.customConfig.WorkloadInflationConfig.Seed + 1
+		rand.Seed(seed)
+		podTotalMilliCpuReq, podTotalMilliGpuReq := sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq
 		for i := 0; i < inflationNum; i++ {
-			rand.Seed(time.Now().UnixNano())
 			idx := rand.Intn(n)
-			podCloned, err := utils.MakeValidPodByPod(sim.originalWorkloadPods[idx].DeepCopy())
+			seed = rand.Int63n(int64(idx+1)*seed) + 1
+			log.Debugf("idx: %d, seed: %d\n", idx, seed)
+			rand.Seed(seed)
+			podCloned, err := utils.MakeValidPodByPod(sim.workloadPods[idx].DeepCopy())
 			if err != nil {
 				log.Errorf("[generateWorkloadInflationPods] failed to clone pod(%s)\n",
-					utils.GeneratePodKey(sim.originalWorkloadPods[idx]))
+					utils.GeneratePodKey(sim.workloadPods[idx]))
 				continue
 			}
 			podCloned.Name = fmt.Sprintf("%s-clone-%d", podCloned.Name, i)
+			podRes := utils.GetPodResource(podCloned)
+			// avoid total resource requests of pods exceeding the capacity after adding inflation pods
+			if podRes.MilliCpu+podTotalMilliCpuReq <= sim.nodeTotalMilliCpu &&
+				podRes.MilliGpu*int64(podRes.GpuNumber)+podTotalMilliGpuReq <= sim.nodeTotalMilliGpu {
+
+				podTotalMilliCpuReq += podRes.MilliCpu
+				podTotalMilliGpuReq += podRes.MilliGpu * int64(podRes.GpuNumber)
+			} else {
+				log.Infof("Stop early during workload inflation, "+
+					"because the total resource requests for pods(milli cpu %d, milli gpu %d) have exceeded "+
+					"the total resources of nodes(milli cpu %d, milli gpu %d).\n",
+					podRes.MilliCpu+podTotalMilliCpuReq, podRes.MilliGpu*int64(podRes.GpuNumber)+podTotalMilliGpuReq,
+					sim.nodeTotalMilliCpu, sim.nodeTotalMilliGpu)
+				break
+			}
 			inflationPods = append(inflationPods, podCloned)
 		}
+		log.Infof("The actual number of inflation pods: %d, "+
+			"total resource requests for pods(milli cpu %d, milli gpu %d), "+
+			"total resources of nodes(milli cpu %d, milli gpu %d)\n",
+			len(inflationPods), podTotalMilliCpuReq, podTotalMilliGpuReq, sim.nodeTotalMilliCpu, sim.nodeTotalMilliGpu)
 		return inflationPods
 	}
 	return nil
