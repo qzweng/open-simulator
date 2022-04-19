@@ -835,8 +835,6 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 	if ratio > 1 {
 		var inflationPods []*corev1.Pod
 		inflationNum := int(math.Ceil(float64(n)*ratio)) - n
-		log.Infof("workload inflation ratio: %.4f, the expected number of inflation pods: %d\n",
-			ratio, inflationNum)
 		seed := sim.customConfig.WorkloadInflationConfig.Seed + 1
 		rand.Seed(seed)
 		podTotalMilliCpuReq, podTotalMilliGpuReq := sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq
@@ -873,10 +871,12 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 			}
 			inflationPods = append(inflationPods, podCloned)
 		}
-		log.Infof("The actual number of inflation pods: %d, "+
+		log.Infof("workload inflation ratio: %.4f, "+
+			"the expected number of inflation pods: %d, "+
+			"The actual number of inflation pods: %d, "+
 			"total resource requests for pods(milli cpu %d, milli gpu %d), "+
 			"total resources of nodes(milli cpu %d, milli gpu %d)\n",
-			len(inflationPods), podTotalMilliCpuReq, podTotalMilliGpuReq, sim.nodeTotalMilliCpu, sim.nodeTotalMilliGpu)
+			ratio, inflationNum, len(inflationPods), podTotalMilliCpuReq, podTotalMilliGpuReq, sim.nodeTotalMilliCpu, sim.nodeTotalMilliGpu)
 		return inflationPods
 	}
 	return nil

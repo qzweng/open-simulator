@@ -1,0 +1,9 @@
+ImageLocality
+NodeAffinity
+PodTopologySpread
+TaintToleration
+NodeResourcesBalancedAllocation
+InterPodAffinity
+NodeResourcesLeastAllocated
+NodePreferAvoidPods
+Gpu-Frag-Score
