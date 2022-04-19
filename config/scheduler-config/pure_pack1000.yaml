@@ -1,0 +1,43 @@
+apiVersion: kubescheduler.config.k8s.io/v1beta1
+kind: KubeSchedulerConfiguration
+profiles:
+  - schedulerName: simon-scheduler
+    plugins:
+      filter:
+        enabled:
+          - name: Open-Local
+          - name: Open-Gpu-Share
+      score:
+        disabled:
+          - name: Gpu-Frag-Score
+          - name: Gpu-Packing-Score
+          - name: ResourceSimilarity
+          - name: BestFitScore
+          - name: Simon
+          # 
+          - name: ImageLocality
+          - name: NodeAffinity
+          - name: PodTopologySpread
+          - name: TaintToleration
+          - name: NodeResourcesBalancedAllocation
+          - name: InterPodAffinity
+          - name: NodeResourcesLeastAllocated
+          - name: NodePreferAvoidPods
+        enabled:
+          # - name: Gpu-Frag-Score
+          #   weight: 1000
+          - name: Gpu-Packing-Score
+            weight: 1000
+          # - name: ResourceSimilarity
+          #   weight: 1000
+          # - name: BestFitScore
+          #   weight: 1000
+      reserve:
+        enabled:
+          - name: Open-Gpu-Share
+      bind:
+        disabled:
+          - name: DefaultBinder
+          - name: Open-Local
+        enabled:
+          - name: Simon
