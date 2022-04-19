@@ -106,7 +106,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		return nil, err
 	}
 	failedPods = append(failedPods, unscheduledPods...)
-	reportFailedPods(failedPods)
+	utils.ReportFailedPods(failedPods)
 	sim.ClusterAnalysis(TagInitSchedule)
 
 	customConfig := sim.GetCustomConfig()
@@ -169,16 +169,4 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		UnscheduledPods: failedPods,
 		NodeStatus:      sim.GetClusterNodeStatus(),
 	}, nil
-}
-
-func reportFailedPods(fp []simontype.UnscheduledPod) {
-	if len(fp) == 0 {
-		return
-	}
-	log.Infof("Failed Pods in detail:\n")
-	for _, up := range fp {
-		podResoure := utils.GetPodResource(up.Pod)
-		log.Infof("  %s: %s\n", utils.GeneratePodKey(up.Pod), podResoure.Repr())
-	}
-	log.Infoln()
 }

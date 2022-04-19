@@ -1132,3 +1132,15 @@ func calculateVectorSimilarity(vec1, vec2 []float64) float64 {
 	similarity := innerProduct / (magnitude1 * magnitude2)
 	return similarity
 }
+
+func ReportFailedPods(fp []simontype.UnscheduledPod) {
+	if len(fp) == 0 {
+		return
+	}
+	log.Infof("Failed Pods in detail:\n")
+	for _, up := range fp {
+		podResoure := GetPodResource(up.Pod)
+		log.Infof("  %s: %s\n", GeneratePodKey(up.Pod), podResoure.Repr())
+	}
+	log.Infoln()
+}

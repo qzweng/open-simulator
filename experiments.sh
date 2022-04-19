@@ -18,3 +18,7 @@ for choice in ${choices[@]}; do
     LOGLEVEL=DEBUG bin/simon apply --extended-resources "gpu" --default-scheduler-config config/scheduler-config/${choice}.yaml \
         -f config/cluster-config/pai_b-ir12-cpu-pt95-no_deschedule.yaml > logs/pai_b-ir12-cpu-pt95-no_deschedule-${choice}.log 2>&1
 done
+
+# test
+LOGLEVEL=DEBUG bin/simon apply --extended-resources "gpu" --default-scheduler-config config/scheduler-config/scheduler-config-demo.yaml \
+  -f config/cluster-config/cluster-config-demo.yaml > logs/test.log 2>&1

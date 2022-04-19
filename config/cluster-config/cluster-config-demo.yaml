@@ -21,8 +21,8 @@ spec:
       ratio: 0.1
       # policy: cosSim
       # policy: fragOnePod
-      policy: fragMultiPod
-    newWorkloadConfig: "data/mvap_a/cluster"
+      # policy: fragMultiPod
+    # newWorkloadConfig: "data/mvap_a/cluster"
     typicalPodsConfig:
       isInvolvedCpuPods: true
       podPopularityThreshold: 95

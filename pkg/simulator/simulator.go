@@ -146,6 +146,9 @@ func New(opts ...Option) (Interface, error) {
 		simontype.ResourceSimilarityPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewResourceSimilarityPlugin(configuration, handle)
 		},
+		simontype.BestFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewBestFitScorePlugin(configuration, handle)
+		},
 	}
 	sim.scheduler, err = scheduler.New(
 		sim.client,
@@ -804,7 +807,8 @@ func (sim *Simulator) RunWorkloadInflationEvaluation(tag string) {
 	}
 
 	// 2. Schedule them
-	sim.SchedulePods(inflationPods)
+	failedPods := sim.SchedulePods(inflationPods)
+	utils.ReportFailedPods(failedPods)
 
 	// 3. Analyze the current state of the cluster
 	sim.ClusterAnalysis(tag)

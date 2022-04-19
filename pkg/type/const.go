@@ -11,6 +11,7 @@ const (
 	GpuFragScorePluginName       = "Gpu-Frag-Score"
 	GpuPackingScorePluginName    = "Gpu-Packing-Score"
 	ResourceSimilarityPluginName = "ResourceSimilarity"
+	BestFitScorePluginName       = "BestFitScore"
 	NewNodeNamePrefix            = "simon"
 	SimulatorName                = "Main"
 	DefaultSchedulerName         = "simon-scheduler"
