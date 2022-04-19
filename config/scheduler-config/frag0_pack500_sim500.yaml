@@ -12,6 +12,7 @@ profiles:
           - name: Gpu-Frag-Score
           - name: Gpu-Packing-Score
           - name: ResourceSimilarity
+          - name: Simon
         enabled:
 #          - name: Gpu-Frag-Score
 #            weight: 100

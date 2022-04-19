@@ -1101,9 +1101,10 @@ func GetResourceSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodR
 	requestVec := podRes.ToResourceVec()
 
 	similarity := calculateVectorSimilarity(freeVec, requestVec)
-	if similarity < 0 || similarity > 1 {
-		log.Errorf("similarity is not in the range [0,1], should not happen. freeVec: %v, requestVec: %v\n",
-			freeVec, requestVec)
+	delta := 1e-3
+	if (similarity < 0-delta) || (similarity > 1+delta) {
+		log.Errorf("similarity(%.4f) is not in the range [0,1], should not happen. freeVec: %v, requestVec: %v\n",
+			similarity, freeVec, requestVec)
 		return -1
 	}
 	return similarity

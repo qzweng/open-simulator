@@ -282,7 +282,7 @@ func (sim *Simulator) deletePod(p *corev1.Pod) error {
 	}
 
 	// synchronization
-	sim.syncPodDelete(p.Namespace, p.Name, 2*time.Millisecond)
+	sim.syncPodDelete(p.Namespace, p.Name, 500*time.Microsecond)
 	if nodeName != "" {
 		sim.syncNodeUpdateOnPodDelete(nodeName, pod, 2*time.Millisecond)
 	} else {
@@ -395,6 +395,7 @@ func (sim *Simulator) syncPodDelete(ns, name string, d time.Duration) {
 		}
 		time.Sleep(d)
 	}
+	time.Sleep(d)
 }
 
 func (sim *Simulator) syncNodeUpdateOnPodCreate(nodeName string, p *corev1.Pod, d time.Duration) {
@@ -841,7 +842,11 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 		podTotalMilliCpuReq, podTotalMilliGpuReq := sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq
 		for i := 0; i < inflationNum; i++ {
 			idx := rand.Intn(n)
-			seed = rand.Int63n(int64(idx+1)*seed) + 1
+			seed = int64(idx+1) * seed
+			if seed <= 0 {
+				seed += math.MaxInt64
+			}
+			seed = rand.Int63n(seed) + 1
 			log.Debugf("idx: %d, seed: %d\n", idx, seed)
 			rand.Seed(seed)
 			podCloned, err := utils.MakeValidPodByPod(sim.workloadPods[idx].DeepCopy())

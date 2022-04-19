@@ -38,17 +38,6 @@ func (plugin *GpuFragScorePlugin) Name() string {
 	return simontype.GpuFragScorePluginName
 }
 
-//func (plugin *GpuFragScorePlugin) SetTypicalPods() {
-//	if plugin.typicalPods == nil {
-//		allocatablePodList := utils.GetAllocatablePodList(plugin.fakeclient)
-//		podList := make([]*corev1.Pod, len(allocatablePodList))
-//		for i := 0; i < len(allocatablePodList); i++ {
-//			podList[i] = &allocatablePodList[i]
-//		}
-//		plugin.typicalPods = utils.GetTypicalPods(podList, false)
-//	}
-//}
-
 // Score invoked at the score extension point.
 func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
 	//fmt.Printf("score_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
@@ -71,12 +60,12 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 	podRes := utils.GetPodResource(pod)
 	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
 		log.Error("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
-		return int64(0), framework.NewStatus(framework.Success)
+		return int64(0), framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
 	}
 	newNodeRes, err := nodeRes.Sub(podRes)
 	if err != nil {
 		log.Errorf(err.Error())
-		return int64(0), framework.NewStatus(framework.Success)
+		return int64(0), framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not have sufficient resource for pod (%s) %s\n", nodeName, nodeRes.Repr(), pod.Name, podRes.Repr()))
 	}
 
 	//plugin.SetTypicalPods()
@@ -84,41 +73,13 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 		log.Errorf("typical pods list is empty\n")
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("typical pods list is empty\n"))
 	}
-	//fmt.Printf("[TYPICAL PODS]\n")
-	//for _, item := range *plugin.typicalPods {
-	//	fmt.Printf("%#v\n", item)
-	//}
-	//fmt.Println()
 
-	//var gpuMilliLeftTotal int64
-	//for _, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
-	//	gpuMilliLeftTotal += gpuMilliLeft
-	//}
-	//var newGpuMilliLeftTotal int64
-	//for _, gpuMilliLeft := range newNodeRes.MilliGpuLeftList {
-	//	newGpuMilliLeftTotal += gpuMilliLeft
-	//}
 	//nodeGpuFragRatio := utils.NodeGpuFragRatio(nodeRes, *plugin.typicalPods)
 	nodeGpuFrag := utils.NodeGpuFragAmount(nodeRes, *plugin.typicalPods)
 	//newNodeGpuFragRatio := utils.NodeGpuFragRatio(newNodeRes, *plugin.typicalPods)
 	newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, *plugin.typicalPods)
 
 	score := int64(nodeGpuFrag.FragAmountSumExceptQ3() - newNodeGpuFrag.FragAmountSumExceptQ3()) // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
-
-	/*
-		fmt.Printf("[GpuFragScore] Place Pod %s: %s to Node (%s)\n"+
-			"  [NodeRes]  %s \n"+
-			"          => %s\n"+
-			"  [NodeFrag] %s (%d) %s (%.1f)\n"+
-			"          => %s (%d) %s (%.1f)\n"+
-			"  [Score] Delta = %d\n",
-			pod.Name, podRes.Repr(), nodeName,
-			nodeRes.Repr(), newNodeRes.Repr(),
-			nodeGpuFragRatio.Repr(), gpuMilliLeftTotal, nodeGpuFrag.Repr(), nodeGpuFrag.FragAmountSumExceptQ3(),
-			newNodeGpuFragRatio.Repr(), newGpuMilliLeftTotal, newNodeGpuFrag.Repr(), newNodeGpuFrag.FragAmountSumExceptQ3(),
-			score)
-	*/
-
 	return score, framework.NewStatus(framework.Success)
 }
 

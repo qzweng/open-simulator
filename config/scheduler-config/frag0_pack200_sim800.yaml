@@ -17,9 +17,9 @@ profiles:
 #          - name: Gpu-Frag-Score
 #            weight: 100
           - name: Gpu-Packing-Score
-            weight: 700
+            weight: 200
           - name: ResourceSimilarity
-            weight: 300
+            weight: 800
       reserve:
         enabled:
           - name: Open-Gpu-Share

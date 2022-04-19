@@ -5,8 +5,8 @@ from pathlib import Path
 
 # LOG_RELATIVE_PATH = 'muchong/logs/logs'
 # OUT_CSVNAME = 'analysis_0316.csv'
-LOG_RELATIVE_PATH = 'muchong/logs/logs/0402_snapshot_sc/'
-OUT_CSVNAME = 'muchong/results/analysis_0402_snapshot_sc.csv'
+LOG_RELATIVE_PATH = 'muchong/logs/0417_adaptive/'
+OUT_CSVNAME = 'muchong/results/analysis_0417_adaptive.csv'
 # LOG_RELATIVE_PATH = 'muchong/logs/logs/testing/'
 # LOG_RELATIVE_PATH = 'muchong/logs/test'
 # OUT_CSVNAME = 'analysis_test.csv'
@@ -34,22 +34,40 @@ NONTAG_COL = ['data_date','inflation','deschedule_ratio','deschedule_policy','sn
 NONTAG_COL.extend([camel_to_snake(x) for x in [y+"Total" for y in ALLO_KEYS]])
 
 def move_tag_to_new_column(df):
+    meta_col = []
+    data_col = []
+    for col in df.columns:
+        is_data_col = False
+        for tag in TAG_SNAKE_LIST:
+            if col.endswith("_" + tag):
+                data_col.append(col)
+                is_data_col = True
+                break
+        if is_data_col == False:
+            meta_col.append(col)
+    # print(meta_col)
+    # print(data_col)
+    
     out_row_list = []
     for _, row in df.iterrows():
         orig_dict = dict(row)
         meta_dict = {}
-        for col in NONTAG_COL:
-            meta_dict[col] = orig_dict.get(col)
+        for col in meta_col:
+        # for col in NONTAG_COL:
+            if col in orig_dict:
+                meta_dict[col] = orig_dict[col]
         # print("meta_dict:", meta_dict)
 
         data_dict = {}
         for tag in TAG_SNAKE_LIST:
             data_dict.update(meta_dict)
             data_dict['tag'] = tag
-            for col in HASTAG_COL:
-                key = col + "_" + tag
-                # print("key:", key)
-                data_dict[col] = orig_dict.get(key)
+            for col in data_col:
+                if col.endswith("_" + tag):
+                    key = col[:-(len(tag)+1)]
+                    # print(tag, '+', key,'=',col)
+                    data_dict[key] = orig_dict.get(col)
+                    continue
             # print("data_dict:", data_dict)
             data_row = pd.DataFrame().from_dict(data_dict, orient='index').T
             out_row_list.append(data_row)
@@ -70,8 +88,11 @@ def log_to_csv():
             continue
         with open(file, 'r') as f:
             try:
+                meta_dict = {}
                 meta = log.split('-')
-                _, data_date = meta[0], meta[1] # paib, 2022_03_18_11_36_45
+                ## e.g,. paib-2022_03_18_11_36_45-ir11-dr01-dp1-0x1000-2.log
+                """
+                _, data_date = meta[0], meta[1]
                 meta_dict = {'data_date': data_date}
                 for item in meta[2:]:
                     if 'ir' in item:
@@ -99,6 +120,16 @@ def log_to_csv():
                     elif '.log' in item:
                         trial = item.split('.log')[0] # 1.log
                         meta_dict['trial'] = trial
+                """
+
+                ## e.g., experiments_235_mit.yaml-frag0_pack700_sim300.yaml.log
+                meta_dict['seed'] = meta[0].split('_')[1] # 235
+                meta_dict['pod_dist'] = meta[0].split('_')[2].split('.yaml')[0] # mit
+                frag_str, pack_str, sim_str = meta[1].split('.')[0].split('_')
+                meta_dict['frag'] = frag_str.split('frag')[1]
+                meta_dict['pack'] = pack_str.split('pack')[1]
+                meta_dict['sim'] = sim_str.split('sim')[1]
+
                 print('  Log: %s => %s' % (log, meta_dict))
 
                 fail_dict = {'unscheduled': 0}
