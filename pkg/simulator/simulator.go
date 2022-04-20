@@ -149,6 +149,9 @@ func New(opts ...Option) (Interface, error) {
 		simontype.BestFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewBestFitScorePlugin(configuration, handle)
 		},
+		simontype.WorstFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewWorstFitScorePlugin(configuration, handle)
+		},
 	}
 	sim.scheduler, err = scheduler.New(
 		sim.client,
@@ -758,10 +761,15 @@ func (sim *Simulator) SetWorkloadPods(pods []*corev1.Pod) {
 		pod := MakePodUnassigned(p.DeepCopy())
 		if pod.Spec.NodeSelector != nil {
 			delete(pod.Spec.NodeSelector, simontype.HostName)
+			delete(pod.Spec.NodeSelector, simontype.NodeIp)
 		}
 		ClearPodUnscheduledAnno(pod)
 		sim.workloadPods = append(sim.workloadPods, pod)
 	}
+	// keep the order...
+	sort.Slice(sim.workloadPods, func(i, j int) bool {
+		return sim.workloadPods[i].Name < sim.workloadPods[j].Name
+	})
 }
 
 func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {

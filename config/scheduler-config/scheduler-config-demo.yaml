@@ -13,6 +13,7 @@ profiles:
           - name: Gpu-Packing-Score
           - name: ResourceSimilarity
           - name: BestFitScore
+          - name: WorstFitScore
           - name: Simon
         enabled:
           # - name: Gpu-Frag-Score
@@ -21,7 +22,9 @@ profiles:
           #   weight: 1000
           # - name: ResourceSimilarity
           #   weight: 1000
-          - name: BestFitScore
+          # - name: BestFitScore
+          #   weight: 1000
+          - name: WorstFitScore
             weight: 1000
       reserve:
         enabled:
