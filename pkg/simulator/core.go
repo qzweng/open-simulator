@@ -150,8 +150,10 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 				fmt.Sprintf("%s_%s.csv", customConfig.ExportConfig.NodeSnapshotCSVFilePrefix, TagPostDeschedule))
 		}
 	}
-	if customConfig.WorkloadInflationConfig.Ratio > 1 {
-		sim.RunWorkloadInflationEvaluation(TagDescheduleInflation)
+	if customConfig.NewWorkloadConfig != "" || customConfig.DescheduleConfig.Policy != "" {
+		if customConfig.WorkloadInflationConfig.Ratio > 1 {
+			sim.RunWorkloadInflationEvaluation(TagDescheduleInflation)
+		}
 	}
 
 	// schedule pods

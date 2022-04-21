@@ -14,6 +14,7 @@ profiles:
           - name: ResourceSimilarity
           - name: BestFitScore
           - name: Simon
+          - name: WorstFitScore
           # 
           - name: ImageLocality
           - name: NodeAffinity
@@ -31,6 +32,8 @@ profiles:
           - name: ResourceSimilarity
             weight: 1000
           # - name: BestFitScore
+          #   weight: 1000
+          # - name: WorstFitScore
           #   weight: 1000
       reserve:
         enabled:

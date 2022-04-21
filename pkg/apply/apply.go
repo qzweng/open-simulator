@@ -336,6 +336,9 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 			cpuReq, _, memoryReq, _ := req[corev1.ResourceCPU], limit[corev1.ResourceCPU], req[corev1.ResourceMemory], limit[corev1.ResourceMemory]
 			fractionCpuReq := float64(cpuReq.MilliValue()) / float64(allocatable.Cpu().MilliValue()) * 100
 			fractionMemoryReq := float64(memoryReq.Value()) / float64(allocatable.Memory().Value()) * 100
+			if allocatable.Memory().Value() == 0 {
+				fractionMemoryReq = 0
+			}
 
 			// app name
 			appname := ""

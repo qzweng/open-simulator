@@ -5,8 +5,8 @@ from pathlib import Path
 
 # LOG_RELATIVE_PATH = 'muchong/logs/logs'
 # OUT_CSVNAME = 'analysis_0316.csv'
-LOG_RELATIVE_PATH = 'muchong/logs/0417_adaptive/'
-OUT_CSVNAME = 'muchong/results/analysis_0417_adaptive.csv'
+LOG_RELATIVE_PATH = 'muchong/logs/0418_snapshot_bestfit_paidev'
+OUT_CSVNAME = 'muchong/results/analysis_0418_snapshot_bestfit_paidev.csv'
 # LOG_RELATIVE_PATH = 'muchong/logs/logs/testing/'
 # LOG_RELATIVE_PATH = 'muchong/logs/test'
 # OUT_CSVNAME = 'analysis_test.csv'
@@ -90,6 +90,27 @@ def log_to_csv():
             try:
                 meta_dict = {}
                 meta = log.split('-')
+
+                ## e.g., paib_dpfragMultiPod_dr5_seed234_pod2000ns.yaml-pure_bestfit1000.yaml.log
+                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+                cconfigs = cconfig.split('_')
+                meta_dict['new_workload'] = cconfigs[0]
+                meta_dict['deschedule_policy'] = cconfigs[1].split('dp')[1]
+                meta_dict['deschedule_ratio'] = round(int(cconfigs[2].split('dr')[1]) / 10, 1)
+                meta_dict['seed'] = int(cconfigs[3].split('seed')[1])
+                meta_dict['num_paib_pod'] = int(cconfigs[4].split('pod')[1].split('ns')[0])
+                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+
+                ## e.g., experiments_235_mit.yaml-frag0_pack700_sim300.yaml.log
+                """
+                meta_dict['seed'] = meta[0].split('_')[1] # 235
+                meta_dict['pod_dist'] = meta[0].split('_')[2].split('.yaml')[0] # mit
+                frag_str, pack_str, sim_str = meta[1].split('.')[0].split('_')
+                meta_dict['frag'] = frag_str.split('frag')[1]
+                meta_dict['pack'] = pack_str.split('pack')[1]
+                meta_dict['sim'] = sim_str.split('sim')[1]
+                """
+
                 ## e.g,. paib-2022_03_18_11_36_45-ir11-dr01-dp1-0x1000-2.log
                 """
                 _, data_date = meta[0], meta[1]
@@ -121,14 +142,6 @@ def log_to_csv():
                         trial = item.split('.log')[0] # 1.log
                         meta_dict['trial'] = trial
                 """
-
-                ## e.g., experiments_235_mit.yaml-frag0_pack700_sim300.yaml.log
-                meta_dict['seed'] = meta[0].split('_')[1] # 235
-                meta_dict['pod_dist'] = meta[0].split('_')[2].split('.yaml')[0] # mit
-                frag_str, pack_str, sim_str = meta[1].split('.')[0].split('_')
-                meta_dict['frag'] = frag_str.split('frag')[1]
-                meta_dict['pack'] = pack_str.split('pack')[1]
-                meta_dict['sim'] = sim_str.split('sim')[1]
 
                 print('  Log: %s => %s' % (log, meta_dict))
 
@@ -191,6 +204,67 @@ def log_to_csv():
 
     outdf = pd.concat(out_row_list)
     outdf.to_csv(out_path, index=False)
+
+def analysis_table(dfn):
+    SEED=233
+    NEW_WORKLOAD="mit"
+    DR=0.1
+    NUM_PAIB_POD=5000
+
+    dfnp = dfn.query('seed==%d'%SEED
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('tag=="deschedule_inflation" or tag=="init_schedule"'
+            )
+
+    print('deschedule_inflation')
+    display(dfn.query('seed==%d'%SEED
+            ).query('tag=="deschedule_inflation"'
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('num_paib_pod==%d'%NUM_PAIB_POD
+            ).sort_values(['milli_gpu','gpu','milli_cpu'], ascending=False
+            ).drop(columns=['memory','memory_total','tag','unscheduled','milli_cpu_total','gpu_total','milli_gpu_total','origin_pods','memory_amount','gpu_amount','milli_cpu_amount','milli_gpu_amount']))
+
+    print('\nschedule_inflation')
+    display(dfn.query('seed==%d'%SEED
+            ).query('tag=="schedule_inflation"'
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('num_paib_pod==%d'%NUM_PAIB_POD
+            ).sort_values(['milli_gpu','gpu','milli_cpu'], ascending=False
+            ).drop(columns=['memory','memory_total','tag','unscheduled','milli_cpu_total','gpu_total','milli_gpu_total','origin_pods','memory_amount','gpu_amount','milli_cpu_amount','milli_gpu_amount']))
+
+def analysis_figure(dfn):
+    SEED=233
+    NEW_WORKLOAD="mit"
+    DR=0.1
+    POLICY_LIST=['frag', 'bestfit' , 'pack', 'sim']
+
+    TAG="deschedule_inflation"
+    dfnp = dfn.query('seed==%d'%SEED
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('tag=="%s"'%TAG
+            )
+    plt.figure(figsize=(8, 4), dpi=120)
+    sns.scatterplot(data=dfnp, x='origin_pods', y='milli_gpu', hue="policy", hue_order=POLICY_LIST, style='deschedule_policy', size='tag', sizes=(100, 50), alpha=0.6)
+    title_str = "%s: New Pods: %s, DR: %s, Seed: %d" % (TAG, NEW_WORKLOAD, DR, SEED)
+    plt.title(title_str)
+    plt.grid(linestyle='-.', alpha=0.8)
+
+
+    TAG="schedule_inflation"
+    dfnp = dfn.query('seed==%d'%SEED
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('tag=="%s"'%TAG
+            )
+    plt.figure(figsize=(8, 4), dpi=120)
+    sns.scatterplot(data=dfnp, x='origin_pods', y='milli_gpu', hue="policy", hue_order=POLICY_LIST, style='deschedule_policy', size='tag', sizes=(100, 50), alpha=0.6)
+    title_str = "%s: New Pods: %s, DR: %s, Seed: %d" % (TAG, NEW_WORKLOAD, DR, SEED)
+    plt.title(title_str)
+    plt.grid(linestyle='-.', alpha=0.8)
 
 if __name__ == "__main__":
     log_to_csv()
