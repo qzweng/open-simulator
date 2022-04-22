@@ -19,7 +19,6 @@ package core
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -191,18 +190,22 @@ func (g *genericScheduler) selectHost(nodeScoreList framework.NodeScoreList) (st
 	}
 	maxScore := nodeScoreList[0].Score
 	selected := nodeScoreList[0].Name
-	cntOfMaxScore := 1
+	//cntOfMaxScore := 1
 	for _, ns := range nodeScoreList[1:] {
 		if ns.Score > maxScore {
 			maxScore = ns.Score
 			selected = ns.Name
-			cntOfMaxScore = 1
+			//cntOfMaxScore = 1
 		} else if ns.Score == maxScore {
-			cntOfMaxScore++
-			if rand.Intn(cntOfMaxScore) == 0 {
-				// Replace the candidate with probability of 1/cntOfMaxScore
+			// for reproducibility, choose the smallest lexicographical order if the score remains the same
+			if ns.Name < selected {
 				selected = ns.Name
 			}
+			//cntOfMaxScore++
+			//if rand.Intn(cntOfMaxScore) == 0 {
+			//	// Replace the candidate with probability of 1/cntOfMaxScore
+			//	selected = ns.Name
+			//}
 		}
 	}
 	return selected, nil
