@@ -5,8 +5,8 @@ from pathlib import Path
 
 # LOG_RELATIVE_PATH = 'muchong/logs/logs'
 # OUT_CSVNAME = 'analysis_0316.csv'
-LOG_RELATIVE_PATH = 'muchong/logs/0418_snapshot_bestfit_paidev'
-OUT_CSVNAME = 'muchong/results/analysis_0418_snapshot_bestfit_paidev.csv'
+LOG_RELATIVE_PATH = 'muchong/logs/0422_artifical_cluster/'
+OUT_CSVNAME = 'muchong/results/analysis_0422_artifical_cluster.csv'
 # LOG_RELATIVE_PATH = 'muchong/logs/logs/testing/'
 # LOG_RELATIVE_PATH = 'muchong/logs/test'
 # OUT_CSVNAME = 'analysis_test.csv'
@@ -90,8 +90,17 @@ def log_to_csv():
             try:
                 meta_dict = {}
                 meta = log.split('-')
+                # e.g., paib_ShareGpu60_gpu1500_seed235.yaml-pure_sim1000.yaml.log
+                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+                cconfigs = cconfig.split('_')
+                meta_dict['base'] = cconfigs[0] # paib
+                meta_dict['workload'] = cconfigs[1] # ShareGpu60
+                meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
+                meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
+                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
 
                 ## e.g., paib_dpfragMultiPod_dr5_seed234_pod2000ns.yaml-pure_bestfit1000.yaml.log
+                """
                 cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
                 cconfigs = cconfig.split('_')
                 meta_dict['new_workload'] = cconfigs[0]
@@ -100,6 +109,7 @@ def log_to_csv():
                 meta_dict['seed'] = int(cconfigs[3].split('seed')[1])
                 meta_dict['num_paib_pod'] = int(cconfigs[4].split('pod')[1].split('ns')[0])
                 meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+                """
 
                 ## e.g., experiments_235_mit.yaml-frag0_pack700_sim300.yaml.log
                 """

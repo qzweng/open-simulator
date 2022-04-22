@@ -51,21 +51,12 @@ func (a AllocAmount) Add(b AllocAmount) error {
 	}
 
 	for k, _ := range a.Requested {
-		_, ok := a.Allocatable[k]
-		if !ok {
-			return fmt.Errorf("%s not in a.Allocatable", k)
+		if ba, ok := b.Allocatable[k]; ok {
+			a.Allocatable[k] += ba
 		}
-		ba, ok := b.Allocatable[k]
-		if !ok {
-			return fmt.Errorf("%s not in b.Allocatable", k)
+		if br, ok := b.Requested[k]; ok {
+			a.Requested[k] += br
 		}
-		br, ok := b.Requested[k]
-		if !ok {
-			return fmt.Errorf("%s not in b.Requested", k)
-		}
-
-		a.Requested[k] += br
-		a.Allocatable[k] += ba
 	}
 	return nil
 }
@@ -84,6 +75,9 @@ func ReportNodeAllocationRate(aamap map[string]AllocAmount) (rs []ResourceSummar
 		rval := clusterAllocAmount.Requested[k]
 		aval := clusterAllocAmount.Allocatable[k]
 		ratio := 100.0 * float64(rval) / float64(aval)
+		if aval == 0 {
+			ratio = 0
+		}
 		log.Infof("    %-8s: %4.1f%% (%d/%d)\n", k, ratio, rval, aval)
 		rs = append(rs, ResourceSummary{k, rval, aval})
 	}
