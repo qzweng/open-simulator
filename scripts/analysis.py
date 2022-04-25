@@ -5,8 +5,8 @@ from pathlib import Path
 
 # LOG_RELATIVE_PATH = 'muchong/logs/logs'
 # OUT_CSVNAME = 'analysis_0316.csv'
-LOG_RELATIVE_PATH = 'muchong/logs/0422_artifical_cluster/'
-OUT_CSVNAME = 'muchong/results/analysis_0422_artifical_cluster.csv'
+LOG_RELATIVE_PATH = 'muchong/logs/0422_artifical_cluster_fixed/'
+OUT_CSVNAME = 'muchong/results/analysis_0422_artifical_cluster_fixed.csv'
 # LOG_RELATIVE_PATH = 'muchong/logs/logs/testing/'
 # LOG_RELATIVE_PATH = 'muchong/logs/test'
 # OUT_CSVNAME = 'analysis_test.csv'

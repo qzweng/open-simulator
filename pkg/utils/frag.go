@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"sort"
+	"sync"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/api/core/v1"
@@ -32,8 +33,7 @@ var FragRatioDataMap = map[string]int{
 }
 
 type FragRatio struct {
-	NodeName string
-	Data     []float64
+	Data []float64
 }
 
 type FragAmount struct {
@@ -53,23 +53,28 @@ func (fr FragRatio) AddRatio(fragType string, freq float64) error {
 	}
 }
 
-func (fa FragAmount) Add(faOther FragAmount) error {
+func (fa FragAmount) AddGamma(faOther FragAmount, gamma float64) error {
 	if len(fa.Data) == 0 {
-		fa.Data = faOther.Data
-		return nil
+		fa.Data = make([]float64, len(FragRatioDataMap))
+		for i := 0; i < len(FragRatioDataMap); i++ {
+			fa.Data[i] = 0
+		}
 	}
 	if len(fa.Data) != len(faOther.Data) {
 		return fmt.Errorf("this (%d) does not match the other (%d)", len(fa.Data), len(faOther.Data))
 	}
 	for i := 0; i < len(fa.Data); i++ {
-		fa.Data[i] += faOther.Data[i]
+		fa.Data[i] += gamma * faOther.Data[i]
 	}
 	return nil
 }
 
+func (fa FragAmount) Add(faOther FragAmount) error {
+	return fa.AddGamma(faOther, 1.0)
+}
+
 func (fr FragRatio) Repr() (outStr string) {
-	outStr += fr.NodeName
-	outStr += ": ["
+	outStr += "["
 	for i, v := range fr.Data {
 		if i > 0 {
 			outStr += ", "
@@ -95,7 +100,7 @@ func (fa FragAmount) Repr() (outStr string) {
 
 func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragRatio {
 	data := make([]float64, len(FragRatioDataMap))
-	fragRatio := FragRatio{nodeRes.NodeName, data}
+	fragRatio := FragRatio{data}
 	for _, pod := range typicalPods {
 		freq := pod.Percentage
 		if freq < 0 || freq > 1 {
@@ -103,7 +108,7 @@ func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.Targ
 			continue
 		}
 		fragType := GetNodePodFrag(nodeRes, pod.TargetPodResource)
-		log.Tracef("nodeRes: %s; pod: %s => fragType: %s\n", nodeRes.Repr(), pod.TargetPodResource.Repr(), fragType)
+		log.Tracef("nodeRes: %s; pod: %s => fragType: %s (freq: %.2f)\n", nodeRes.Repr(), pod.TargetPodResource.Repr(), fragType, freq)
 		if err := fragRatio.AddRatio(fragType, freq); err != nil {
 			log.Errorln(err.Error())
 		}
@@ -112,22 +117,79 @@ func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.Targ
 }
 
 func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragAmount {
-	if len(typicalPods) <= 0 {
-		log.Errorf("Typical Pods list is empty\n")
-		return FragAmount{}
-	}
 	fragRatio := NodeGpuFragRatio(nodeRes, typicalPods)
+	return GetFragAmountByNodeResAndFragRatio(nodeRes, fragRatio)
+}
+
+func GetFragAmountByNodeResAndFragRatio(nodeRes simontype.NodeResource, fragRatio FragRatio) FragAmount {
 	fragAmount := FragAmount{nodeRes.NodeName, fragRatio.Data}
-
-	var gpuMilliLeftTotal int64
-	for _, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
-		gpuMilliLeftTotal += gpuMilliLeft
-	}
-
+	gpuMilliLeftTotal := GetGpuMilliLeftTotal(nodeRes)
 	for i := 0; i < len(fragAmount.Data); i++ {
 		fragAmount.Data[i] *= float64(gpuMilliLeftTotal)
 	}
-	//fmt.Printf("IN NodeGpuFragAmount: %s\n", fragAmount.Repr())
+	return fragAmount
+}
+
+func GetGpuMilliLeftTotal(nodeRes simontype.NodeResource) (gpuMilliLeftTotal int64) {
+	for _, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
+		gpuMilliLeftTotal += gpuMilliLeft
+	}
+	return gpuMilliLeftTotal
+}
+
+func NodeGpuFragAmountBellman(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList, dp *sync.Map) FragAmount {
+	log.Traceln()
+	log.Debugf("Enter bellman with nodeRes(%s)\n", nodeRes.Repr())
+	// Read dp memo
+	nodeResKey := nodeRes.Flatten()
+	if fa, ok := dp.Load(nodeResKey); ok {
+		if fragAmount, ok2 := fa.(FragAmount); ok2 {
+			log.Tracef("Hit Cache! %v\n", nodeResKey)
+			return FragAmount{nodeRes.NodeName, fragAmount.Data}
+		}
+	}
+
+	fragAmount := FragAmount{nodeRes.NodeName, make([]float64, len(FragRatioDataMap))} // r(s) init as all zero
+	if GetGpuMilliLeftTotal(nodeRes) == 0 {
+		return fragAmount // If there are no GPUs left, the frag amount should be all zero
+	}
+
+	gamma := 0.9 // gamma in (0, 1]
+	delta := 1e-6
+	// If missed, calculate and update dp memo
+	fragRatio := NodeGpuFragRatio(nodeRes, typicalPods)
+	if fragRatio.FragRatioSumExceptQ3() < delta {
+		log.Tracef("Zero frag ratio: %.2f\n", fragRatio.FragRatioSumExceptQ3())
+		// Bellman equation: V(s) = r(s) + gamma * sum( p(s'|s) * V(s') )
+		pvSum := FragAmount{nodeRes.NodeName, make([]float64, len(FragRatioDataMap))} // init of pvSum = 0
+		for i, pod := range typicalPods {
+			newNodeRes, err := nodeRes.Sub(pod.TargetPodResource)
+			if err != nil {
+				log.Errorf("nodeRes.Sub(podRes) errs in Bellman: " + err.Error())
+				continue
+			}
+			log.Tracef(" pod[%d](%s) calls Bellman\n", i, pod.TargetPodResource.Repr())
+			p := pod.Percentage
+			v := NodeGpuFragAmountBellman(newNodeRes, typicalPods, dp)
+			log.Tracef("pvSum (before): %s + %s (p=%.2f)\n", pvSum.Repr(), v.Repr(), p)
+			if err = pvSum.AddGamma(v, p); err != nil { // sum( p(s'|s) * V(s') )
+				log.Errorf("pvSum.AddGamma errs in Bellman: " + err.Error())
+			}
+			log.Tracef("pvSum (after) : %s\n", pvSum.Repr())
+		}
+		log.Tracef("gamma (before): %s + %s (gamma=%.2f)\n", fragAmount.Repr(), pvSum.Repr(), gamma)
+		if err := fragAmount.AddGamma(pvSum, gamma); err != nil { // V(s) = r(s) + gamma * sum()
+			log.Errorf("pvSum.AddGamma errs in Bellman: " + err.Error())
+		}
+		log.Tracef("gamma (after) : %s\n", fragAmount.Repr())
+
+	} else {
+		log.Tracef("Got non-zero frag ratio: %s\n", fragRatio.Repr())
+		// else: early cut-off: V(s) = r(s) (if r(s) > 0.001)
+		fragAmount = GetFragAmountByNodeResAndFragRatio(nodeRes, fragRatio)
+	}
+	dp.Store(nodeResKey, FragAmount{"", fragAmount.Data})
+	log.Debugf("dp: Update key(%v) as %s\n", nodeResKey, FragAmount{"", fragAmount.Data}.Repr())
 	return fragAmount
 }
 
@@ -192,6 +254,15 @@ func (fa FragAmount) FragAmountSumExceptQ3() (out float64) {
 	for i := 0; i < len(FragRatioDataMap); i++ {
 		if i != FragRatioDataMap[Q3Satisfied] {
 			out += fa.Data[i]
+		}
+	}
+	return out
+}
+
+func (fr FragRatio) FragRatioSumExceptQ3() (out float64) {
+	for i := 0; i < len(FragRatioDataMap); i++ {
+		if i != FragRatioDataMap[Q3Satisfied] {
+			out += fr.Data[i]
 		}
 	}
 	return out

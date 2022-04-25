@@ -3,6 +3,7 @@ package simulator
 import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"sync"
 
 	"github.com/alibaba/open-simulator/pkg/type"
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
@@ -127,6 +128,7 @@ func (sim *Simulator) RecordNodeTotalResource(nodes []*corev1.Node) (int64, int6
 
 func (sim *Simulator) SetTypicalPods() {
 	sim.typicalPods = utils.GetTypicalPods(sim.workloadPods, sim.customConfig.TypicalPodsConfig)
+	sim.fragRatioMemo = sync.Map{}
 }
 
 func (sim *Simulator) NodeGpuFragAmountMap(nodeResourceMap map[string]simontype.NodeResource) map[string]utils.FragAmount {

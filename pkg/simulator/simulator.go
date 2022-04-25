@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand"
 	"sort"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -52,6 +53,7 @@ type Simulator struct {
 	typicalPods     simontype.TargetPodList
 	nodeResourceMap map[string]simontype.NodeResource
 	customConfig    v1alpha1.CustomConfig
+	fragRatioMemo   sync.Map
 
 	podTotalMilliCpuReq int64
 	podTotalMilliGpuReq int64
@@ -99,11 +101,11 @@ func New(opts ...Option) (Interface, error) {
 	// Step 3: create fake client
 	var client externalclientset.Interface
 	if options.kubeconfig != "" {
-		config, err := clientcmd.BuildConfigFromFlags("", options.kubeconfig)
+		varConfig, err := clientcmd.BuildConfigFromFlags("", options.kubeconfig)
 		if err != nil {
 			log.Errorf("%s\n", err.Error())
 		}
-		client, err = externalclientset.NewForConfig(config)
+		client, err = externalclientset.NewForConfig(varConfig)
 	} else {
 		client = fakeclientset.NewSimpleClientset()
 	}
@@ -139,6 +141,9 @@ func New(opts ...Option) (Interface, error) {
 		},
 		simontype.GpuFragScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuFragScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuFragScoreBellmanPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuFragScoreBellmanPlugin(configuration, handle, &sim.typicalPods, &sim.fragRatioMemo)
 		},
 		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuPackingScorePlugin(configuration, handle)

@@ -11,7 +11,7 @@ import (
 
 type TargetPod struct {
 	TargetPodResource PodResource
-	Percentage        float64
+	Percentage        float64 // range: 0.0 - 1.0 (100%)
 }
 
 type TargetPodList []TargetPod
@@ -42,6 +42,13 @@ type NodeResource struct {
 	//Memory           int64 // TODO
 }
 
+type NodeResourceFlat struct {
+	MilliCpu int64
+	MilliGpu string
+	GpuType  string
+	//Memory   int64
+}
+
 func (tpr PodResource) Repr() string {
 	outStr := "<"
 	outStr += fmt.Sprintf("CPU: %6.2f", float64(tpr.MilliCpu)/1000)
@@ -55,7 +62,7 @@ func (tpr PodResource) Repr() string {
 func (tnr NodeResource) Repr() string {
 	outStr := "<"
 	outStr += fmt.Sprintf("CPU: %6.2f", float64(tnr.MilliCpu)/1000)
-	outStr += fmt.Sprintf(", GPU: %d", tnr.GpuNumber)
+	outStr += fmt.Sprintf(", GPU (%s): %d", tnr.GpuType, tnr.GpuNumber)
 	if tnr.GpuNumber > 0 {
 		outStr += fmt.Sprintf(" x %dm, Left:", gpushareutils.MILLI)
 		for _, gML := range tnr.MilliGpuLeftList {
@@ -64,6 +71,26 @@ func (tnr NodeResource) Repr() string {
 	}
 	outStr += ">"
 	return outStr
+}
+
+func (tnr NodeResource) Flatten() NodeResourceFlat {
+	nrf := NodeResourceFlat{tnr.MilliCpu, "", tnr.GpuType}
+
+	// Sort NodeRes's GpuLeft in descending
+	sort.Slice(tnr.MilliGpuLeftList, func(i, j int) bool { // largest one first
+		return tnr.MilliGpuLeftList[i] > tnr.MilliGpuLeftList[j]
+	})
+
+	// Append 0 to MilliGpu if number of GPUs is fewer than MaxNumGpuPerNode
+	for i := 0; i < MaxNumGpuPerNode; i++ {
+		if i < len(tnr.MilliGpuLeftList) {
+			nrf.MilliGpu += fmt.Sprintf("%d,", tnr.MilliGpuLeftList[i])
+		} else {
+			nrf.MilliGpu += "0,"
+		}
+	}
+
+	return nrf
 }
 
 // ToResourceVec returns a resource vector: [milli cpu request, milli gpu request].

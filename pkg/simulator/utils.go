@@ -241,6 +241,9 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 				Name: simontype.GpuFragScorePluginName,
 			},
 			{
+				Name: simontype.GpuFragScoreBellmanPluginName,
+			},
+			{
 				Name: simontype.GpuPackingScorePluginName,
 			},
 			{

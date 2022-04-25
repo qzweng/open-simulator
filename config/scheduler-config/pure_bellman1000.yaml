@@ -28,12 +28,12 @@ profiles:
         enabled:
           # - name: Gpu-Frag-Score
           #   weight: 1000
-          # - name: Gpu-Frag-Score-Bellman
-          #   weight: 1000
+          - name: Gpu-Frag-Score-Bellman
+            weight: 1000
           # - name: Gpu-Packing-Score
           #   weight: 1000
-          - name: ResourceSimilarity
-            weight: 1000
+          # - name: ResourceSimilarity
+          #   weight: 1000
           # - name: BestFitScore
           #   weight: 1000
           # - name: WorstFitScore

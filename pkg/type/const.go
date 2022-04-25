@@ -5,17 +5,18 @@ import (
 )
 
 const (
-	SimonPluginName              = "Simon"
-	OpenLocalPluginName          = "Open-Local"
-	OpenGpuSharePluginName       = "Open-Gpu-Share"
-	GpuFragScorePluginName       = "Gpu-Frag-Score"
-	GpuPackingScorePluginName    = "Gpu-Packing-Score"
-	ResourceSimilarityPluginName = "ResourceSimilarity"
-	BestFitScorePluginName       = "BestFitScore"
-	WorstFitScorePluginName      = "WorstFitScore"
-	NewNodeNamePrefix            = "simon"
-	SimulatorName                = "Main"
-	DefaultSchedulerName         = "simon-scheduler"
+	SimonPluginName               = "Simon"
+	OpenLocalPluginName           = "Open-Local"
+	OpenGpuSharePluginName        = "Open-Gpu-Share"
+	GpuFragScorePluginName        = "Gpu-Frag-Score"
+	GpuFragScoreBellmanPluginName = "Gpu-Frag-Score-Bellman"
+	GpuPackingScorePluginName     = "Gpu-Packing-Score"
+	ResourceSimilarityPluginName  = "ResourceSimilarity"
+	BestFitScorePluginName        = "BestFitScore"
+	WorstFitScorePluginName       = "WorstFitScore"
+	NewNodeNamePrefix             = "simon"
+	SimulatorName                 = "Main"
+	DefaultSchedulerName          = "simon-scheduler"
 
 	StopReasonSuccess   = "everything is ok"
 	StopReasonDoNotStop = "do not stop"
@@ -58,4 +59,5 @@ const (
 	WorkLoadHashCodeDigit = 10
 	PodHashCodeDigit      = 5
 	MaxNumNewNode         = 0
+	MaxNumGpuPerNode      = 8
 )

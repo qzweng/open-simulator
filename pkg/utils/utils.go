@@ -863,12 +863,12 @@ func GetMasterFromKubeConfig(filename string) (string, error) {
 		return "", fmt.Errorf("can not load kubeconfig file: %v", err)
 	}
 
-	context, ok := config.Contexts[config.CurrentContext]
+	varContext, ok := config.Contexts[config.CurrentContext]
 	if !ok {
 		return "", fmt.Errorf("failed to get master address from kubeconfig")
 	}
 
-	if val, ok := config.Clusters[context.Cluster]; ok {
+	if val, ok := config.Clusters[varContext.Cluster]; ok {
 		return val.Server, nil
 	}
 	return "", fmt.Errorf("failed to get master address from kubeconfig")
@@ -953,13 +953,13 @@ func IsNodeAccessibleToPodByType(nodeGpuType string, podGpuType string) bool {
 
 	pm, ok := utils.MapGpuTypeMemoryMiB[podGpuType]
 	if !ok {
-		fmt.Errorf("Pod GPU Type: %s not in Map", podGpuType)
+		log.Errorf("Pod GPU Type: %s not in Map", podGpuType)
 		return false
 	}
 
 	nm, ok := utils.MapGpuTypeMemoryMiB[nodeGpuType]
 	if !ok {
-		fmt.Errorf("Node GPU Type: %s not in Map", nodeGpuType)
+		log.Errorf("Node GPU Type: %s not in Map", nodeGpuType)
 		return false
 	}
 
