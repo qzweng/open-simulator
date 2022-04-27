@@ -43,6 +43,7 @@ type Interface interface {
 	SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod
 
 	ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary)
+	ClusterGpuFragReport()
 	GetClusterNodeStatus() []simontype.NodeStatus
 
 	SetWorkloadPods(pods []*corev1.Pod)

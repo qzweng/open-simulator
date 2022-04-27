@@ -215,18 +215,18 @@ func (applier *Applier) Run() (err error) {
 				log.Debugf("failed to schedule pod %s/%s: %s", unScheduledPod.Pod.Namespace, unScheduledPod.Pod.Name, unScheduledPod.Reason)
 				if !utils.NodeShouldRunPod(newNode, unScheduledPod.Pod) {
 					fmt.Printf(utils.ColorRed+"failed to schedule pod %s/%s: %s the pod cannot be scheduled successfully by adding node: pod does not fit new node affinity or taints\n"+utils.ColorReset, unScheduledPod.Pod.Namespace, unScheduledPod.Pod.Name, unScheduledPod.Reason)
-					fmt.Printf(utils.ColorRed)
-					report(result.NodeStatus, applier.extendedResources)
-					fmt.Printf(utils.ColorReset)
+					//fmt.Printf(utils.ColorRed)
+					//report(result.NodeStatus, applier.extendedResources)
+					//fmt.Printf(utils.ColorReset)
 					return nil
 				}
 				if m, err := utils.MeetResourceRequests(newNode, unScheduledPod.Pod, allDaemonSets); err != nil {
 					return err
 				} else if !m {
 					fmt.Printf(utils.ColorRed+"failed to schedule pod %s/%s: new node cannot meet resource requests of pod: the total requested resource of daemonset pods in new node is too large\n"+utils.ColorReset, unScheduledPod.Pod.Namespace, unScheduledPod.Pod.Name)
-					fmt.Printf(utils.ColorRed)
-					report(result.NodeStatus, applier.extendedResources)
-					fmt.Printf(utils.ColorReset)
+					//fmt.Printf(utils.ColorRed)
+					//report(result.NodeStatus, applier.extendedResources)
+					//fmt.Printf(utils.ColorReset)
 					return nil
 				}
 			}
@@ -235,9 +235,9 @@ func (applier *Applier) Run() (err error) {
 
 	if success {
 		fmt.Printf(utils.ColorGreen + "Success!\n" + utils.ColorReset)
-		fmt.Printf(utils.ColorGreen)
-		report(result.NodeStatus, applier.extendedResources)
-		fmt.Printf(utils.ColorReset)
+		//fmt.Printf(utils.ColorGreen)
+		//report(result.NodeStatus, applier.extendedResources)
+		//fmt.Printf(utils.ColorReset)
 	} else {
 		fmt.Printf(utils.ColorRed + fmt.Sprintf("we have added %d nodes but it still failed!!", simontype.MaxNumNewNode) + utils.ColorReset)
 	}
@@ -419,7 +419,10 @@ func report(nodeStatuses []simontype.NodeStatus, extendedResources []string) {
 		reqs, _ := utils.GetPodsTotalRequestsAndLimitsByNodeName(allPods, node.Name)
 		nodeCpuReq, nodeMemoryReq := reqs[corev1.ResourceCPU], reqs[corev1.ResourceMemory]
 		nodeCpuReqFraction := float64(nodeCpuReq.MilliValue()) / float64(allocatable.Cpu().MilliValue()) * 100
-		nodeMemoryReqFraction := float64(nodeMemoryReq.Value()) / float64(allocatable.Memory().Value()) * 100
+		var nodeMemoryReqFraction float64
+		if allocatable.Memory().Value() != 0 {
+			nodeMemoryReqFraction = float64(nodeMemoryReq.Value()) / float64(allocatable.Memory().Value()) * 100
+		}
 		newNode := ""
 		if _, exist := node.Labels[simontype.LabelNewNode]; exist {
 			newNode = "√"

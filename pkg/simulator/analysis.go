@@ -18,6 +18,26 @@ const (
 	TagDescheduleInflation = "DescheduleInflation"
 )
 
+// ClusterGpuFragReport Reports the Gpu Frag Amount of all nodes
+func (sim *Simulator) ClusterGpuFragReport() {
+	nodeStatus := sim.GetClusterNodeStatus()
+	if len(nodeStatus) == 0 {
+		return
+	}
+	sim.nodeResourceMap = utils.GetNodeResourceMap(nodeStatus)
+
+	clusterFragAmount := utils.NewFragAmount("cluster", make([]float64, len(utils.FragRatioDataMap)))
+	var clusterFragBellman float64
+	for _, ns := range nodeStatus {
+		if nodeRes, ok := sim.nodeResourceMap[ns.Node.Name]; ok {
+			clusterFragAmount.Add(sim.NodeGpuFragAmount(nodeRes)) // easy to calculate. The regular Frag definition
+			clusterFragBellman += utils.NodeGpuFragBellman(nodeRes, sim.typicalPods, &sim.fragMemo, 1.0)
+		}
+	}
+	log.Infof("[Report] Frag amount: %.2f (origin)\n", clusterFragAmount.FragAmountSumExceptQ3())
+	log.Infof("[Report] Frag amount: %.2f (bellman)\n", clusterFragBellman)
+}
+
 func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary) {
 	nodeStatus := sim.GetClusterNodeStatus()
 	if len(nodeStatus) == 0 {
@@ -40,7 +60,7 @@ func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.Res
 
 	chCount := 0
 	data := make([]float64, len(utils.FragRatioDataMap))
-	clusterFragAmount := utils.FragAmount{NodeName: "cluster", Data: data}
+	clusterFragAmount := utils.NewFragAmount("cluster", data)
 	for nodeFragAmount := range ch {
 		if err := clusterFragAmount.Add(nodeFragAmount); err != nil {
 			log.Errorf("[ClusterAnalysis] %s\n", err.Error())
@@ -89,7 +109,18 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 		log.Errorf("Typical pods are not set.\n")
 		return utils.FragAmount{}
 	}
-	return utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
+
+	nodeResKey := nodeRes.Flatten("origin")
+	if fa, ok := sim.fragMemo.Load(nodeResKey); ok {
+		if frag, ok2 := fa.(utils.FragAmount); ok2 {
+			return frag
+		}
+	} else {
+		frag := utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
+		sim.fragMemo.Store(nodeResKey, frag)
+		return frag
+	}
+	return utils.FragAmount{}
 }
 
 // RecordPodTotalResourceReq will record the total resource requests of all pods,
@@ -128,7 +159,7 @@ func (sim *Simulator) RecordNodeTotalResource(nodes []*corev1.Node) (int64, int6
 
 func (sim *Simulator) SetTypicalPods() {
 	sim.typicalPods = utils.GetTypicalPods(sim.workloadPods, sim.customConfig.TypicalPodsConfig)
-	sim.fragRatioMemo = sync.Map{}
+	sim.fragMemo = sync.Map{}
 }
 
 func (sim *Simulator) NodeGpuFragAmountMap(nodeResourceMap map[string]simontype.NodeResource) map[string]utils.FragAmount {

@@ -94,7 +94,7 @@ func (sim *Simulator) findVictimPodOnNodeFragAware(nodeGpuFrag utils.FragAmount,
 			log.Errorf("[DescheduleCluster][FragOnePod] findVictimPodOnNodeFragAware: nodeRes(%s).Add(podRes(%s)) error:%s\n", nodeRes.Repr(), podRes.Repr(), err.Error())
 			continue
 		}
-		newNodeGpuFrag := utils.NodeGpuFragAmount(newNodeRes, sim.typicalPods)
+		newNodeGpuFrag := sim.NodeGpuFragAmount(newNodeRes)
 		score := int64(nodeGpuFrag.FragAmountSumExceptQ3() - newNodeGpuFrag.FragAmountSumExceptQ3()) // same as gpu-frag-score, the higher, the better
 		if score > victimScore {
 			victimScore = score

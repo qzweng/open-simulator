@@ -22,6 +22,7 @@ type GpuFragScoreBellmanPlugin struct {
 	handle        framework.Handle
 	typicalPods   *simontype.TargetPodList
 	fragRatioMemo *sync.Map
+	sync.RWMutex
 }
 
 // Just to check whether the implemented struct fits the interface
@@ -77,11 +78,17 @@ func (plugin *GpuFragScoreBellmanPlugin) Score(ctx context.Context, state *frame
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("typical pods list is empty\n"))
 	}
 
-	nodeGpuFrag := utils.NodeGpuFragAmount(nodeRes, *plugin.typicalPods)
 	// Key difference between Gpu-Frag-Score and Gpu-Frag-Score-Bellman:
-	newNodeGpuFrag := utils.NodeGpuFragAmountBellman(newNodeRes, *plugin.typicalPods, plugin.fragRatioMemo)
+	///*
+	plugin.Lock()
+	defer plugin.Unlock()
+	nodeGpuFragValue := utils.NodeGpuFragBellman(nodeRes, *plugin.typicalPods, plugin.fragRatioMemo, 1.0)
+	newNodeGpuFragValue := utils.NodeGpuFragBellman(newNodeRes, *plugin.typicalPods, plugin.fragRatioMemo, 1.0)
+	//*/
+	//nodeGpuFragValue := utils.NodeGpuFragBellmanEarlyStop(nodeRes, *plugin.typicalPods, plugin.fragRatioMemo)
+	//newNodeGpuFragValue := utils.NodeGpuFragBellmanEarlyStop(newNodeRes, *plugin.typicalPods, plugin.fragRatioMemo)
 
-	score := int64(nodeGpuFrag.FragAmountSumExceptQ3() - newNodeGpuFrag.FragAmountSumExceptQ3()) // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
+	score := int64(nodeGpuFragValue - newNodeGpuFragValue) // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
 	return score, framework.NewStatus(framework.Success)
 }
 

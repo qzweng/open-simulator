@@ -46,6 +46,7 @@ type NodeResourceFlat struct {
 	MilliCpu int64
 	MilliGpu string
 	GpuType  string
+	Remark   string
 	//Memory   int64
 }
 
@@ -73,8 +74,8 @@ func (tnr NodeResource) Repr() string {
 	return outStr
 }
 
-func (tnr NodeResource) Flatten() NodeResourceFlat {
-	nrf := NodeResourceFlat{tnr.MilliCpu, "", tnr.GpuType}
+func (tnr NodeResource) Flatten(remark string) NodeResourceFlat {
+	nrf := NodeResourceFlat{tnr.MilliCpu, "", tnr.GpuType, remark}
 
 	// Sort NodeRes's GpuLeft in descending
 	sort.Slice(tnr.MilliGpuLeftList, func(i, j int) bool { // largest one first

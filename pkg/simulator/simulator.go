@@ -53,7 +53,7 @@ type Simulator struct {
 	typicalPods     simontype.TargetPodList
 	nodeResourceMap map[string]simontype.NodeResource
 	customConfig    v1alpha1.CustomConfig
-	fragRatioMemo   sync.Map
+	fragMemo        sync.Map
 
 	podTotalMilliCpuReq int64
 	podTotalMilliGpuReq int64
@@ -143,7 +143,7 @@ func New(opts ...Option) (Interface, error) {
 			return simonplugin.NewGpuFragScorePlugin(configuration, handle, &sim.typicalPods)
 		},
 		simontype.GpuFragScoreBellmanPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-			return simonplugin.NewGpuFragScoreBellmanPlugin(configuration, handle, &sim.typicalPods, &sim.fragRatioMemo)
+			return simonplugin.NewGpuFragScoreBellmanPlugin(configuration, handle, &sim.typicalPods, &sim.fragMemo)
 		},
 		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuPackingScorePlugin(configuration, handle)
@@ -327,6 +327,7 @@ func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPo
 			log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
 			failedPods = append(failedPods, *unscheduledPod)
 		}
+		sim.ClusterGpuFragReport()
 	}
 	return failedPods
 }
@@ -846,6 +847,11 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 		log.Infof("[generateWorkloadInflationPods] original workload is empty\n")
 		return nil
 	}
+	podResCntMap := map[simontype.PodResource]float64{}
+	podGpuCntMap := map[string]int64{}
+	for _, v := range utils.GpuNumTypeList {
+		podGpuCntMap[v] = 0
+	}
 
 	ratio := sim.customConfig.WorkloadInflationConfig.Ratio
 	if ratio > 1 {
@@ -856,13 +862,6 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 		podTotalMilliCpuReq, podTotalMilliGpuReq := sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq
 		for i := 0; i < inflationNum; i++ {
 			idx := rand.Intn(n)
-			seed = int64(idx+1) * seed
-			if seed <= 0 {
-				seed += math.MaxInt64
-			}
-			seed = rand.Int63n(seed) + 1
-			log.Debugf("idx: %d, seed: %d\n", idx, seed)
-			rand.Seed(seed)
 			podCloned, err := utils.MakeValidPodByPod(sim.workloadPods[idx].DeepCopy())
 			if err != nil {
 				log.Errorf("[generateWorkloadInflationPods] failed to clone pod(%s)\n",
@@ -886,7 +885,48 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 				break
 			}
 			inflationPods = append(inflationPods, podCloned)
+
+			// Accounting
+			if cnt, ok := podResCntMap[podRes]; ok {
+				podResCntMap[podRes] = cnt + 1
+			} else {
+				podResCntMap[podRes] = 1
+			}
+			switch podRes.GpuNumber {
+			case 0:
+				podGpuCntMap[utils.GpuNumTypeList[0]] += 1 // CPU
+			case 1:
+				if podRes.MilliGpu < gpushareutils.MILLI {
+					podGpuCntMap[utils.GpuNumTypeList[1]] += 1 // ShareGpu
+				} else {
+					podGpuCntMap[utils.GpuNumTypeList[2]] += 1 // OneGpu
+				}
+			case 2:
+				podGpuCntMap[utils.GpuNumTypeList[3]] += 1 // TwoGpu
+			case 4:
+				podGpuCntMap[utils.GpuNumTypeList[4]] += 1 // FourGpu
+			case 8:
+				podGpuCntMap[utils.GpuNumTypeList[5]] += 1 // EightGpu
+			default:
+				podGpuCntMap[utils.GpuNumTypeList[6]] += 1 // Others
+			}
 		}
+		tgtPodList := utils.SortTargetPodInDecreasingCount(podResCntMap)
+		log.Infof("(Inflation) Num of Total Pods: %d\n", len(inflationPods))
+		for _, k := range utils.GpuNumTypeList { // iter List, instead of Map, to guarantee order
+			ratioPct := 100.0 * float64(podGpuCntMap[k]) / float64(len(inflationPods))
+			log.Infof("(Inflation)   %s Pods: %d (%.2f%%)\n", k, podGpuCntMap[k], ratioPct)
+		}
+		log.Infof("(Inflation) Num of Total Pod Sepc: %d\n", len(tgtPodList))
+		var cumRatioPct float64
+		for i := 0; i < len(tgtPodList); i++ {
+			podNumber := tgtPodList[i].Percentage
+			tgtPodList[i].Percentage = podNumber / float64(len(inflationPods)) // normalized to 0.0-1.0
+			ratioPct := 100.0 * tgtPodList[i].Percentage
+			cumRatioPct += ratioPct
+			log.Infof("[%d] %s: %.0f (%.2f%%, cumsum: %.2f%%)\n", i, tgtPodList[i].TargetPodResource.Repr(), podNumber, ratioPct, cumRatioPct)
+		}
+
 		log.Infof("workload inflation ratio: %.4f, "+
 			"the expected number of inflation pods: %d, "+
 			"The actual number of inflation pods: %d, "+

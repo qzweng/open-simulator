@@ -1,12 +1,16 @@
 import os
 import re
+import argparse
+import matplotlib
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 from pathlib import Path
 
 # LOG_RELATIVE_PATH = 'muchong/logs/logs'
 # OUT_CSVNAME = 'analysis_0316.csv'
-LOG_RELATIVE_PATH = 'muchong/logs/0422_artifical_cluster_fixed/'
-OUT_CSVNAME = 'muchong/results/analysis_0422_artifical_cluster_fixed.csv'
+LOG_RELATIVE_PATH = 'muchong/logs/0425_artifical_cluster_bellman/'
+OUT_CSVNAME = 'muchong/results/analysis_0425_artifical_cluster_bellman.csv'
 # LOG_RELATIVE_PATH = 'muchong/logs/logs/testing/'
 # LOG_RELATIVE_PATH = 'muchong/logs/test'
 # OUT_CSVNAME = 'analysis_test.csv'
@@ -33,12 +37,12 @@ HASTAG_COL.extend(QUAD_KEYS)
 NONTAG_COL = ['data_date','inflation','deschedule_ratio','deschedule_policy','snapshot_sc','gpu_pack_score','gpu_frag_score','pack_x_frag','trial','unscheduled','origin_pods']
 NONTAG_COL.extend([camel_to_snake(x) for x in [y+"Total" for y in ALLO_KEYS]])
 
-def move_tag_to_new_column(df):
+def move_tag_to_new_column(df, tag_list=TAG_SNAKE_LIST):
     meta_col = []
     data_col = []
     for col in df.columns:
         is_data_col = False
-        for tag in TAG_SNAKE_LIST:
+        for tag in tag_list:
             if col.endswith("_" + tag):
                 data_col.append(col)
                 is_data_col = True
@@ -58,29 +62,43 @@ def move_tag_to_new_column(df):
                 meta_dict[col] = orig_dict[col]
         # print("meta_dict:", meta_dict)
 
-        data_dict = {}
-        for tag in TAG_SNAKE_LIST:
+        for tag in tag_list:
+            data_dict = {}
             data_dict.update(meta_dict)
             data_dict['tag'] = tag
+            found = 0
             for col in data_col:
                 if col.endswith("_" + tag):
                     key = col[:-(len(tag)+1)]
                     # print(tag, '+', key,'=',col)
                     data_dict[key] = orig_dict.get(col)
-                    continue
-            # print("data_dict:", data_dict)
-            data_row = pd.DataFrame().from_dict(data_dict, orient='index').T
-            out_row_list.append(data_row)
+                    found = 1
+            if found == 1:
+                # print("data_dict:", data_dict)
+                data_row = pd.DataFrame().from_dict(data_dict, orient='index').T
+                out_row_list.append(data_row)
     return pd.concat(out_row_list)
 
-def log_to_csv():
+def fillna_columns_with_tag(df):
+    for x in ['milli_cpu', 'memory', 'gpu', 'milli_gpu', 'milli_cpu_amount', 'memory_amount', 'gpu_amount', 'milli_gpu_amount', 'q1_lack_both', 'q2_lack_gpu', 'q3_satisfied', 'q4_lack_cpu', 'xl_satisfied', 'xr_lack_cpu', 'no_access', 'frag_gpu_milli']:
+        # df.loc[(df['workload']=='ShareGpu80')&(df['num_gpu']==4500), x+"_schedule_inflation"] = \
+        # df.loc[(df['workload']=='ShareGpu80')&(df['num_gpu']==4500), x+"_init_schedule"]
+        df.loc[df.isnull().any(axis=1), x+"_schedule_inflation"] = \
+        df.loc[df.isnull().any(axis=1), x+"_init_schedule"]
+    return df
+
+def log_to_csv(log_relative_path, out_csvname):
     script_path = Path(os.path.dirname(os.path.realpath(__file__)))
-    log_path = script_path.parent / LOG_RELATIVE_PATH
-    out_path = script_path.parent / OUT_CSVNAME
+    log_path = script_path.parent / log_relative_path
+    out_path = script_path.parent / out_csvname
+    out_frag_csvname = out_csvname[:-4] + '_frag.csv'
+    out_frag_path = script_path.parent / out_frag_csvname
     print("Handling logs under:", log_path)
     
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
+    out_frag_col_dict = {}
+    log_file_counter = 0
     for log in os.listdir(log_path):
         file = log_path / log
         if file.suffix != '.log':
@@ -153,13 +171,15 @@ def log_to_csv():
                         meta_dict['trial'] = trial
                 """
 
-                print('  Log: %s => %s' % (log, meta_dict))
+                log_file_counter += 1
+                print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
 
                 fail_dict = {'unscheduled': 0}
                 allo_dict = {}
                 quad_dict = {}
                 amnt_dict = {}
                 totl_dict = {}
+                frag_list_dict = {}
 
                 counter = 0
                 tag = ""
@@ -200,6 +220,15 @@ def log_to_csv():
                         elif key in QUAD_KEYS:
                             quad_dict[camel_to_snake(key+tag)] = float(value.split('(')[1].split('%')[0].strip())
                 
+                    # out_frag_col_dict
+                    if line.startswith("[Report]"): # e.g., "[Report] Frag amount: 37541.99 (origin)"
+                        frag, remark = float(line.split()[3]), line.split()[-1]
+                        remark = remark.split(')')[0].split('(')[1] # get rid of '(' and ')'
+                        if remark not in frag_list_dict:
+                            frag_list_dict[remark] = [frag]
+                        else:
+                            frag_list_dict[remark].append(frag)
+
                 out_dict = {}
                 out_dict.update(meta_dict)
                 out_dict.update(fail_dict)
@@ -209,11 +238,18 @@ def log_to_csv():
                 out_dict.update(totl_dict)
                 out_row = pd.DataFrame().from_dict(out_dict, orient='index').T
                 out_row_list.append(out_row)
+
+                meta_as_key = "-".join(["%s_%s" % (k, v) for k, v in meta_dict.items()])
+                for k, v in frag_list_dict.items():
+                    out_frag_col_dict[meta_as_key+"-"+k] = v
             except Exception as e:
                 print("[Error] Failed at", file, " with error:", e)
 
     outdf = pd.concat(out_row_list)
     outdf.to_csv(out_path, index=False)
+    if len(out_frag_col_dict) > 0:
+        pd.DataFrame().from_dict(out_frag_col_dict, orient='index').T.to_csv(out_frag_path, index=None) 
+        print("Export frag report at:", out_frag_path)
 
 def analysis_table(dfn):
     SEED=233
@@ -245,7 +281,35 @@ def analysis_table(dfn):
             ).sort_values(['milli_gpu','gpu','milli_cpu'], ascending=False
             ).drop(columns=['memory','memory_total','tag','unscheduled','milli_cpu_total','gpu_total','milli_gpu_total','origin_pods','memory_amount','gpu_amount','milli_cpu_amount','milli_gpu_amount']))
 
-def analysis_figure(dfn):
+def analysis_figure_schedule(dfn):
+    TAG="schedule_inflation"
+    RATIO=80
+    print(TAG, RATIO)
+    matplotlib.rcdefaults()
+    matplotlib.rcParams['lines.markersize'] = 12 # 6
+    for WORKLOAD in ["EightGpu%d" % RATIO, "FourGpu%d" % RATIO, "TwoGpu%d" % RATIO, "OneGpu%d" % RATIO, "ShareGpu%d" % RATIO]:
+        SEED=233
+        POLICY_LIST=['frag', 'bellman', 'bestfit', 'sim', 'pack', 'worstfit']
+
+        dfnp = dfn.query('seed==%d'%SEED
+                ).query('workload=="%s"'%WORKLOAD
+                ).query('tag=="%s"'%TAG
+                )
+        
+        plt.figure(figsize=(8, 4), dpi=120)
+        sns.scatterplot(data=dfnp, x='num_gpu', y='milli_gpu', alpha=0.8,
+                        hue="policy", hue_order=POLICY_LIST, 
+                        style="policy", style_order=POLICY_LIST)
+        
+        title_str = "Pods: %s, Seed: %d" % (WORKLOAD, SEED)
+        plt.title(title_str)
+        plt.grid(linestyle='-.', alpha=0.8)
+        plt.legend(ncol=1)
+        # plt.ylim(0, 100)
+
+    matplotlib.rcdefaults()
+
+def analysis_figure_deschedule(dfn):
     SEED=233
     NEW_WORKLOAD="mit"
     DR=0.1
@@ -277,4 +341,9 @@ def analysis_figure(dfn):
     plt.grid(linestyle='-.', alpha=0.8)
 
 if __name__ == "__main__":
-    log_to_csv()
+    parser = argparse.ArgumentParser(description="add csv input")
+    parser.add_argument("logfile", type=str, help="input log file", default=LOG_RELATIVE_PATH)
+    parser.add_argument("outfile", type=str, help="output csv file", default=OUT_CSVNAME)
+    args = parser.parse_args()
+    print("In: ", args.logfile, "\nOut:", args.outfile)
+    log_to_csv(args.logfile, args.outfile)
