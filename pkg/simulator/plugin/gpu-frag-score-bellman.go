@@ -63,7 +63,7 @@ func (plugin *GpuFragScoreBellmanPlugin) Score(ctx context.Context, state *frame
 
 	podRes := utils.GetPodResource(pod)
 	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
-		log.Error("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
+		log.Errorf("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
 		return int64(0), framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
 	}
 	newNodeRes, err := nodeRes.Sub(podRes)

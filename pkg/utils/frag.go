@@ -211,9 +211,11 @@ func NodeGpuFragBellman(nodeRes simontype.NodeResource, typicalPods simontype.Ta
 	var frag float64
 	gpuMilliLeftTotal := float64(GetGpuMilliLeftTotal(nodeRes))
 	if gpuMilliLeftTotal == 0 {
+		//log.Infof("  skip: %s because gpuMilliLeftTotal(%f) == 0\n", nodeRes.Repr(), gpuMilliLeftTotal)
 		return frag
 	}
 	if gpuMilliLeftTotal*cumProb < 1 {
+		//log.Infof("  skip: %s because gpuMilliLeftTotal(%f) * cumProb(%f) < 1\n", nodeRes.Repr(), gpuMilliLeftTotal, cumProb)
 		return 0
 	}
 

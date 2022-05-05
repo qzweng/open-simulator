@@ -36,7 +36,7 @@ type PodResource struct { // typical pod, without name and namespace.
 type NodeResource struct {
 	NodeName         string
 	MilliCpu         int64
-	MilliGpuLeftList []int64
+	MilliGpuLeftList []int64 // Do NOT sort it directly, using SortedMilliGpuLeftIndexList instead. Its order matters; the index is the GPU device index.
 	GpuNumber        int
 	GpuType          string
 	//Memory           int64 // TODO
@@ -74,18 +74,52 @@ func (tnr NodeResource) Repr() string {
 	return outStr
 }
 
+func (tnr NodeResource) GetTotalMilliGpuLeft() (total int64) {
+	for _, v := range tnr.MilliGpuLeftList {
+		total += v
+	}
+	return total
+}
+
+func (tnr NodeResource) GetFullyFreeGpuNum() (free int) {
+	for _, gpuMilliLeft := range tnr.MilliGpuLeftList {
+		if gpuMilliLeft == gpushareutils.MILLI {
+			free++
+		}
+	}
+	return free
+}
+
+func (tnr NodeResource) SortedMilliGpuLeftIndexList(ascending bool) []int {
+	indexList := make([]int, len(tnr.MilliGpuLeftList)) // len == cap == len(tnr.MilliGpuLeftList)
+	for i, _ := range tnr.MilliGpuLeftList {
+		indexList[i] = i
+	}
+
+	if ascending {
+		// smallest one (minimum GPU Milli left) first
+		sort.SliceStable(indexList, func(i, j int) bool {
+			return tnr.MilliGpuLeftList[indexList[i]] < tnr.MilliGpuLeftList[indexList[j]]
+		})
+	} else {
+		// largest one (maximum GPU Milli left) first
+		sort.SliceStable(indexList, func(i, j int) bool {
+			return tnr.MilliGpuLeftList[indexList[i]] > tnr.MilliGpuLeftList[indexList[j]]
+		})
+	}
+	return indexList
+}
+
 func (tnr NodeResource) Flatten(remark string) NodeResourceFlat {
 	nrf := NodeResourceFlat{tnr.MilliCpu, "", tnr.GpuType, remark}
 
 	// Sort NodeRes's GpuLeft in descending
-	sort.Slice(tnr.MilliGpuLeftList, func(i, j int) bool { // largest one first
-		return tnr.MilliGpuLeftList[i] > tnr.MilliGpuLeftList[j]
-	})
+	sortedIndex := tnr.SortedMilliGpuLeftIndexList(false)
 
 	// Append 0 to MilliGpu if number of GPUs is fewer than MaxNumGpuPerNode
 	for i := 0; i < MaxNumGpuPerNode; i++ {
-		if i < len(tnr.MilliGpuLeftList) {
-			nrf.MilliGpu += fmt.Sprintf("%d,", tnr.MilliGpuLeftList[i])
+		if i < len(sortedIndex) {
+			nrf.MilliGpu += fmt.Sprintf("%d,", tnr.MilliGpuLeftList[sortedIndex[i]])
 		} else {
 			nrf.MilliGpu += "0,"
 		}
@@ -111,10 +145,7 @@ func (tnr NodeResource) ToResourceVec() []float64 {
 	// milli cpu left
 	vec = append(vec, float64(tnr.MilliCpu))
 
-	var totalMilliGpuLeft int64 = 0
-	for _, milliGpuLeft := range tnr.MilliGpuLeftList {
-		totalMilliGpuLeft += milliGpuLeft
-	}
+	totalMilliGpuLeft := tnr.GetTotalMilliGpuLeft()
 	// total milli gpu left
 	vec = append(vec, float64(totalMilliGpuLeft))
 	return vec
@@ -148,13 +179,12 @@ func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 	}
 
 	// Sort NodeRes's GpuLeft in ascending, then Pack it (Subtract from the least sufficient one).
-	sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { // smallest one first
-		return out.MilliGpuLeftList[i] < out.MilliGpuLeftList[j]
-	})
-	for i := 0; i < len(out.MilliGpuLeftList); i++ {
-		if tpr.MilliGpu <= out.MilliGpuLeftList[i] {
+	sortedIndex := out.SortedMilliGpuLeftIndexList(true)
+
+	for i := 0; i < len(sortedIndex); i++ {
+		if tpr.MilliGpu <= out.MilliGpuLeftList[sortedIndex[i]] {
 			gpuRequest -= 1
-			out.MilliGpuLeftList[i] -= tpr.MilliGpu
+			out.MilliGpuLeftList[sortedIndex[i]] -= tpr.MilliGpu
 			if gpuRequest <= 0 {
 				//fmt.Printf("[DEBUG] [DONE] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
 				return out, nil
@@ -192,13 +222,12 @@ func (tnr NodeResource) Add(tpr PodResource, idl []int) (NodeResource, error) {
 
 	} else { // evict pod from the smallest remaining resource GPU, may not reflect the real cases
 		log.Infof("Pod (%s) has no valid GPU index list: %v\n", tpr.Repr(), idl)
-		sort.Slice(out.MilliGpuLeftList, func(i, j int) bool { // smallest one first
-			return out.MilliGpuLeftList[i] < out.MilliGpuLeftList[j]
-		})
-		for i := 0; i < len(out.MilliGpuLeftList); i++ {
-			if tpr.MilliGpu+out.MilliGpuLeftList[i] <= gpushareutils.MILLI {
+		sortedIndex := out.SortedMilliGpuLeftIndexList(true) // smallest one first
+
+		for i := 0; i < len(sortedIndex); i++ {
+			if tpr.MilliGpu+out.MilliGpuLeftList[sortedIndex[i]] <= gpushareutils.MILLI {
 				gpuRequest -= 1
-				out.MilliGpuLeftList[i] += tpr.MilliGpu
+				out.MilliGpuLeftList[sortedIndex[i]] += tpr.MilliGpu
 				if gpuRequest <= 0 {
 					//fmt.Printf("[DEBUG] [DONE] out.MilliGpuLeftList: %v\n", out.MilliGpuLeftList)
 					return out, nil

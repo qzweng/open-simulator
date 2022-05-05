@@ -108,7 +108,43 @@ def log_to_csv(log_relative_path, out_csvname):
             try:
                 meta_dict = {}
                 meta = log.split('-')
+
+                # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
+                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+                cconfigs = cconfig.split('_')
+                meta_dict['base'] = cconfigs[0] # paib
+                meta_dict['num_pod'] = int(cconfigs[1].split('snapshot')[1]) # snapshot3000 -> 3000
+                meta_dict['seed'] = int(cconfigs[2].split('seed')[1]) # seed235 -> 235
+                meta_dict['deschedule_ratio'] = float(cconfigs[3].split('dr')[1]) # dr0.1
+                meta_dict['deschedule_policy'] = cconfigs[4].split('dp')[1] # fragMultiPod
+                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+
+                # e.g., 0429_artifical_cluster_deschedule/paib_ShareGpu100_gpu2000_seed233_newTwoGpu80_dr0.1_dpfragMultiPod.yaml-pure_sim1000.yaml.log
+                """
+                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+                cconfigs = cconfig.split('_')
+                meta_dict['base'] = cconfigs[0] # paib
+                meta_dict['workload'] = cconfigs[1] # ShareGpu60
+                meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
+                meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
+                meta_dict['new_workload'] = cconfigs[4] # newTwoGpu80
+                meta_dict['deschedule_ratio'] = float(cconfigs[5].split('dr')[1]) # dr0.1
+                meta_dict['decshedule_policy'] = cconfigs[6].split('dp')[1] # fragMultiPod
+                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+                """
+
+                # e.g., 0429_origin_paib/paib_origin_pod3000.yaml-pure_worstfit1000.yaml.log
+                """
+                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+                cconfigs = cconfig.split('_')
+                meta_dict['base'] = cconfigs[0] # paib
+                meta_dict['workload'] = cconfigs[1] # origin
+                meta_dict['num_pod'] = cconfigs[2].split('pod')[1] # pod3000 -> 3000
+                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+                """
+
                 # e.g., paib_ShareGpu60_gpu1500_seed235.yaml-pure_sim1000.yaml.log
+                """
                 cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
                 cconfigs = cconfig.split('_')
                 meta_dict['base'] = cconfigs[0] # paib
@@ -116,6 +152,7 @@ def log_to_csv(log_relative_path, out_csvname):
                 meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
                 meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
                 meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+                """
 
                 ## e.g., paib_dpfragMultiPod_dr5_seed234_pod2000ns.yaml-pure_bestfit1000.yaml.log
                 """

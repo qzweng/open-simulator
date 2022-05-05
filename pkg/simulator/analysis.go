@@ -112,12 +112,13 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 
 	nodeResKey := nodeRes.Flatten("origin")
 	if fa, ok := sim.fragMemo.Load(nodeResKey); ok {
-		if frag, ok2 := fa.(utils.FragAmount); ok2 {
+		if fragData, ok2 := fa.([]float64); ok2 {
+			frag := utils.NewFragAmount(nodeRes.NodeName, fragData)
 			return frag
 		}
 	} else {
 		frag := utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
-		sim.fragMemo.Store(nodeResKey, frag)
+		sim.fragMemo.Store(nodeResKey, frag.Data)
 		return frag
 	}
 	return utils.FragAmount{}

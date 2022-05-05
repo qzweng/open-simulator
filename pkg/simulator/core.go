@@ -87,6 +87,7 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	log.Infof("Number of original workload pods: %d", len(cluster.Pods))
 	sim.SetWorkloadPods(cluster.Pods)
 	sim.SetTypicalPods()
+	sim.ClusterGpuFragReport()
 
 	for _, item := range cluster.DaemonSets {
 		validPods, err := utils.MakeValidPodsByDaemonset(item, cluster.Nodes)
@@ -136,11 +137,13 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		log.Infof("Number of new workload pods: %d\n", len(newWorkloadPods))
 		sim.SetWorkloadPods(newWorkloadPods)
 		sim.SetTypicalPods()
+		sim.ClusterGpuFragReport()
 	}
 	if customConfig.DescheduleConfig.Policy != "" {
 		unscheduledPods = sim.DescheduleCluster()
 		failedPods = append(failedPods, unscheduledPods...)
 		sim.ClusterAnalysis(TagPostDeschedule)
+		sim.ClusterGpuFragReport()
 
 		if customConfig.ExportConfig.PodSnapshotYamlFilePrefix != "" {
 			sim.ExportPodSnapshotInYaml(unscheduledPods,

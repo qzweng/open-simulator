@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"sort"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -75,12 +74,7 @@ func (plugin *GpuPackingScorePlugin) ScoreExtensions() framework.ScoreExtensions
 //     case-2. use free GPUs on a used node: return maxNodeScore/2 - fullyFreeGpuNumToUse, capped in the range [maxNodeScore/3, maxNodeScore/2]
 //     case-3. use free GPUs on a free node: return maxNodeScore/3 - freeGpuNum, capped in the range [minNodeScore, maxNodeScore/3]
 func getPackingScore(podRes simontype.PodResource, nodeRes simontype.NodeResource) (int64, error) {
-	var fullyFreeGpuNum = 0
-	for _, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
-		if gpuMilliLeft == gpushareutils.MILLI {
-			fullyFreeGpuNum++
-		}
-	}
+	fullyFreeGpuNum := nodeRes.GetFullyFreeGpuNum()
 
 	// case-3: all gpus on the node are free
 	if fullyFreeGpuNum == nodeRes.GpuNumber {
@@ -89,16 +83,15 @@ func getPackingScore(podRes simontype.PodResource, nodeRes simontype.NodeResourc
 		return cappedScore, nil
 	}
 
-	sort.SliceStable(nodeRes.MilliGpuLeftList, func(i, j int) bool {
-		return nodeRes.MilliGpuLeftList[i] < nodeRes.MilliGpuLeftList[j]
-	})
+	sortedIndex := nodeRes.SortedMilliGpuLeftIndexList(true) // minimum GPU left first
 	var gpuReq = podRes.GpuNumber
 	var fullyFreeGpuNumToUse = 0
 	var gpuToUse []int
-	for idx, gpuMilliLeft := range nodeRes.MilliGpuLeftList {
+	for _, idx := range sortedIndex {
 		if gpuReq == 0 {
 			break
 		}
+		gpuMilliLeft := nodeRes.MilliGpuLeftList[idx]
 		if podRes.MilliGpu <= gpuMilliLeft {
 			gpuReq--
 			gpuToUse = append(gpuToUse, idx)

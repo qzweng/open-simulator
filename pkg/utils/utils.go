@@ -950,6 +950,9 @@ func IsNodeAccessibleToPodByType(nodeGpuType string, podGpuType string) bool {
 	if len(podGpuType) == 0 {
 		return true
 	}
+	if len(nodeGpuType) == 0 {
+		return false // i.e., CPU node
+	}
 
 	pm, ok := utils.MapGpuTypeMemoryMiB[podGpuType]
 	if !ok {

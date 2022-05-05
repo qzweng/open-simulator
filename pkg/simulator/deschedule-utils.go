@@ -48,17 +48,11 @@ func sortNodeStatusByResource(milliCpuBar int64, nodeStatus []simontype.NodeStat
 	sort.SliceStable(nodeStatus, func(i, j int) bool {
 		nodeI := nodeStatus[i].Node.Name
 		nodeResI := nodeResMap[nodeI]
-		milliGpuLeftI := int64(0)
-		for _, milliGpuLeft := range nodeResI.MilliGpuLeftList {
-			milliGpuLeftI += milliGpuLeft
-		}
+		milliGpuLeftI := nodeResI.GetTotalMilliGpuLeft()
 
 		nodeJ := nodeStatus[j].Node.Name
 		nodeResJ := nodeResMap[nodeJ]
-		milliGpuLeftJ := int64(0)
-		for _, milliGpuLeft := range nodeResJ.MilliGpuLeftList {
-			milliGpuLeftJ += milliGpuLeft
-		}
+		milliGpuLeftJ := nodeResJ.GetTotalMilliGpuLeft()
 
 		if nodeResI.MilliCpu < milliCpuBar {
 			if nodeResJ.MilliCpu < milliCpuBar {
