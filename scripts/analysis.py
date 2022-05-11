@@ -2,6 +2,7 @@ import os
 import re
 import argparse
 import matplotlib
+from numpy import sort
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -87,6 +88,22 @@ def fillna_columns_with_tag(df):
         df.loc[df.isnull().any(axis=1), x+"_init_schedule"]
     return df
 
+def get_meta_dict_from_logname(log):
+    meta_dict = {}
+    meta = log.split('-')
+
+    # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['num_pod'] = int(cconfigs[1].split('snapshot')[1]) # snapshot3000 -> 3000
+    meta_dict['seed'] = int(cconfigs[2].split('seed')[1]) # seed235 -> 235
+    meta_dict['deschedule_ratio'] = float(cconfigs[3].split('dr')[1]) # dr0.1
+    meta_dict['deschedule_policy'] = cconfigs[4].split('dp')[1] # fragMultiPod
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+
+    return meta_dict
+
 def log_to_csv(log_relative_path, out_csvname):
     script_path = Path(os.path.dirname(os.path.realpath(__file__)))
     log_path = script_path.parent / log_relative_path
@@ -106,10 +123,10 @@ def log_to_csv(log_relative_path, out_csvname):
             continue
         with open(file, 'r') as f:
             try:
-                meta_dict = {}
-                meta = log.split('-')
+                meta_dict = get_meta_dict_from_logname(log)
 
                 # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
+                """
                 cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
                 cconfigs = cconfig.split('_')
                 meta_dict['base'] = cconfigs[0] # paib
@@ -118,6 +135,7 @@ def log_to_csv(log_relative_path, out_csvname):
                 meta_dict['deschedule_ratio'] = float(cconfigs[3].split('dr')[1]) # dr0.1
                 meta_dict['deschedule_policy'] = cconfigs[4].split('dp')[1] # fragMultiPod
                 meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+                """
 
                 # e.g., 0429_artifical_cluster_deschedule/paib_ShareGpu100_gpu2000_seed233_newTwoGpu80_dr0.1_dpfragMultiPod.yaml-pure_sim1000.yaml.log
                 """
@@ -288,6 +306,72 @@ def log_to_csv(log_relative_path, out_csvname):
         pd.DataFrame().from_dict(out_frag_col_dict, orient='index').T.to_csv(out_frag_path, index=None) 
         print("Export frag report at:", out_frag_path)
 
+
+def failed_pods_in_detail(log_relative_path):
+    script_path = Path(os.path.dirname(os.path.realpath(__file__)))
+    log_path = script_path.parent / log_relative_path
+    # out_path = script_path.parent / out_csvname
+    # out_frag_csvname = out_csvname[:-4] + '_frag.csv'
+    # out_frag_path = script_path.parent / out_frag_csvname
+    print("Handling logs under:", log_path)
+    
+    NUM_CLUSTER_ANALYSIS_LINE = 16
+    out_row_list = []
+    out_frag_col_dict = {}
+    log_file_counter = 0
+    for log in os.listdir(log_path):
+        file = log_path / log
+        if file.suffix != '.log':
+            print('[INFO] skip file:', file)
+            continue
+        with open(file, 'r') as f:
+            try:
+                meta_dict = get_meta_dict_from_logname(log)
+                log_file_counter += 1
+                print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
+
+                counter = 0
+                done = 0
+                rsrc_dict = {}
+                for i, line in enumerate(f.readlines()):
+                    if counter > 0:
+                        INFOMSG="level=info msg="
+                        if INFOMSG not in line:
+                            counter = 0
+                            sort_rsrc_dict = {k: v for k, v in sorted(rsrc_dict.items(), key=lambda item: -item[1])}
+                            if done == 0:
+                                print("Schedule Inflation:")
+                            else:
+                                print("Deschedule Inflation:")
+                            for k, v in sort_rsrc_dict.items():
+                                print("%2d; <%s>" % (v, k))
+                            done += 1
+                            rsrc_dict = {}
+                            continue
+                        line = line.split(INFOMSG)[1]
+                        line = line[1:-2] # get rid of " and \n"
+
+                        rsrc = line.split("<")[1].split(">")[0]
+                        if rsrc not in rsrc_dict:
+                            rsrc_dict[rsrc] = 1
+                        else :
+                            rsrc_dict[rsrc] += 1
+
+                    else:
+                        INFOMSG="level=info msg="
+                        if INFOMSG not in line:
+                            continue
+                        line = line.split(INFOMSG)[1]
+                        line = line[1:-2] # get rid of " and \n"
+
+
+                        if "Failed Pods in detail" in line:
+                            counter = 1
+
+            except Exception as e:
+                print("[Error] Failed at", file, " with error:", e)
+
+
 def analysis_table(dfn):
     SEED=233
     NEW_WORKLOAD="mit"
@@ -381,6 +465,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="add csv input")
     parser.add_argument("logfile", type=str, help="input log file", default=LOG_RELATIVE_PATH)
     parser.add_argument("outfile", type=str, help="output csv file", default=OUT_CSVNAME)
+    parser.add_argument('--failed', dest='failed', action='store_true', help='output failed pods')
+    parser.set_defaults(failed=False)
     args = parser.parse_args()
-    print("In: ", args.logfile, "\nOut:", args.outfile)
-    log_to_csv(args.logfile, args.outfile)
+    if args.failed:
+        failed_pods_in_detail(args.logfile)
+    else:
+        print("In: ", args.logfile, "\nOut:", args.outfile)
+        log_to_csv(args.logfile, args.outfile)
