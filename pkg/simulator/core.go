@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"fmt"
+	"os"
 
 	log "github.com/sirupsen/logrus"
 	appsv1 "k8s.io/api/apps/v1"
@@ -113,12 +114,26 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 
 	customConfig := sim.GetCustomConfig()
 	if customConfig.ExportConfig.PodSnapshotYamlFilePrefix != "" {
-		sim.ExportPodSnapshotInYaml(unscheduledPods,
-			fmt.Sprintf("%s_%s.yaml", customConfig.ExportConfig.PodSnapshotYamlFilePrefix, TagInitSchedule))
+		// filePath: prefix/InitSchedule/pod-snapshot.yaml
+		prefix := customConfig.ExportConfig.PodSnapshotYamlFilePrefix
+		fileDir := fmt.Sprintf("%s/%s", prefix, TagInitSchedule)
+		if e := os.MkdirAll(fileDir, os.FileMode(0777)); e != nil {
+			log.Errorf("MkdirAll(%s, 0777) failed: %s", fileDir, e.Error())
+		} else {
+			filePath := fmt.Sprintf("%s/%s", fileDir, "pod-snapshot.yaml")
+			sim.ExportPodSnapshotInYaml(unscheduledPods, filePath)
+		}
 	}
 	if customConfig.ExportConfig.NodeSnapshotCSVFilePrefix != "" {
-		sim.ExportNodeSnapshotInCSV(
-			fmt.Sprintf("%s_%s.csv", customConfig.ExportConfig.NodeSnapshotCSVFilePrefix, TagInitSchedule))
+		// filePath: prefix/InitSchedule/node-snapshot.csv
+		prefix := customConfig.ExportConfig.NodeSnapshotCSVFilePrefix
+		fileDir := fmt.Sprintf("%s/%s", prefix, TagInitSchedule)
+		if e := os.MkdirAll(fileDir, os.FileMode(0777)); e != nil {
+			log.Errorf("MkdirAll(%s, 0777) failed: %s", fileDir, e.Error())
+		} else {
+			filePath := fmt.Sprintf("%s/%s", fileDir, "node-snapshot.csv")
+			sim.ExportNodeSnapshotInCSV(filePath)
+		}
 	}
 
 	if customConfig.WorkloadInflationConfig.Ratio > 1 {
@@ -146,12 +161,26 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		sim.ClusterGpuFragReport()
 
 		if customConfig.ExportConfig.PodSnapshotYamlFilePrefix != "" {
-			sim.ExportPodSnapshotInYaml(unscheduledPods,
-				fmt.Sprintf("%s_%s.yaml", customConfig.ExportConfig.PodSnapshotYamlFilePrefix, TagPostDeschedule))
+			// filePath: prefix/PostDeschedule/pod-snapshot.yaml
+			prefix := customConfig.ExportConfig.PodSnapshotYamlFilePrefix
+			fileDir := fmt.Sprintf("%s/%s", prefix, TagPostDeschedule)
+			if e := os.MkdirAll(fileDir, os.FileMode(0777)); e != nil {
+				log.Errorf("MkdirAll(%s, 0777) failed: %s", fileDir, e.Error())
+			} else {
+				filePath := fmt.Sprintf("%s/%s", fileDir, "pod-snapshot.yaml")
+				sim.ExportPodSnapshotInYaml(unscheduledPods, filePath)
+			}
 		}
 		if customConfig.ExportConfig.NodeSnapshotCSVFilePrefix != "" {
-			sim.ExportNodeSnapshotInCSV(
-				fmt.Sprintf("%s_%s.csv", customConfig.ExportConfig.NodeSnapshotCSVFilePrefix, TagPostDeschedule))
+			// filePath: prefix/PostDeschedule/node-snapshot.csv
+			prefix := customConfig.ExportConfig.NodeSnapshotCSVFilePrefix
+			fileDir := fmt.Sprintf("%s/%s", prefix, TagPostDeschedule)
+			if e := os.MkdirAll(fileDir, os.FileMode(0777)); e != nil {
+				log.Errorf("MkdirAll(%s, 0777) failed: %s", fileDir, e.Error())
+			} else {
+				filePath := fmt.Sprintf("%s/%s", fileDir, "node-snapshot.csv")
+				sim.ExportNodeSnapshotInCSV(filePath)
+			}
 		}
 	}
 	if customConfig.NewWorkloadConfig != "" || customConfig.DescheduleConfig.Policy != "" {

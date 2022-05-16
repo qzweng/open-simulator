@@ -1,8 +1,6 @@
-import os
 import re
 import argparse
 import matplotlib
-from numpy import sort
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -88,9 +86,42 @@ def fillna_columns_with_tag(df):
         df.loc[df.isnull().any(axis=1), x+"_init_schedule"]
     return df
 
-def get_meta_dict_from_logname(log):
+def get_meta_dict_from_logname(log: str, log_dir: Path=None):
+    if log.startswith("log-"):
+        log = log[4:]
+
     meta_dict = {}
     meta = log.split('-')
+
+    if log_dir: # experiment_dir
+        # e.g., experiments/exp0516_1/log-cc_ow1000_dr0.0_pe_mde2bee5c4e1a7415b95ae76e10d556520.yaml-sc_frag1000_mdf0915880b7b35b894ada5b57a69c9e15.yaml.log
+        exp_dir = Path(log_dir)
+        cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+        cc_file = exp_dir / (cconfig + ".yaml")
+        sc_file = exp_dir / (sconfig + ".yaml")
+        if cc_file.is_file() and sc_file.is_file():
+            for item in cconfig.split('_'):
+                if item.startswith("ow"):
+                    meta_dict["ow"]=item.split("ow")[1]
+                if item.startswith("dr"):
+                    meta_dict["dr"]=float(item.split("dr")[1])
+                if item.startswith("pe"):
+                    meta_dict["pe"]=1
+                if item.startswith("md"):
+                    meta_dict["ccmd"] = item.split("md")[1]
+
+            meta_dict["policy"] = ""
+            for item in sconfig.split('_'):
+                if item.startswith("sc"):
+                    continue
+                if item.startswith("md"):
+                    meta_dict["scmd"] = item.split("md")[1]
+                else: # frag1000, or (bellman400 + sim400 + frag200)
+                    meta_dict["policy"] += "_"+item if len(meta_dict) == 0 else item
+
+            return meta_dict
+        else:
+            pass # fall back to normal execution
 
     # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
     cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
@@ -101,130 +132,122 @@ def get_meta_dict_from_logname(log):
     meta_dict['deschedule_ratio'] = float(cconfigs[3].split('dr')[1]) # dr0.1
     meta_dict['deschedule_policy'] = cconfigs[4].split('dp')[1] # fragMultiPod
     meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
-
     return meta_dict
 
-def log_to_csv(log_relative_path, out_csvname):
-    script_path = Path(os.path.dirname(os.path.realpath(__file__)))
-    log_path = script_path.parent / log_relative_path
-    out_path = script_path.parent / out_csvname
-    out_frag_csvname = out_csvname[:-4] + '_frag.csv'
-    out_frag_path = script_path.parent / out_frag_csvname
-    print("Handling logs under:", log_path)
+    # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['num_pod'] = int(cconfigs[1].split('snapshot')[1]) # snapshot3000 -> 3000
+    meta_dict['seed'] = int(cconfigs[2].split('seed')[1]) # seed235 -> 235
+    meta_dict['deschedule_ratio'] = float(cconfigs[3].split('dr')[1]) # dr0.1
+    meta_dict['deschedule_policy'] = cconfigs[4].split('dp')[1] # fragMultiPod
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    # e.g., 0429_artifical_cluster_deschedule/paib_ShareGpu100_gpu2000_seed233_newTwoGpu80_dr0.1_dpfragMultiPod.yaml-pure_sim1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['workload'] = cconfigs[1] # ShareGpu60
+    meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
+    meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
+    meta_dict['new_workload'] = cconfigs[4] # newTwoGpu80
+    meta_dict['deschedule_ratio'] = float(cconfigs[5].split('dr')[1]) # dr0.1
+    meta_dict['decshedule_policy'] = cconfigs[6].split('dp')[1] # fragMultiPod
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    # e.g., 0429_origin_paib/paib_origin_pod3000.yaml-pure_worstfit1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['workload'] = cconfigs[1] # origin
+    meta_dict['num_pod'] = cconfigs[2].split('pod')[1] # pod3000 -> 3000
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    # e.g., paib_ShareGpu60_gpu1500_seed235.yaml-pure_sim1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['workload'] = cconfigs[1] # ShareGpu60
+    meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
+    meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    ## e.g., paib_dpfragMultiPod_dr5_seed234_pod2000ns.yaml-pure_bestfit1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['new_workload'] = cconfigs[0]
+    meta_dict['deschedule_policy'] = cconfigs[1].split('dp')[1]
+    meta_dict['deschedule_ratio'] = round(int(cconfigs[2].split('dr')[1]) / 10, 1)
+    meta_dict['seed'] = int(cconfigs[3].split('seed')[1])
+    meta_dict['num_paib_pod'] = int(cconfigs[4].split('pod')[1].split('ns')[0])
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    ## e.g., experiments_235_mit.yaml-frag0_pack700_sim300.yaml.log
+    """
+    meta_dict['seed'] = meta[0].split('_')[1] # 235
+    meta_dict['pod_dist'] = meta[0].split('_')[2].split('.yaml')[0] # mit
+    frag_str, pack_str, sim_str = meta[1].split('.')[0].split('_')
+    meta_dict['frag'] = frag_str.split('frag')[1]
+    meta_dict['pack'] = pack_str.split('pack')[1]
+    meta_dict['sim'] = sim_str.split('sim')[1]
+    """
+
+    ## e.g,. paib-2022_03_18_11_36_45-ir11-dr01-dp1-0x1000-2.log
+    """
+    _, data_date = meta[0], meta[1]
+    meta_dict = {'data_date': data_date}
+    for item in meta[2:]:
+        if 'ir' in item:
+            inflation = item # ir15
+            inflation = int(inflation.split('ir')[1]) * 10 # 150
+            meta_dict['inflation'] = inflation
+        elif 'dr' in item:                
+            deschedule_ratio = item # dr01
+            deschedule_ratio = int(deschedule_ratio.split('dr')[1]) * 10 # 10
+            meta_dict['deschedule_ratio'] = deschedule_ratio
+        elif 'dp' in item:
+            deschedule_policy = item # dp1
+            deschedule_policy = deschedule_policy.split('dp')[1] # 1
+            deschedule_policy = DESCHEDULE_POLICY_DICT.get(deschedule_policy, deschedule_policy) # cosSim
+            meta_dict['deschedule_policy'] = deschedule_policy
+        elif 'ss' in item and 'x' in item:
+            snapshot_sc = item # ss900x100
+            snapshot_sc = snapshot_sc.split('ss')[1]  # 900x100
+            meta_dict['snapshot_sc'] = snapshot_sc
+        elif 'x' in item:
+            score_weights = item # 900x100
+            [pack, frag] = score_weights.split('x') # 900,100
+            meta_dict['pack_x_frag'] = score_weights
+            meta_dict['pack'], meta_dict['frag'] = pack, frag
+        elif '.log' in item:
+            trial = item.split('.log')[0] # 1.log
+            meta_dict['trial'] = trial
+    """
+
+def log_to_csv(log_path: Path, outfile: Path):
+    out_frag_path = outfile.parent / (outfile.stem + '_frag.csv')
+    print("Handling logs under  :", log_path)
     
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
     out_frag_col_dict = {}
     log_file_counter = 0
-    for log in os.listdir(log_path):
-        file = log_path / log
-        if file.suffix != '.log':
-            print('[INFO] skip file:', file)
-            continue
+    for file in log_path.glob("*.log"):
+        log = file.name
         with open(file, 'r') as f:
             try:
-                meta_dict = get_meta_dict_from_logname(log)
-
-                # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
-                """
-                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
-                cconfigs = cconfig.split('_')
-                meta_dict['base'] = cconfigs[0] # paib
-                meta_dict['num_pod'] = int(cconfigs[1].split('snapshot')[1]) # snapshot3000 -> 3000
-                meta_dict['seed'] = int(cconfigs[2].split('seed')[1]) # seed235 -> 235
-                meta_dict['deschedule_ratio'] = float(cconfigs[3].split('dr')[1]) # dr0.1
-                meta_dict['deschedule_policy'] = cconfigs[4].split('dp')[1] # fragMultiPod
-                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
-                """
-
-                # e.g., 0429_artifical_cluster_deschedule/paib_ShareGpu100_gpu2000_seed233_newTwoGpu80_dr0.1_dpfragMultiPod.yaml-pure_sim1000.yaml.log
-                """
-                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
-                cconfigs = cconfig.split('_')
-                meta_dict['base'] = cconfigs[0] # paib
-                meta_dict['workload'] = cconfigs[1] # ShareGpu60
-                meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
-                meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
-                meta_dict['new_workload'] = cconfigs[4] # newTwoGpu80
-                meta_dict['deschedule_ratio'] = float(cconfigs[5].split('dr')[1]) # dr0.1
-                meta_dict['decshedule_policy'] = cconfigs[6].split('dp')[1] # fragMultiPod
-                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
-                """
-
-                # e.g., 0429_origin_paib/paib_origin_pod3000.yaml-pure_worstfit1000.yaml.log
-                """
-                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
-                cconfigs = cconfig.split('_')
-                meta_dict['base'] = cconfigs[0] # paib
-                meta_dict['workload'] = cconfigs[1] # origin
-                meta_dict['num_pod'] = cconfigs[2].split('pod')[1] # pod3000 -> 3000
-                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
-                """
-
-                # e.g., paib_ShareGpu60_gpu1500_seed235.yaml-pure_sim1000.yaml.log
-                """
-                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
-                cconfigs = cconfig.split('_')
-                meta_dict['base'] = cconfigs[0] # paib
-                meta_dict['workload'] = cconfigs[1] # ShareGpu60
-                meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
-                meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
-                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
-                """
-
-                ## e.g., paib_dpfragMultiPod_dr5_seed234_pod2000ns.yaml-pure_bestfit1000.yaml.log
-                """
-                cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
-                cconfigs = cconfig.split('_')
-                meta_dict['new_workload'] = cconfigs[0]
-                meta_dict['deschedule_policy'] = cconfigs[1].split('dp')[1]
-                meta_dict['deschedule_ratio'] = round(int(cconfigs[2].split('dr')[1]) / 10, 1)
-                meta_dict['seed'] = int(cconfigs[3].split('seed')[1])
-                meta_dict['num_paib_pod'] = int(cconfigs[4].split('pod')[1].split('ns')[0])
-                meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
-                """
-
-                ## e.g., experiments_235_mit.yaml-frag0_pack700_sim300.yaml.log
-                """
-                meta_dict['seed'] = meta[0].split('_')[1] # 235
-                meta_dict['pod_dist'] = meta[0].split('_')[2].split('.yaml')[0] # mit
-                frag_str, pack_str, sim_str = meta[1].split('.')[0].split('_')
-                meta_dict['frag'] = frag_str.split('frag')[1]
-                meta_dict['pack'] = pack_str.split('pack')[1]
-                meta_dict['sim'] = sim_str.split('sim')[1]
-                """
-
-                ## e.g,. paib-2022_03_18_11_36_45-ir11-dr01-dp1-0x1000-2.log
-                """
-                _, data_date = meta[0], meta[1]
-                meta_dict = {'data_date': data_date}
-                for item in meta[2:]:
-                    if 'ir' in item:
-                        inflation = item # ir15
-                        inflation = int(inflation.split('ir')[1]) * 10 # 150
-                        meta_dict['inflation'] = inflation
-                    elif 'dr' in item:                
-                        deschedule_ratio = item # dr01
-                        deschedule_ratio = int(deschedule_ratio.split('dr')[1]) * 10 # 10
-                        meta_dict['deschedule_ratio'] = deschedule_ratio
-                    elif 'dp' in item:
-                        deschedule_policy = item # dp1
-                        deschedule_policy = deschedule_policy.split('dp')[1] # 1
-                        deschedule_policy = DESCHEDULE_POLICY_DICT.get(deschedule_policy, deschedule_policy) # cosSim
-                        meta_dict['deschedule_policy'] = deschedule_policy
-                    elif 'ss' in item and 'x' in item:
-                        snapshot_sc = item # ss900x100
-                        snapshot_sc = snapshot_sc.split('ss')[1]  # 900x100
-                        meta_dict['snapshot_sc'] = snapshot_sc
-                    elif 'x' in item:
-                        score_weights = item # 900x100
-                        [pack, frag] = score_weights.split('x') # 900,100
-                        meta_dict['pack_x_frag'] = score_weights
-                        meta_dict['pack'], meta_dict['frag'] = pack, frag
-                    elif '.log' in item:
-                        trial = item.split('.log')[0] # 1.log
-                        meta_dict['trial'] = trial
-                """
+                meta_dict = get_meta_dict_from_logname(log=log, log_dir=log_path)
 
                 log_file_counter += 1
                 print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
@@ -301,32 +324,24 @@ def log_to_csv(log_relative_path, out_csvname):
                 print("[Error] Failed at", file, " with error:", e)
 
     outdf = pd.concat(out_row_list)
-    outdf.to_csv(out_path, index=False)
+    outdf.to_csv(outfile, index=False)
     if len(out_frag_col_dict) > 0:
         pd.DataFrame().from_dict(out_frag_col_dict, orient='index').T.to_csv(out_frag_path, index=None) 
         print("Export frag report at:", out_frag_path)
 
 
-def failed_pods_in_detail(log_relative_path):
-    script_path = Path(os.path.dirname(os.path.realpath(__file__)))
-    log_path = script_path.parent / log_relative_path
-    # out_path = script_path.parent / out_csvname
-    # out_frag_csvname = out_csvname[:-4] + '_frag.csv'
-    # out_frag_path = script_path.parent / out_frag_csvname
+def failed_pods_in_detail(log_path):
     print("Handling logs under:", log_path)
     
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
     out_frag_col_dict = {}
     log_file_counter = 0
-    for log in os.listdir(log_path):
-        file = log_path / log
-        if file.suffix != '.log':
-            print('[INFO] skip file:', file)
-            continue
+    for file in log_path.glob("*.log"):
+        log = file.name
         with open(file, 'r') as f:
             try:
-                meta_dict = get_meta_dict_from_logname(log)
+                meta_dict = get_meta_dict_from_logname(log=log, log_dir=log_path)
                 log_file_counter += 1
                 print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
 
@@ -464,12 +479,18 @@ def analysis_figure_deschedule(dfn):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="add csv input")
     parser.add_argument("logfile", type=str, help="input log file", default=LOG_RELATIVE_PATH)
-    parser.add_argument("outfile", type=str, help="output csv file", default=OUT_CSVNAME)
+    parser.add_argument("-o", "--outfile", type=str, help="output csv file", default=None)
     parser.add_argument('--failed', dest='failed', action='store_true', help='output failed pods')
     parser.set_defaults(failed=False)
     args = parser.parse_args()
+
+    # script_path = Path(os.path.dirname(os.path.realpath(__file__)))
+    script_path = Path(__file__).parent
+    log_path = script_path.parent / args.logfile
+
     if args.failed:
-        failed_pods_in_detail(args.logfile)
+        failed_pods_in_detail(log_path)
     else:
-        print("In: ", args.logfile, "\nOut:", args.outfile)
-        log_to_csv(args.logfile, args.outfile)
+        outfile = log_path / "analysis.csv" if not args.outfile else Path(args.outfile)
+        print("In: ", log_path, "\nOut:", outfile)
+        log_to_csv(log_path, outfile)
