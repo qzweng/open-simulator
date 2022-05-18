@@ -5,7 +5,7 @@ import argparse
 import subprocess
 from hashlib import md5
 from pathlib import Path
-""" Usage:
+""" Usage: paib 0 =sim_1K=> 3K pods =desch_10%=> snapshot_01 =sim_1K=> 3K pods =desch_10%=> snapshot_02 =frag_1K=> 3K pods
 python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 -e -b \
 -f data/cluster_paib-pod_paib_0318_gpu_1000 \
@@ -13,12 +13,20 @@ python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 -r 0.1 -p fragMultiPod \
 -y experiments/exp0516_1/snapshot/dr01x1000 \
 && \
+python3 scripts/i_inject_origin_workload_into_snapshot.py \
+data/cluster_paib-pod_paib_0318_gpu_1000 \
+experiments/exp0516_1/snapshot/dr01x1000/PostDeschedule
+&& \
 python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 -e -b \
 -f experiments/exp0516_1/snapshot/dr01x1000/PostDeschedule \
 -sim 1000 \
 -r 0.1 -p fragMultiPod \
 -y experiments/exp0516_1/snapshot/dr01x2000 \
+&& \
+python3 scripts/i_inject_origin_workload_into_snapshot.py \
+data/cluster_paib-pod_paib_0318_gpu_1000 \
+experiments/exp0516_1/snapshot/dr01x2000/PostDeschedule
 && \
 python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 -e -b \
@@ -28,6 +36,7 @@ python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 -y experiments/exp0516_1/snapshot/dr01x3000 \
 && \
 python3 scripts/analysis.py experiments/exp0516_1
+
 """
 
 def get_args():
