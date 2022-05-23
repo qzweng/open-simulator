@@ -225,6 +225,7 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 			{},
 		}
 	}
+	kcfg.PercentageOfNodesToScore = 100
 	kcfg.Profiles[0].SchedulerName = simontype.DefaultSchedulerName
 	if kcfg.Profiles[0].Plugins == nil {
 		kcfg.Profiles[0].Plugins = &kubeschedulerconfig.Plugins{}

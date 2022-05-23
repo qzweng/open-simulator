@@ -12,8 +12,8 @@ spec:
   customConfig:
     shufflePod: false
     exportConfig:
-      podSnapshotYamlFilePrefix: "snapshot/pod_snapshot"
-      nodeSnapshotCSVFilePrefix: "snapshot/node_snapshot"
+#      podSnapshotYamlFilePrefix: "snapshot/pod_snapshot"
+#      nodeSnapshotCSVFilePrefix: "snapshot/node_snapshot"
     workloadInflationConfig:
       ratio: 1.2
       seed: 233

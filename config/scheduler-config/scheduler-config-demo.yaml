@@ -1,5 +1,6 @@
 apiVersion: kubescheduler.config.k8s.io/v1beta1
 kind: KubeSchedulerConfiguration
+percentageOfNodesToScore: 100
 profiles:
   - schedulerName: simon-scheduler
     plugins:
