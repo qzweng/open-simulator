@@ -1,4 +1,5 @@
 import yaml
+import random
 import shutil
 import argparse
 from pathlib import Path
@@ -21,11 +22,12 @@ def inject_origin_workload_into_snapshot(origin, snapshot):
     iter_snapshot = yaml.safe_load_all(open(snapshot, 'r'))
     iter_origin = yaml.safe_load_all(open(origin_yaml, 'r'))
 
+    ssid = random.randint(1000, 9999) # snapshot id, making 2 snapshots gives 0.01% chance of collision
     index = 0
     for pod_yaml in iter_snapshot:
         if pod_yaml is None or len(pod_yaml) == 0:
             continue
-        pod_yaml["metadata"]["name"] += "-ss%d" % index
+        pod_yaml["metadata"]["name"] += "-ss%d" % ssid
         pod_yaml["metadata"]["annotations"]["alibabacloud.com/creation-time"] = "1970-01-01T00:00:00Z"
         if index == 0:
             with open(outfile, 'w') as file:
@@ -36,7 +38,7 @@ def inject_origin_workload_into_snapshot(origin, snapshot):
                 yaml.dump(pod_yaml, file)    
         index += 1
         # print(index)
-    print("Inject %d snapshot pods" % index)
+    print("[ssid:%d] Inject %d snapshot pods" % (ssid, index))
     for pod_yaml in iter_origin:
         if pod_yaml is None or len(pod_yaml) == 0:
             continue

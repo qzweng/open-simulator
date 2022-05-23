@@ -267,6 +267,7 @@ func (sim *Simulator) createPod(p *corev1.Pod) error {
 	if pod != nil {
 		if pod.Spec.NodeName != "" {
 			sim.syncNodeUpdateOnPodCreate(pod.Spec.NodeName, pod, 2*time.Millisecond)
+			log.Infof("pod(%s) is scheduled to node(%s)\n", utils.GeneratePodKey(pod), pod.Spec.NodeName)
 		}
 	} else {
 		log.Errorf("[createPod] pod(%s) not created, should not happen", utils.GeneratePodKey(p))

@@ -60,8 +60,8 @@ def get_args():
     parser.add_argument('--is-consider-gpu-res-weight', type=str, default="false", help='whether to consider GPU resource weight (default: false)')
 
     parser.add_argument('--cluster-name', type=str, default='simon-paib-config', help='name of the cluster config')
+    parser.add_argument('-a', '--applist-path', type=str, default=None, help='path to the app list')
     parser.add_argument('--applist-name', type=str, default=None, help='name of the app list')
-    parser.add_argument('--applist-path', type=str, default=None, help='path to the app list')
     parser.add_argument('--new-node', type=str, default="example/newnode/gpushare")
     parser.add_argument('--shuffle-pod', type=str, default="false", help='whether to shuffle pod. true is to shuffle, false (default) respect the submission order')
     parser.add_argument('--workload-inflation-ratio', type=int, default=100, help='workload inflation ratio')
@@ -124,8 +124,10 @@ def generate_cluster_config(args, outdir):
         if k == "metadata":
             v["name"] = args.cluster_name
         elif k == "spec":
-            if args.applist_name is not None and args.applist_path is not None:
-                v["appList"][0]["name"] = args.applist_name
+            if args.applist_path is not None:
+                applist_name = "pai_gpu" if args.applist_name is None else args.applist_name
+                v["appList"] = [dict()]
+                v["appList"][0]["name"] = applist_name
                 v["appList"][0]["path"] = args.applist_path
 
             v['cluster']["customConfig"] = args.custom_config
@@ -178,6 +180,7 @@ def generate_cluster_config(args, outdir):
 SCHEDULER_CONFIG_TEMPLATE="""
 apiVersion: kubescheduler.config.k8s.io/v1beta1
 kind: KubeSchedulerConfiguration
+percentageOfNodesToScore: 100
 profiles:
   - schedulerName: simon-scheduler
     plugins:
