@@ -16,9 +16,28 @@ type TargetPod struct {
 
 type TargetPodList []TargetPod
 
-func (p TargetPodList) Len() int           { return len(p) }
-func (p TargetPodList) Less(i, j int) bool { return p[i].Percentage < p[j].Percentage }
-func (p TargetPodList) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
+func (p TargetPodList) Len() int { return len(p) }
+func (p TargetPodList) Less(i, j int) bool {
+	if p[i].Percentage != p[j].Percentage {
+		return p[i].Percentage < p[j].Percentage
+	} else { // to stabilize the order if two TargetPod has the same frequency
+		return p[i].TargetPodResource.Less(p[j].TargetPodResource)
+	}
+}
+
+func (tpr PodResource) Less(other PodResource) bool {
+	if tpr.MilliCpu != other.MilliCpu {
+		return tpr.MilliCpu < other.MilliCpu
+	} else if tpr.MilliGpu != other.MilliGpu {
+		return tpr.MilliGpu < other.MilliGpu
+	} else if tpr.GpuNumber != other.GpuNumber {
+		return tpr.GpuNumber < other.GpuNumber
+	} else {
+		return tpr.GpuType < other.GpuType
+	}
+}
+
+func (p TargetPodList) Swap(i, j int) { p[i], p[j] = p[j], p[i] }
 
 const (
 	DefaultTypicalPodPopularityThreshold = 60 // 60%

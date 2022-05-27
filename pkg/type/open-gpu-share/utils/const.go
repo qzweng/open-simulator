@@ -24,3 +24,16 @@ var MapGpuTypeMemoryMiB = map[string]int{
 	"3090":    int(25446842368 / 1024 / 1024), // 24268 MiB, "GeForce-RTX-3090"
 	"V100M32": int(34089205760 / 1024 / 1024), // 32510 MiB, "Tesla-V100-SXM2-32GB", "Tesla-V100S-PCIE-32GB"
 }
+
+/*
+| model                | num_gpu | num_node | gpu_mem_each |
+| -------------------- | ------- | -------- | ------------ |
+| CPU                  | 0       | 727      | 0            |
+| GeForce-RTX-2080-Ti  | 3248    | 406      | 11019        |
+| GeForce-GTX-1080-Ti  | 16      | 2        | 11178        |
+| Tesla-T4             | 802     | 382      | 15109        |
+| Tesla-V100-SXM2-16GB | 201     | 61       | 16130        |
+| Tesla-V100-SXM2-16GB | 201     | 61       | 16160        |
+| Tesla-P100-PCIE-16GB | 382     | 200      | 16280        |
+| Tesla-V100-SXM2-32GB | 284     | 40       | 32510        |
+*/

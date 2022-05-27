@@ -65,7 +65,7 @@ def get_args():
     parser.add_argument('--new-node', type=str, default="example/newnode/gpushare")
     parser.add_argument('--shuffle-pod', type=str, default="false", help='whether to shuffle pod. true is to shuffle, false (default) respect the submission order')
     parser.add_argument('--workload-inflation-ratio', type=int, default=100, help='workload inflation ratio')
-    parser.add_argument('--workload-inflation-seed', type=int, default=233, help='workload inflation seed')
+    parser.add_argument('-seed','--workload-inflation-seed', type=int, default=233, help='workload inflation seed')
 
     # scheduler config
     parser.add_argument("-frag", '--gpu-frag-score', type=int, default=0, help="score (default: 0)")
@@ -352,18 +352,21 @@ def exp(args):
     scheduler_file = Path(scheduler_file)
     print("    sc: %s" % scheduler_file)
 
-    if cluster_file and scheduler_file and args.execute:
+    log_file = ""
+    command = ""
+    if cluster_file and scheduler_file:
         log_dir = expdir
         log_file = log_dir / ("log%s%s%s%s.log" % (LOGSEP, cluster_file.name, LOGSEP, scheduler_file.name))
         ## start experiments
         command = './bin/simon apply --extended-resources "gpu" -f %s --default-scheduler-config %s' % (cluster_file, scheduler_file)
         print("    Ex:", command)
-        print("    >>:", log_file)
-        with open(log_file,"wb") as log, open(log_file,"wb") as log:
-            if args.block:
-                subprocess.call(command.split(),stdout=log,stderr=log)  # it blocks. the python will exit but the process remains.
-            else:
-                subprocess.Popen(command.split(),stdout=log,stderr=log)  # it is non-block. the python will exit but the process remains.
+        print("    >>:", log_file, "\n")
+        if args.execute:
+          with open(log_file,"wb") as log, open(log_file,"wb") as log:
+              if args.block:
+                  subprocess.call(command.split(),stdout=log,stderr=log)  # it blocks. the python will exit but the process remains.
+              else:
+                  subprocess.Popen(command.split(),stdout=log,stderr=log)  # it is non-block. the python will exit but the process remains.
     else:
         print("  Exit without execution")
 

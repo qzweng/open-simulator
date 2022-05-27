@@ -2,7 +2,7 @@ package utils
 
 import (
 	"fmt"
-	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
+	"math"
 	"sort"
 	"sync"
 
@@ -11,6 +11,7 @@ import (
 
 	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
 	"github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 const (
@@ -110,6 +111,7 @@ func (fa FragAmount) Repr() (outStr string) {
 func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragRatio {
 	data := make([]float64, len(FragRatioDataMap))
 	fragRatio := FragRatio{data}
+	var cumFragRatio float64
 	for _, pod := range typicalPods {
 		freq := pod.Percentage
 		if freq < 0 || freq > 1 {
@@ -121,6 +123,10 @@ func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.Targ
 		if err := fragRatio.AddRatio(fragType, freq); err != nil {
 			log.Errorln(err.Error())
 		}
+		cumFragRatio += freq
+	}
+	if math.Abs(cumFragRatio-1) > 1e-3 {
+		log.Errorf("[DEBUG] cumFragRatio(%.2f) != 1.0\n", cumFragRatio)
 	}
 	return fragRatio
 }
@@ -395,8 +401,25 @@ func GetTypicalPods(allPods []*v1.Pod, config v1alpha1.TypicalPodsConfig) simont
 	log.Infof("Count top %d pod resource spec as typical ones, accounting for %.2f%% of all pods\n", i, 100.0*cumNumPods/total)
 	log.Infoln()
 
-	return tgtPodList[:i]
-	//sim.typicalPods = tgtPodList[:i]
+	if i >= len(tgtPodList) {
+		log.Infoln("THIS")
+		return tgtPodList
+	} else {
+		log.Infoln("THAT")
+		outPodList := tgtPodList[:i] // chopping at i-th pods
+		// normalize Percentage to 0.0 - 1.0 after chopping i-th pods
+		var cumRatioPct float64
+		for _, pod := range outPodList {
+			pod.Percentage /= cumNumPods / total
+			cumRatioPct += pod.Percentage
+		}
+		if math.Abs(cumRatioPct-1) > 1e-3 {
+			log.Errorf("Renormalization fails (%.4f != 1.0): %v\n", cumRatioPct, outPodList)
+		} else {
+			log.Infof("")
+		}
+		return outPodList
+	}
 }
 
 func (fa FragAmount) FragAmountSumExceptQ3() (out float64) {

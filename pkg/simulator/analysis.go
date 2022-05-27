@@ -34,8 +34,14 @@ func (sim *Simulator) ClusterGpuFragReport() {
 			clusterFragBellman += utils.NodeGpuFragBellman(nodeRes, sim.typicalPods, &sim.fragMemo, 1.0)
 		}
 	}
-	log.Infof("[Report] Frag amount: %.2f (origin)\n", clusterFragAmount.FragAmountSumExceptQ3())
-	log.Infof("[Report] Frag amount: %.2f (bellman)\n", clusterFragBellman)
+	var idleGpuMilli float64
+	for _, v := range clusterFragAmount.Data {
+		idleGpuMilli += v
+	}
+	fragGpuMilli := clusterFragAmount.FragAmountSumExceptQ3()
+	fragGpuRatio := 100 * fragGpuMilli / idleGpuMilli
+	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; (origin)\n", fragGpuMilli, fragGpuRatio)
+	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; (bellman)\n", clusterFragBellman, 100*clusterFragBellman/idleGpuMilli)
 }
 
 func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary) {

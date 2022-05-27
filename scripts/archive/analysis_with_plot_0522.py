@@ -1,7 +1,9 @@
 import re
 import argparse
-import subprocess
+import matplotlib
 import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
 from pathlib import Path
 
 # LOG_RELATIVE_PATH = 'muchong/logs/logs'
@@ -132,9 +134,110 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
     meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
     return meta_dict
 
+    # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['num_pod'] = int(cconfigs[1].split('snapshot')[1]) # snapshot3000 -> 3000
+    meta_dict['seed'] = int(cconfigs[2].split('seed')[1]) # seed235 -> 235
+    meta_dict['deschedule_ratio'] = float(cconfigs[3].split('dr')[1]) # dr0.1
+    meta_dict['deschedule_policy'] = cconfigs[4].split('dp')[1] # fragMultiPod
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    # e.g., 0429_artifical_cluster_deschedule/paib_ShareGpu100_gpu2000_seed233_newTwoGpu80_dr0.1_dpfragMultiPod.yaml-pure_sim1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['workload'] = cconfigs[1] # ShareGpu60
+    meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
+    meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
+    meta_dict['new_workload'] = cconfigs[4] # newTwoGpu80
+    meta_dict['deschedule_ratio'] = float(cconfigs[5].split('dr')[1]) # dr0.1
+    meta_dict['decshedule_policy'] = cconfigs[6].split('dp')[1] # fragMultiPod
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    # e.g., 0429_origin_paib/paib_origin_pod3000.yaml-pure_worstfit1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['workload'] = cconfigs[1] # origin
+    meta_dict['num_pod'] = cconfigs[2].split('pod')[1] # pod3000 -> 3000
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    # e.g., paib_ShareGpu60_gpu1500_seed235.yaml-pure_sim1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['base'] = cconfigs[0] # paib
+    meta_dict['workload'] = cconfigs[1] # ShareGpu60
+    meta_dict['num_gpu'] = cconfigs[2].split('gpu')[1] # gpu1500 -> 1500
+    meta_dict['seed'] = int(cconfigs[3].split('seed')[1]) # seed235 -> 235
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    ## e.g., paib_dpfragMultiPod_dr5_seed234_pod2000ns.yaml-pure_bestfit1000.yaml.log
+    """
+    cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
+    cconfigs = cconfig.split('_')
+    meta_dict['new_workload'] = cconfigs[0]
+    meta_dict['deschedule_policy'] = cconfigs[1].split('dp')[1]
+    meta_dict['deschedule_ratio'] = round(int(cconfigs[2].split('dr')[1]) / 10, 1)
+    meta_dict['seed'] = int(cconfigs[3].split('seed')[1])
+    meta_dict['num_paib_pod'] = int(cconfigs[4].split('pod')[1].split('ns')[0])
+    meta_dict['policy'] = sconfig.split('pure_')[1].split('1000')[0]
+    """
+
+    ## e.g., experiments_235_mit.yaml-frag0_pack700_sim300.yaml.log
+    """
+    meta_dict['seed'] = meta[0].split('_')[1] # 235
+    meta_dict['pod_dist'] = meta[0].split('_')[2].split('.yaml')[0] # mit
+    frag_str, pack_str, sim_str = meta[1].split('.')[0].split('_')
+    meta_dict['frag'] = frag_str.split('frag')[1]
+    meta_dict['pack'] = pack_str.split('pack')[1]
+    meta_dict['sim'] = sim_str.split('sim')[1]
+    """
+
+    ## e.g,. paib-2022_03_18_11_36_45-ir11-dr01-dp1-0x1000-2.log
+    """
+    _, data_date = meta[0], meta[1]
+    meta_dict = {'data_date': data_date}
+    for item in meta[2:]:
+        if 'ir' in item:
+            inflation = item # ir15
+            inflation = int(inflation.split('ir')[1]) * 10 # 150
+            meta_dict['inflation'] = inflation
+        elif 'dr' in item:                
+            deschedule_ratio = item # dr01
+            deschedule_ratio = int(deschedule_ratio.split('dr')[1]) * 10 # 10
+            meta_dict['deschedule_ratio'] = deschedule_ratio
+        elif 'dp' in item:
+            deschedule_policy = item # dp1
+            deschedule_policy = deschedule_policy.split('dp')[1] # 1
+            deschedule_policy = DESCHEDULE_POLICY_DICT.get(deschedule_policy, deschedule_policy) # cosSim
+            meta_dict['deschedule_policy'] = deschedule_policy
+        elif 'ss' in item and 'x' in item:
+            snapshot_sc = item # ss900x100
+            snapshot_sc = snapshot_sc.split('ss')[1]  # 900x100
+            meta_dict['snapshot_sc'] = snapshot_sc
+        elif 'x' in item:
+            score_weights = item # 900x100
+            [pack, frag] = score_weights.split('x') # 900,100
+            meta_dict['pack_x_frag'] = score_weights
+            meta_dict['pack'], meta_dict['frag'] = pack, frag
+        elif '.log' in item:
+            trial = item.split('.log')[0] # 1.log
+            meta_dict['trial'] = trial
+    """
+
 def log_to_csv(log_path: Path, outfile: Path):
     out_frag_path = outfile.parent / (outfile.stem + '_frag.csv')
-    # print("Handling logs under  :", log_path)
+    print("Handling logs under  :", log_path)
     
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
@@ -147,7 +250,7 @@ def log_to_csv(log_path: Path, outfile: Path):
                 meta_dict = get_meta_dict_from_logname(log=log, log_dir=log_path)
 
                 log_file_counter += 1
-                # print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
+                print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
 
                 fail_dict = {'unscheduled': 0}
                 allo_dict = {}
@@ -196,26 +299,13 @@ def log_to_csv(log_path: Path, outfile: Path):
                             quad_dict[camel_to_snake(key+tag)] = float(value.split('(')[1].split('%')[0].strip())
                 
                     # out_frag_col_dict
-                    if line.startswith("[Report]"):
-                        if len(line.split(';')) == 4: # e.g., "[Report]; Frag amount: 1260102.17; Frag ratio: 26.77%; (origin)\n" # 0527-
-                            _, milli, ratio, remark = line.split(';')
-                            milli = float(milli.split(':')[1].strip())
-                            ratio = float(ratio.split(':')[1].strip().split('%')[0])
-                            remark = remark.split('(')[1].split(')')[0].strip()
-                            keys = [remark+"_milli", remark+"_ratio"]
-                            values = [milli, ratio]
-                            for key, val in zip(keys, values):
-                                if key in frag_list_dict:
-                                    frag_list_dict[key].append(val)
-                                else:
-                                    frag_list_dict[key] = [val]
-                        else: # e.g., "[Report] Frag amount: 37541.99 (origin)" # 0427-0526
-                            frag, remark = float(line.split()[3]), line.split()[-1]
-                            remark = remark.split(')')[0].split('(')[1] # get rid of '(' and ')'
-                            if remark not in frag_list_dict:
-                                frag_list_dict[remark] = [frag]
-                            else:
-                                frag_list_dict[remark].append(frag)
+                    if line.startswith("[Report]"): # e.g., "[Report] Frag amount: 37541.99 (origin)"
+                        frag, remark = float(line.split()[3]), line.split()[-1]
+                        remark = remark.split(')')[0].split('(')[1] # get rid of '(' and ')'
+                        if remark not in frag_list_dict:
+                            frag_list_dict[remark] = [frag]
+                        else:
+                            frag_list_dict[remark].append(frag)
 
                 out_dict = {}
                 out_dict.update(meta_dict)
@@ -236,18 +326,13 @@ def log_to_csv(log_path: Path, outfile: Path):
     outdf = pd.concat(out_row_list)
     outdf.to_csv(outfile, index=False)
     if len(out_frag_col_dict) > 0:
-        df = pd.DataFrame().from_dict(out_frag_col_dict, orient='index').T
-        if 'origin_pods' in df:
-            df.sort_values('origin_pods', inplace=True, ascending=True)
-        df.to_csv(out_frag_path, index=None) 
-        # print("Export frag report at:", out_frag_path)
+        pd.DataFrame().from_dict(out_frag_col_dict, orient='index').T.to_csv(out_frag_path, index=None) 
+        print("Export frag report at:", out_frag_path)
 
 
 def failed_pods_in_detail(log_path):
-    outfilepath = Path(log_path) / "analysis_fail.out"
-    # print("Handling logs under:", log_path)
-    print("Failed pods:", outfilepath)
-    outfile = open(outfilepath, 'w')
+    print("Handling logs under:", log_path)
+    
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
     out_frag_col_dict = {}
@@ -258,8 +343,7 @@ def failed_pods_in_detail(log_path):
             try:
                 meta_dict = get_meta_dict_from_logname(log=log, log_dir=log_path)
                 log_file_counter += 1
-                # print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
-                outfile.write("\n===\n%s\n" % log)
+                print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
 
                 counter = 0
                 done = 0
@@ -270,17 +354,13 @@ def failed_pods_in_detail(log_path):
                         if INFOMSG not in line:
                             counter = 0
                             sort_rsrc_dict = {k: v for k, v in sorted(rsrc_dict.items(), key=lambda item: -item[1])}
-                            # if done == 0:
-                            #     # print("Schedule Inflation:")
-                            #     outfile.write("Schedule Inflation\n")
-                            # else:
-                            #     # print("Deschedule Inflation:")
-                            #     outfile.write("Deschedule Inflation\n")
-                            done += 1
-                            outfile.write("Failed No.: %d" % done)
+                            if done == 0:
+                                print("Schedule Inflation:")
+                            else:
+                                print("Deschedule Inflation:")
                             for k, v in sort_rsrc_dict.items():
-                                # print("%2d; <%s>" % (v, k))
-                                outfile.write("%2d; <%s>\n" % (v, k))
+                                print("%2d; <%s>" % (v, k))
+                            done += 1
                             rsrc_dict = {}
                             continue
                         line = line.split(INFOMSG)[1]
@@ -306,28 +386,101 @@ def failed_pods_in_detail(log_path):
             except Exception as e:
                 print("[Error] Failed at", file, " with error:", e)
 
-def grep_log_cluster_analysis(log_path):
-    outfile = Path(log_path) / "analysis_grep.out"
-    print("Log grep:", outfile)
-    for i, file in enumerate(log_path.glob("*.log")):
-        # print('[%4d] %s'% (i + 1, file))
-        with open(outfile, 'ab') as out:
-            out.write(("\n===\n# %s:\n" % file.name).encode())
+
+def analysis_table(dfn):
+    SEED=233
+    NEW_WORKLOAD="mit"
+    DR=0.1
+    NUM_PAIB_POD=5000
+
+    dfnp = dfn.query('seed==%d'%SEED
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('tag=="deschedule_inflation" or tag=="init_schedule"'
+            )
+
+    print('deschedule_inflation')
+    display(dfn.query('seed==%d'%SEED
+            ).query('tag=="deschedule_inflation"'
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('num_paib_pod==%d'%NUM_PAIB_POD
+            ).sort_values(['milli_gpu','gpu','milli_cpu'], ascending=False
+            ).drop(columns=['memory','memory_total','tag','unscheduled','milli_cpu_total','gpu_total','milli_gpu_total','origin_pods','memory_amount','gpu_amount','milli_cpu_amount','milli_gpu_amount']))
+
+    print('\nschedule_inflation')
+    display(dfn.query('seed==%d'%SEED
+            ).query('tag=="schedule_inflation"'
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('num_paib_pod==%d'%NUM_PAIB_POD
+            ).sort_values(['milli_gpu','gpu','milli_cpu'], ascending=False
+            ).drop(columns=['memory','memory_total','tag','unscheduled','milli_cpu_total','gpu_total','milli_gpu_total','origin_pods','memory_amount','gpu_amount','milli_cpu_amount','milli_gpu_amount']))
+
+def analysis_figure_schedule(dfn):
+    TAG="schedule_inflation"
+    RATIO=80
+    print(TAG, RATIO)
+    matplotlib.rcdefaults()
+    matplotlib.rcParams['lines.markersize'] = 12 # 6
+    for WORKLOAD in ["EightGpu%d" % RATIO, "FourGpu%d" % RATIO, "TwoGpu%d" % RATIO, "OneGpu%d" % RATIO, "ShareGpu%d" % RATIO]:
+        SEED=233
+        POLICY_LIST=['frag', 'bellman', 'bestfit', 'sim', 'pack', 'worstfit']
+
+        dfnp = dfn.query('seed==%d'%SEED
+                ).query('workload=="%s"'%WORKLOAD
+                ).query('tag=="%s"'%TAG
+                )
         
-        with open(outfile, 'ab') as out:
-            command_list = ["grep", "-e", "Cluster Analysis", "-A", "16", file]
-            subprocess.call(command_list,stdout=out)  # it blocks. the python will exit but the process remains.
+        plt.figure(figsize=(8, 4), dpi=120)
+        sns.scatterplot(data=dfnp, x='num_gpu', y='milli_gpu', alpha=0.8,
+                        hue="policy", hue_order=POLICY_LIST, 
+                        style="policy", style_order=POLICY_LIST)
         
-        # print("Done")
+        title_str = "Pods: %s, Seed: %d" % (WORKLOAD, SEED)
+        plt.title(title_str)
+        plt.grid(linestyle='-.', alpha=0.8)
+        plt.legend(ncol=1)
+        # plt.ylim(0, 100)
+
+    matplotlib.rcdefaults()
+
+def analysis_figure_deschedule(dfn):
+    SEED=233
+    NEW_WORKLOAD="mit"
+    DR=0.1
+    POLICY_LIST=['frag', 'bestfit' , 'pack', 'sim']
+
+    TAG="deschedule_inflation"
+    dfnp = dfn.query('seed==%d'%SEED
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('tag=="%s"'%TAG
+            )
+    plt.figure(figsize=(8, 4), dpi=120)
+    sns.scatterplot(data=dfnp, x='origin_pods', y='milli_gpu', hue="policy", hue_order=POLICY_LIST, style='deschedule_policy', size='tag', sizes=(100, 50), alpha=0.6)
+    title_str = "%s: New Pods: %s, DR: %s, Seed: %d" % (TAG, NEW_WORKLOAD, DR, SEED)
+    plt.title(title_str)
+    plt.grid(linestyle='-.', alpha=0.8)
 
 
+    TAG="schedule_inflation"
+    dfnp = dfn.query('seed==%d'%SEED
+            ).query('new_workload=="%s"'%NEW_WORKLOAD
+            ).query('deschedule_ratio==%s'%DR
+            ).query('tag=="%s"'%TAG
+            )
+    plt.figure(figsize=(8, 4), dpi=120)
+    sns.scatterplot(data=dfnp, x='origin_pods', y='milli_gpu', hue="policy", hue_order=POLICY_LIST, style='deschedule_policy', size='tag', sizes=(100, 50), alpha=0.6)
+    title_str = "%s: New Pods: %s, DR: %s, Seed: %d" % (TAG, NEW_WORKLOAD, DR, SEED)
+    plt.title(title_str)
+    plt.grid(linestyle='-.', alpha=0.8)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="add csv input")
     parser.add_argument("logfile", type=str, help="input log file", default=LOG_RELATIVE_PATH)
     parser.add_argument("-o", "--outfile", type=str, help="output csv file", default=None)
-    parser.add_argument("-g", "--grep", dest='grep', action='store_true', help="output grepped results")
-    parser.add_argument("-f", "--failed", dest='failed', action='store_true', help='output failed pods')
+    parser.add_argument('--failed', dest='failed', action='store_true', help='output failed pods')
     parser.set_defaults(failed=False)
     args = parser.parse_args()
 
@@ -337,10 +490,7 @@ if __name__ == "__main__":
 
     if args.failed:
         failed_pods_in_detail(log_path)
-
-    if args.grep:
-        grep_log_cluster_analysis(log_path)
-
-    outfile = log_path / "analysis.csv" if not args.outfile else Path(args.outfile)
-    print("In: ", log_path, "\nOut:", outfile)
-    log_to_csv(log_path, outfile)
+    else:
+        outfile = log_path / "analysis.csv" if not args.outfile else Path(args.outfile)
+        print("In: ", log_path, "\nOut:", outfile)
+        log_to_csv(log_path, outfile)
