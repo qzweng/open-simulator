@@ -111,7 +111,6 @@ func (fa FragAmount) Repr() (outStr string) {
 func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) FragRatio {
 	data := make([]float64, len(FragRatioDataMap))
 	fragRatio := FragRatio{data}
-	var cumFragRatio float64
 	for _, pod := range typicalPods {
 		freq := pod.Percentage
 		if freq < 0 || freq > 1 {
@@ -123,10 +122,6 @@ func NodeGpuFragRatio(nodeRes simontype.NodeResource, typicalPods simontype.Targ
 		if err := fragRatio.AddRatio(fragType, freq); err != nil {
 			log.Errorln(err.Error())
 		}
-		cumFragRatio += freq
-	}
-	if math.Abs(cumFragRatio-1) > 1e-3 {
-		log.Errorf("[DEBUG] cumFragRatio(%.2f) != 1.0\n", cumFragRatio)
 	}
 	return fragRatio
 }
@@ -402,21 +397,17 @@ func GetTypicalPods(allPods []*v1.Pod, config v1alpha1.TypicalPodsConfig) simont
 	log.Infoln()
 
 	if i >= len(tgtPodList) {
-		log.Infoln("THIS")
 		return tgtPodList
 	} else {
-		log.Infoln("THAT")
 		outPodList := tgtPodList[:i] // chopping at i-th pods
 		// normalize Percentage to 0.0 - 1.0 after chopping i-th pods
 		var cumRatioPct float64
-		for _, pod := range outPodList {
-			pod.Percentage /= cumNumPods / total
-			cumRatioPct += pod.Percentage
+		for j := 0; j < i; j++ {
+			outPodList[j].Percentage /= cumNumPods / total
+			cumRatioPct += outPodList[j].Percentage
 		}
 		if math.Abs(cumRatioPct-1) > 1e-3 {
 			log.Errorf("Renormalization fails (%.4f != 1.0): %v\n", cumRatioPct, outPodList)
-		} else {
-			log.Infof("")
 		}
 		return outPodList
 	}
@@ -428,6 +419,13 @@ func (fa FragAmount) FragAmountSumExceptQ3() (out float64) {
 			out += fa.Data[i]
 		}
 	}
+	return out
+}
+
+func (fa FragAmount) FragAmountSumQ1Q2Q4() (out float64) {
+	out += fa.Data[FragRatioDataMap[Q1LackBoth]]
+	out += fa.Data[FragRatioDataMap[Q2LackGpu]]
+	out += fa.Data[FragRatioDataMap[Q4LackCpu]]
 	return out
 }
 

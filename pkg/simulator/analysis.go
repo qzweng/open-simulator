@@ -3,6 +3,7 @@ package simulator
 import (
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	"math"
 	"sync"
 
 	"github.com/alibaba/open-simulator/pkg/type"
@@ -24,8 +25,11 @@ func (sim *Simulator) ClusterGpuFragReport() {
 	if len(nodeStatus) == 0 {
 		return
 	}
-	sim.nodeResourceMap = utils.GetNodeResourceMap(nodeStatus)
+	if sumRatio := utils.PodListRatioSum(sim.typicalPods); math.Abs(sumRatio-1) > 1e-3 {
+		log.Errorf("sim.ClusterGpuFragReport: (%.4f != 1.0): %v\n", sumRatio, sim.typicalPods)
+	}
 
+	sim.nodeResourceMap = utils.GetNodeResourceMap(nodeStatus)
 	clusterFragAmount := utils.NewFragAmount("cluster", make([]float64, len(utils.FragRatioDataMap)))
 	var clusterFragBellman float64
 	for _, ns := range nodeStatus {
@@ -40,7 +44,8 @@ func (sim *Simulator) ClusterGpuFragReport() {
 	}
 	fragGpuMilli := clusterFragAmount.FragAmountSumExceptQ3()
 	fragGpuRatio := 100 * fragGpuMilli / idleGpuMilli
-	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; (origin)\n", fragGpuMilli, fragGpuRatio)
+	q124GpuRatio := 100 * clusterFragAmount.FragAmountSumQ1Q2Q4() / idleGpuMilli
+	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; Q124 ratio: %.2f%%; (origin)\n", fragGpuMilli, fragGpuRatio, q124GpuRatio)
 	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; (bellman)\n", clusterFragBellman, 100*clusterFragBellman/idleGpuMilli)
 }
 
@@ -166,6 +171,9 @@ func (sim *Simulator) RecordNodeTotalResource(nodes []*corev1.Node) (int64, int6
 
 func (sim *Simulator) SetTypicalPods() {
 	sim.typicalPods = utils.GetTypicalPods(sim.workloadPods, sim.customConfig.TypicalPodsConfig)
+	if sumRatio := utils.PodListRatioSum(sim.typicalPods); math.Abs(sumRatio-1) > 1e-3 {
+		log.Errorf("sim.SetTypicalPods: (%.4f != 1.0): %v\n", sumRatio, sim.typicalPods)
+	}
 	sim.fragMemo = sync.Map{}
 }
 

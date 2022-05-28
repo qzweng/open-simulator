@@ -197,7 +197,20 @@ def log_to_csv(log_path: Path, outfile: Path):
                 
                     # out_frag_col_dict
                     if line.startswith("[Report]"):
-                        if len(line.split(';')) == 4: # e.g., "[Report]; Frag amount: 1260102.17; Frag ratio: 26.77%; (origin)\n" # 0527-
+                        if len(line.split(';')) == 5: # Origin, e.g., "[Report]; Frag amount: 1317725.19; Frag ratio: 26.76%; Q124 ratio: 6.63%; (origin)\n" # 0528-
+                            _, milli, ratio, q124, remark = line.split(';')
+                            milli = float(milli.split(':')[1].strip())
+                            ratio = float(ratio.split(':')[1].strip().split('%')[0])
+                            q124 = float(q124.split(':')[1].strip().split('%')[0])
+                            remark = remark.split('(')[1].split(')')[0].strip()
+                            keys = [remark+"_milli", remark+"_ratio", remark+"_q124"]
+                            values = [milli, ratio, q124]
+                            for key, val in zip(keys, values):
+                                if key in frag_list_dict:
+                                    frag_list_dict[key].append(val)
+                                else:
+                                    frag_list_dict[key] = [val]
+                        elif len(line.split(';')) == 4: # Bellman, e.g., "[Report]; Frag amount: 1260102.17; Frag ratio: 26.77%; (bellman)\n" # 0527-
                             _, milli, ratio, remark = line.split(';')
                             milli = float(milli.split(':')[1].strip())
                             ratio = float(ratio.split(':')[1].strip().split('%')[0])

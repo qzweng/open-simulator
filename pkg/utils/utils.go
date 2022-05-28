@@ -1148,3 +1148,10 @@ func ReportFailedPods(fp []simontype.UnscheduledPod) {
 	}
 	log.Infoln()
 }
+
+func PodListRatioSum(tpl simontype.TargetPodList) (cumRatio float64) {
+	for _, pod := range tpl {
+		cumRatio += pod.Percentage // 0.0-1.0
+	}
+	return cumRatio
+}
