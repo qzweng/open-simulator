@@ -157,6 +157,12 @@ func New(opts ...Option) (Interface, error) {
 		simontype.WorstFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewWorstFitScorePlugin(configuration, handle)
 		},
+		simontype.TetrisScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewTetrisScorePlugin(configuration, handle)
+		},
+		simontype.L2NormDiffScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewL2NormDiffScorePlugin(configuration, handle)
+		},
 	}
 	sim.scheduler, err = scheduler.New(
 		sim.client,
@@ -327,8 +333,9 @@ func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPo
 		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
 			log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
 			failedPods = append(failedPods, *unscheduledPod)
+		} else { // if failed to schedule --- not update on cluster gpu frag
+			sim.ClusterGpuFragReport()
 		}
-		sim.ClusterGpuFragReport()
 	}
 	return failedPods
 }

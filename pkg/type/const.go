@@ -14,6 +14,8 @@ const (
 	ResourceSimilarityPluginName  = "ResourceSimilarity"
 	BestFitScorePluginName        = "BestFitScore"
 	WorstFitScorePluginName       = "WorstFitScore"
+	TetrisScorePluginName         = "TetrisScore"
+	L2NormDiffScorePluginName     = "L2NormDiffScore"
 	NewNodeNamePrefix             = "simon"
 	SimulatorName                 = "Main"
 	DefaultSchedulerName          = "simon-scheduler"

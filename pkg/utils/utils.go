@@ -781,6 +781,12 @@ func GetNodeAllocatable(node *corev1.Node) (resource.Quantity, resource.Quantity
 	return *nodeAllocatable.Cpu(), *nodeAllocatable.Memory()
 }
 
+func GetNodeAllocatableCpuGpu(node *corev1.Node) []float64 {
+	milliCpu := node.Status.Allocatable.Cpu().MilliValue()
+	milliGpu := utils.GetGpuCountOfNode(node) * utils.MILLI
+	return []float64{float64(milliCpu), float64(milliGpu)}
+}
+
 func MeetResourceRequests(node *corev1.Node, pod *corev1.Pod, daemonSets []*appsv1.DaemonSet) (bool, error) {
 	// CPU and Memory
 	totalResource := map[corev1.ResourceName]*resource.Quantity{
@@ -1135,6 +1141,48 @@ func calculateVectorSimilarity(vec1, vec2 []float64) float64 {
 
 	similarity := innerProduct / (magnitude1 * magnitude2)
 	return similarity
+}
+
+func NormalizeVector(vec []float64, normVec []float64) []float64 {
+	out := make([]float64, len(vec))
+	copy(out, vec)
+
+	if len(normVec) == 0 || len(vec) == 0 || len(normVec) != len(vec) {
+		log.Errorf("empty vector(s) or vectors of unequal size, vec %v, normVec %v\n", vec, normVec)
+		return out
+	}
+	for i := 0; i < len(out); i++ {
+		if normVec[i] > 0 {
+			out[i] = out[i] / normVec[i]
+		} else {
+			out[i] = 0
+		}
+	}
+	return out
+}
+
+func CalculateVectorDotProduct(vec1, vec2 []float64) (innerProduct float64) {
+	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
+		log.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
+		return -1
+	}
+	for index, num1 := range vec1 {
+		num2 := vec2[index]
+		innerProduct += num1 * num2
+	}
+	return innerProduct
+}
+
+func CalculateL2NormDiff(vec1, vec2 []float64) (l2norm float64) {
+	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
+		log.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
+		return -1
+	}
+	for index, num1 := range vec1 {
+		num2 := vec2[index]
+		l2norm += (num1 - num2) * (num1 - num2)
+	}
+	return l2norm
 }
 
 func ReportFailedPods(fp []simontype.UnscheduledPod) {
