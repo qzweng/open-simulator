@@ -3,9 +3,8 @@ package plugin
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
-	"math"
 
+	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -58,39 +57,10 @@ func (tsp *TetrisScorePlugin) Score(ctx context.Context, state *framework.CycleS
 	if score == -1 {
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
+	score /= float64(len(podVec)) // normalize score to [0, 1]
 	return int64(float64(framework.MaxNodeScore) * score), framework.NewStatus(framework.Success)
 }
 
 func (tsp *TetrisScorePlugin) ScoreExtensions() framework.ScoreExtensions {
-	return tsp
-}
-
-func (tsp *TetrisScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState,
-	p *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
-
-	// find highest and lowest scores
-	var highest int64 = -math.MaxInt64
-	var lowest int64 = math.MaxInt64
-	for _, nodeScore := range scores {
-		if nodeScore.Score > highest {
-			highest = nodeScore.Score
-		}
-		if nodeScore.Score < lowest {
-			lowest = nodeScore.Score
-		}
-	}
-	log.Tracef("[TetrisScore] [Normalized] highest: %d, lowest: %d\n", highest, lowest)
-
-	// transform the highest to the lowest score range to fit the framework's min to max node score range
-	oldRange := highest - lowest
-	newRange := framework.MaxNodeScore - framework.MinNodeScore
-	for i, nodeScore := range scores {
-		if oldRange == 0 {
-			scores[i].Score = framework.MinNodeScore
-		} else {
-			scores[i].Score = ((nodeScore.Score - lowest) * newRange / oldRange) + framework.MinNodeScore
-		}
-		log.Tracef("[TetrisScore] [Normalized] Node %s, Score: %d\n", scores[i].Name, scores[i].Score)
-	}
-	return framework.NewStatus(framework.Success)
+	return nil
 }
