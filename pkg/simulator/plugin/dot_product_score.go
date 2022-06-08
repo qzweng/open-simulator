@@ -14,32 +14,32 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-type TetrisScorePlugin struct {
+type DotProductScorePlugin struct {
 	handle framework.Handle
 }
 
-var _ framework.ScorePlugin = &TetrisScorePlugin{}
+var _ framework.ScorePlugin = &DotProductScorePlugin{}
 
-func NewTetrisScorePlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	return &TetrisScorePlugin{
+func NewDotProductScorePlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	return &DotProductScorePlugin{
 		handle: handle,
 	}, nil
 }
 
-func (tsp *TetrisScorePlugin) Name() string {
-	return simontype.TetrisScorePluginName
+func (plugin *DotProductScorePlugin) Name() string {
+	return simontype.DotProductScorePluginName
 }
 
-func (tsp *TetrisScorePlugin) Score(ctx context.Context, state *framework.CycleState,
+func (plugin *DotProductScorePlugin) Score(ctx context.Context, state *framework.CycleState,
 	p *corev1.Pod, nodeName string) (int64, *framework.Status) {
 
-	node, err := tsp.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error,
 			fmt.Sprintf("failed to get node(%s): %v", nodeName, err))
 	}
 
-	nodeResPtr := utils.GetNodeResourceViaHandle(tsp.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error,
 			fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
@@ -58,9 +58,10 @@ func (tsp *TetrisScorePlugin) Score(ctx context.Context, state *framework.CycleS
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
 	score /= float64(len(podVec)) // normalize score to [0, 1]
+	score = 1 - score             // the larger the dot product, the lower the score
 	return int64(float64(framework.MaxNodeScore) * score), framework.NewStatus(framework.Success)
 }
 
-func (tsp *TetrisScorePlugin) ScoreExtensions() framework.ScoreExtensions {
+func (plugin *DotProductScorePlugin) ScoreExtensions() framework.ScoreExtensions {
 	return nil
 }

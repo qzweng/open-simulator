@@ -58,6 +58,7 @@ func (lsp *L2NormDiffScorePlugin) Score(ctx context.Context, state *framework.Cy
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
 	score /= float64(len(podVec)) // normalize score to [0, 1]
+	score = 1 - score             // the larger the norm diff, the lower the score
 	return int64(float64(framework.MaxNodeScore) * score), framework.NewStatus(framework.Success)
 }
 

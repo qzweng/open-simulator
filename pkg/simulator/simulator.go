@@ -157,11 +157,14 @@ func New(opts ...Option) (Interface, error) {
 		simontype.WorstFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewWorstFitScorePlugin(configuration, handle)
 		},
-		simontype.TetrisScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-			return simonplugin.NewTetrisScorePlugin(configuration, handle)
+		simontype.DotProductScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewDotProductScorePlugin(configuration, handle)
 		},
 		simontype.L2NormDiffScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewL2NormDiffScorePlugin(configuration, handle)
+		},
+		simontype.L2NormRatioScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewL2NormRatioScorePlugin(configuration, handle)
 		},
 	}
 	sim.scheduler, err = scheduler.New(

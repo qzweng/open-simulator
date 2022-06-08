@@ -74,8 +74,9 @@ def get_args():
     parser.add_argument("-sim", '--resource-similarity', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-bestfit", '--best-fit-score', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-worstfit", '--worst-fit-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-tetris", '--tetris-score', type=int, default=0, help="score (default: 0)")
+    parser.add_argument("-dotprod", '--dotprod-score', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-l2diff", '--l2-norm-diff-score', type=int, default=0, help="score (default: 0)")
+    parser.add_argument("-l2ratio", '--l2-norm-ratio-score', type=int, default=0, help="score (default: 0)")
 
     # parser.add_argument('-c', '--cluster-config', dest="cluster_config", action="store_true", default=False, help="Generate cluster configuration yaml")
     # parser.add_argument('-s', '--scheduler-config', dest="scheduler_config", action="store_true", default=False, help="Generate scheduler configuration yaml")
@@ -239,8 +240,9 @@ SCORE_POLICY_ABBR = {
     "ResourceSimilarity": "sim",
     "BestFitScore": "bestfit",
     "WorstFitScore": "worstfit",
-    "TetrisScore": "tetris",
+    "DotProductScore": "dotprod",
     "L2NormDiffScore": "l2diff",
+    "L2NormRatioScore": "l2ratio",
 }
 
 def generate_scheduler_config(args, outdir):
@@ -261,10 +263,12 @@ def generate_scheduler_config(args, outdir):
                 s['enabled'].append({'name': "BestFitScore", 'weight': args.best_fit_score})
             if args.worst_fit_score > 0:
                 s['enabled'].append({'name': "WorstFitScore", 'weight': args.worst_fit_score})
-            if args.tetris_score > 0:
-                s['enabled'].append({'name': "TetrisScore", 'weight': args.tetris_score})
+            if args.dotprod_score > 0:
+                s['enabled'].append({'name': "DotProductScore", 'weight': args.dotprod_score})
             if args.l2_norm_diff_score > 0:
                 s['enabled'].append({'name': "L2NormDiffScore", 'weight': args.l2_norm_diff_score})
+            if args.l2_norm_ratio_score > 0:
+                s['enabled'].append({'name': "L2NormRatioScore", 'weight': args.l2_norm_ratio_score})
                         
     # print(template)
     content = yaml.dump(template)

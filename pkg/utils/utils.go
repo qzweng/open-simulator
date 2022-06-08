@@ -1185,6 +1185,18 @@ func CalculateL2NormDiff(vec1, vec2 []float64) (l2norm float64) {
 	return l2norm
 }
 
+func CalculateL2NormRatio(vec1, vec2 []float64) (l2norm float64) {
+	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
+		log.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
+		return -1
+	}
+	for index, num1 := range vec1 {
+		num2 := vec2[index]
+		l2norm += (num1 / num2) * (num1 / num2)
+	}
+	return l2norm
+}
+
 func ReportFailedPods(fp []simontype.UnscheduledPod) {
 	if len(fp) == 0 {
 		return
