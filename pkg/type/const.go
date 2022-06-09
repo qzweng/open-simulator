@@ -14,7 +14,7 @@ const (
 	ResourceSimilarityPluginName  = "ResourceSimilarity"
 	BestFitScorePluginName        = "BestFitScore"
 	WorstFitScorePluginName       = "WorstFitScore"
-	DotProductScorePluginName     = "TetrisScore"
+	DotProductScorePluginName     = "DotProductScore"
 	L2NormDiffScorePluginName     = "L2NormDiffScore"
 	L2NormRatioScorePluginName    = "L2NormRatioScore"
 	NewNodeNamePrefix             = "simon"
