@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
 
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
@@ -145,6 +146,146 @@ func (tnr NodeResource) Flatten(remark string) NodeResourceFlat {
 	}
 
 	return nrf
+}
+
+// ToDimExtResourceVec returns a list of extended pod resource vectors, depending on different extension methods.
+func (tpr PodResource) ToDimExtResourceVec(method GpuDimExtMethod, nodeFormalizedGpuResourceVec []float64) [][]float64 {
+	var vecList [][]float64
+
+	if method == ExtGpuDim {
+		for i, milliGpuLeft := range nodeFormalizedGpuResourceVec {
+			if milliGpuLeft < float64(tpr.MilliGpu) {
+				continue
+			}
+
+			var vec []float64
+
+			// milli cpu request
+			vec = append(vec, float64(tpr.MilliCpu))
+
+			// milli gpu request
+			for j := 0; j < len(nodeFormalizedGpuResourceVec); j++ {
+				if j == i {
+					vec = append(vec, float64(tpr.MilliGpu))
+				} else {
+					vec = append(vec, 0)
+				}
+			}
+
+			vecList = append(vecList, vec)
+		}
+	} else {
+		var vec []float64
+
+		// milli cpu request
+		vec = append(vec, float64(tpr.MilliCpu))
+
+		// milli gpu request
+		vec = append(vec, float64(tpr.MilliGpu))
+
+		vecList = append(vecList, vec)
+	}
+
+	return vecList
+}
+
+// ToDimExtResourceVec returns a list of extended node resource vectors, depending on different extension methods.
+func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod) [][]float64 {
+	var vecList [][]float64
+
+	if method == MergeGpuDim {
+		var vec []float64
+
+		// milli cpu left
+		vec = append(vec, float64(tnr.MilliCpu))
+
+		// total milli gpu left
+		vec = append(vec, float64(tnr.GetTotalMilliGpuLeft()))
+
+		vecList = append(vecList, vec)
+	} else if method == SeparateGpuDimAndShareOtherDim {
+		formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
+
+		for _, milliGpuLeft := range formalizedGpuResourceVec {
+			var vec []float64
+
+			// milli cpu left
+			vec = append(vec, float64(tnr.MilliCpu))
+
+			// milli gpu left
+			vec = append(vec, milliGpuLeft)
+
+			vecList = append(vecList, vec)
+		}
+	} else if method == SeparateGpuDimAndDivideOtherDim {
+		formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
+
+		totalMilliGpuLeft := float64(tnr.GetTotalMilliGpuLeft())
+		for _, milliGpuLeft := range formalizedGpuResourceVec {
+			var vec []float64
+
+			// milli cpu left, divided by the percentage of milli gpu left
+			vec = append(vec, float64(tnr.MilliCpu)*milliGpuLeft/totalMilliGpuLeft)
+
+			// milli gpu left
+			vec = append(vec, milliGpuLeft)
+
+			vecList = append(vecList, vec)
+		}
+	} else {
+		formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
+
+		var vec []float64
+
+		// milli cpu left
+		vec = append(vec, float64(tnr.MilliCpu))
+
+		// milli gpu left
+		vec = append(vec, formalizedGpuResourceVec...)
+	}
+
+	return vecList
+}
+
+// ToFormalizedGpuResourceVec returns a formalized gpu resource vector.
+// The first items of the vector are the remaining gpu resources of the shared gpus.
+// The last item is the total gpu resources of fully free gpus.
+// Gpus with empty resources are not counted in the vector.
+func (tnr NodeResource) ToFormalizedGpuResourceVec() []float64 {
+	var vec []float64
+
+	var fullyFreeGpuNum = 0
+	for _, millGpuLeft := range tnr.MilliGpuLeftList {
+		if millGpuLeft == gpushareutils.MILLI {
+			fullyFreeGpuNum++
+		} else if millGpuLeft > 0 {
+			vec = append(vec, float64(millGpuLeft))
+		}
+	}
+	if fullyFreeGpuNum > 0 {
+		vec = append(vec, float64(fullyFreeGpuNum*gpushareutils.MILLI))
+	}
+
+	return vec
+}
+
+func (tnr NodeResource) ToFormalizedAllocatableResourceVec(node *v1.Node) []float64 {
+	var vec []float64
+
+	// milli cpu allocatable
+	vec = append(vec, float64(node.Status.Allocatable.Cpu().MilliValue()))
+
+	formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
+	// formalized milli gpu allocatable
+	for _, milliGpuLeft := range formalizedGpuResourceVec {
+		if milliGpuLeft >= gpushareutils.MILLI {
+			vec = append(vec, milliGpuLeft)
+		} else {
+			vec = append(vec, float64(gpushareutils.MILLI))
+		}
+	}
+
+	return vec
 }
 
 // ToResourceVec returns a resource vector: [milli cpu request, milli gpu request].

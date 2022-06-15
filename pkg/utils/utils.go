@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/pquerna/ffjson/ffjson"
@@ -1195,6 +1196,109 @@ func CalculateL2NormRatio(vec1, vec2 []float64) (l2norm float64) {
 		l2norm += (num1 / num2) * (num1 / num2)
 	}
 	return l2norm
+}
+
+func CompareFloat64Slices(vec1, vec2 []float64) int {
+	if len(vec1) != len(vec2) {
+		log.Errorf("vectors of unequal size, vec %v, vec2 %v\n", vec1, vec2)
+		return -1
+	}
+	for index, num1 := range vec1 {
+		num2 := vec2[index]
+		if num1 < num2 {
+			return 0
+		}
+	}
+	return 1
+}
+
+func GetFormalizedAllocatableResourceVec(node *corev1.Node, formalizedGpuResourceVec []float64) []float64 {
+	var vec []float64
+
+	// milli cpu allocatable
+	vec = append(vec, float64(node.Status.Allocatable.Cpu().MilliValue()))
+
+	// formalized milli gpu allocatable
+	for _, milliGpuLeft := range formalizedGpuResourceVec {
+		if milliGpuLeft >= utils.MILLI {
+			vec = append(vec, milliGpuLeft)
+		} else {
+			vec = append(vec, float64(utils.MILLI))
+		}
+	}
+
+	return vec
+}
+
+func GetNormalizedNodeVecListAfterDimExt(method simontype.GpuDimExtMethod, nodeRes simontype.NodeResource, node *corev1.Node) [][]float64 {
+	nodeVecList := nodeRes.ToDimExtResourceVec(method)
+
+	for i, nodeVec := range nodeVecList {
+		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, nodeVec[1:])
+		nodeVecList[i] = NormalizeVector(nodeVec, nodeAllocatable)
+	}
+
+	return nodeVecList
+}
+
+func GetNormalizedPodVecListAfterDimExt(method simontype.GpuDimExtMethod, podRes simontype.PodResource, nodeRes simontype.NodeResource, node *corev1.Node) [][]float64 {
+	podVecList := podRes.ToDimExtResourceVec(method, nodeRes.ToFormalizedGpuResourceVec())
+
+	for i, podVec := range podVecList {
+		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, podVec[1:])
+		podVecList[i] = NormalizeVector(podVec, nodeAllocatable)
+	}
+
+	return podVecList
+}
+
+func ConvertMatchedVecToGpuId(nodeVec, podVec []float64, nodeRes simontype.NodeResource, podRes simontype.PodResource, method simontype.GpuDimExtMethod) (gpuId string) {
+	gpuId = ""
+
+	var normalizedGpu float64 = 0
+
+	if method == simontype.SeparateGpuDimAndShareOtherDim || method == simontype.SeparateGpuDimAndDivideOtherDim {
+		if len(nodeVec) != 2 {
+			panic("")
+		}
+
+		normalizedGpu = nodeVec[1]
+	} else if method == simontype.ExtGpuDim {
+		for i := 1; i < len(nodeVec); i++ {
+			if podVec[i] > 0 {
+				normalizedGpu = nodeVec[i]
+				break
+			}
+		}
+	} else {
+		panic(fmt.Sprintf("undefined allocation policy based on GpuDimExtMethod(%v)", method))
+	}
+
+	if normalizedGpu < 1 { // choose shared gpu
+		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+			if int64(normalizedGpu*utils.MILLI) == milliGpuLeft {
+				gpuId = strconv.Itoa(id)
+				break
+			}
+		}
+	} else { // choose exclusive gpu
+		podGpuReq := podRes.MilliGpu
+		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+			if podGpuReq <= 0 {
+				break
+			}
+			if milliGpuLeft == utils.MILLI {
+				if gpuId == "" {
+					gpuId = strconv.Itoa(id)
+				} else {
+					gpuId += fmt.Sprintf("%s%d", utils.DevIdSep, id)
+				}
+				podGpuReq -= utils.MILLI
+			}
+		}
+	}
+
+	return gpuId
 }
 
 func ReportFailedPods(fp []simontype.UnscheduledPod) {

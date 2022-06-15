@@ -7,11 +7,12 @@ import (
 
 	"github.com/pquerna/ffjson/ffjson"
 	log "github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
+	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulerutil "k8s.io/kubernetes/pkg/scheduler/util"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
@@ -24,6 +25,7 @@ import (
 type GpuSharePlugin struct {
 	sync.RWMutex
 	cache  *gpusharecache.SchedulerCache
+	cfg    *simontype.GpuPluginCfg
 	handle framework.Handle
 }
 
@@ -31,15 +33,24 @@ type GpuSharePlugin struct {
 var _ framework.FilterPlugin = &GpuSharePlugin{}
 var _ framework.ReservePlugin = &GpuSharePlugin{}
 
+var allocateGpuIdFunc = map[string]func(nodeRes simontype.NodeResource, podRes simontype.PodResource,
+	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string){}
+
 func NewGpuSharePlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+	var cfg *simontype.GpuPluginCfg
+	if err := frameworkruntime.DecodeInto(configuration, &cfg); err != nil {
+		return nil, err
+	}
+
 	gpuSharePlugin := &GpuSharePlugin{
+		cfg:    cfg,
 		handle: handle,
 	}
 	gpuSharePlugin.initSchedulerCache()
 	handle.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			DeleteFunc: func(obj interface{}) {
-				if pod, ok := obj.(*corev1.Pod); ok {
+				if pod, ok := obj.(*v1.Pod); ok {
 					if gpushareutils.GetGpuMilliFromPodAnnotation(pod) > 0 {
 						namespace, name := pod.Namespace, pod.Name
 						err := gpuSharePlugin.removePod(pod, pod.Spec.NodeName)
@@ -59,7 +70,7 @@ func (plugin *GpuSharePlugin) Name() string {
 
 // Filter Plugin
 // Filter filters out non-allocatable nodes
-func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
+func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeInfo *framework.NodeInfo) *framework.Status {
 	//fmt.Printf("filter_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeInfo.Node().Name)
 	// Pass if the pod does not require GPU resources
 	if podGpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(pod); podGpuMilli <= 0 {
@@ -90,7 +101,7 @@ func (plugin *GpuSharePlugin) Filter(ctx context.Context, state *framework.Cycle
 	return framework.NewStatus(framework.Success)
 }
 
-func (plugin *GpuSharePlugin) updateNode(node *corev1.Node) error {
+func (plugin *GpuSharePlugin) updateNode(node *v1.Node) error {
 	nodeGpuInfoStr, err := plugin.ExportGpuNodeInfoAsNodeGpuInfo(node.Name)
 	if err != nil {
 		return err
@@ -108,7 +119,7 @@ func (plugin *GpuSharePlugin) updateNode(node *corev1.Node) error {
 	return nil
 }
 
-func (plugin *GpuSharePlugin) addOrUpdatePod(pod *corev1.Pod, nodeName string) error {
+func (plugin *GpuSharePlugin) addOrUpdatePod(pod *v1.Pod, nodeName string) error {
 	if err := plugin.cache.AddOrUpdatePod(pod, nodeName); err != nil {
 		return err
 	}
@@ -126,7 +137,7 @@ func (plugin *GpuSharePlugin) addOrUpdatePod(pod *corev1.Pod, nodeName string) e
 	return nil
 }
 
-func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod, nodeName string) error {
+func (plugin *GpuSharePlugin) removePod(pod *v1.Pod, nodeName string) error {
 	if nodeName == "" {
 		return nil
 	}
@@ -143,7 +154,7 @@ func (plugin *GpuSharePlugin) removePod(pod *corev1.Pod, nodeName string) error 
 
 // Reserve Plugin
 // Reserve updates the GPU resource of the given node, according to the pod's request.
-func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) *framework.Status {
+func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) *framework.Status {
 	plugin.Lock()
 	defer plugin.Unlock()
 
@@ -171,7 +182,7 @@ func (plugin *GpuSharePlugin) Reserve(ctx context.Context, state *framework.Cycl
 }
 
 // Unreserve undoes the GPU resource updated in Reserve function.
-func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) {
+func (plugin *GpuSharePlugin) Unreserve(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) {
 	plugin.Lock()
 	defer plugin.Unlock()
 
@@ -191,11 +202,11 @@ func (plugin *GpuSharePlugin) ExportGpuNodeInfoAsNodeGpuInfo(nodeName string) (*
 	}
 }
 
-func (plugin *GpuSharePlugin) NodeGet(name string) (*corev1.Node, error) {
-	return plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), name, metav1.GetOptions{})
+func (plugin *GpuSharePlugin) NodeGet(name string) (*v1.Node, error) {
+	return plugin.handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), name, metav1.GetOptions{})
 }
 
-func (plugin *GpuSharePlugin) PodGet(name string, namespace string) (*corev1.Pod, error) {
+func (plugin *GpuSharePlugin) PodGet(name string, namespace string) (*v1.Pod, error) {
 	return plugin.handle.ClientSet().CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 }
 
@@ -203,18 +214,33 @@ func (plugin *GpuSharePlugin) initSchedulerCache() {
 	plugin.cache = gpusharecache.NewSchedulerCache(plugin) // here `plugin` implements the NodePodGetter interface
 }
 
-func (plugin *GpuSharePlugin) updatePodGpuAnno(pod *corev1.Pod, nodeName string) (*corev1.Pod, error) {
-	gpuNodeInfo, err := plugin.cache.GetGpuNodeInfo(nodeName)
-	if err != nil {
-		return nil, err
+func (plugin *GpuSharePlugin) updatePodGpuAnno(pod *v1.Pod, nodeName string) (*v1.Pod, error) {
+	gpuId := plugin.allocateGpuId(pod, nodeName)
+	if gpuId == "" {
+		return nil, fmt.Errorf("failed to allocate gpu to pod(%s) to node(%s)", utils.GeneratePodKey(pod), nodeName)
 	}
 
-	devId, found := gpuNodeInfo.AllocateGpuId(pod)
-	if !found {
-		err = fmt.Errorf("cannot find a GPU to allocate pod %s at node %s", utils.GeneratePodKey(pod), nodeName)
-		return nil, err
-	}
-
-	podCopy := gpushareutils.UpdatePodDeviceAnnoSpec(pod, devId)
+	podCopy := gpushareutils.UpdatePodDeviceAnnoSpec(pod, gpuId)
 	return podCopy, nil
+}
+
+func (plugin *GpuSharePlugin) allocateGpuId(pod *v1.Pod, nodeName string) string {
+	node, err := plugin.NodeGet(nodeName)
+	if err != nil {
+		return ""
+	}
+
+	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	if nodeResPtr == nil {
+		return ""
+	}
+	nodeRes := *nodeResPtr
+	podRes := utils.GetPodResource(pod)
+
+	if f, ok := allocateGpuIdFunc[string(plugin.cfg.GpuSelMethod)]; ok {
+		gpuId := f(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+		return gpuId
+	} else {
+		return ""
+	}
 }

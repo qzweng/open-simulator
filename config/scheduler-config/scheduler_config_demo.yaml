@@ -11,21 +11,22 @@ profiles:
       score:
         disabled:
           - name: Gpu-Frag-Score
+          - name: Gpu-Frag-Score-Bellman
           - name: Gpu-Packing-Score
           - name: ResourceSimilarity
           - name: BestFitScore
           - name: WorstFitScore
           - name: Simon
+          - name: ImageLocality
+          - name: NodeAffinity
+          - name: PodTopologySpread
+          - name: TaintToleration
+          - name: NodeResourcesBalancedAllocation
+          - name: InterPodAffinity
+          - name: NodeResourcesLeastAllocated
+          - name: NodePreferAvoidPods
         enabled:
-          # - name: Gpu-Frag-Score
-          #   weight: 1000
-          # - name: Gpu-Packing-Score
-          #   weight: 1000
-          # - name: ResourceSimilarity
-          #   weight: 1000
-          # - name: BestFitScore
-          #   weight: 1000
-          - name: WorstFitScore
+          - name: DotProductScore
             weight: 1000
       reserve:
         enabled:
@@ -36,3 +37,11 @@ profiles:
           - name: Open-Local
         enabled:
           - name: Simon
+    pluginConfig:
+      - name: DotProductScore
+        args:
+          dimExtMethod: divide
+      - name: Open-Gpu-Share
+        args:
+          dimExtMethod: divide
+          gpuSelMethod: DotProductScore
