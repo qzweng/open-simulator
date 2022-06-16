@@ -311,6 +311,8 @@ func allocateGpuIdBasedOnRandomFit(nodeRes simontype.NodeResource, podRes simont
 				}
 			}
 		}
+	} else { // exclusive-gpu pod
+		gpuId = utils.AllocateExclusiveGpuId(nodeRes, podRes)
 	}
 
 	return gpuId

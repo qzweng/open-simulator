@@ -242,6 +242,8 @@ func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod) [][]float64 
 
 		// milli gpu left
 		vec = append(vec, formalizedGpuResourceVec...)
+
+		vecList = append(vecList, vec)
 	}
 
 	return vecList
