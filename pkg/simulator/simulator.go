@@ -148,8 +148,8 @@ func New(opts ...Option) (Interface, error) {
 		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuPackingScorePlugin(configuration, handle)
 		},
-		simontype.ResourceSimilarityPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-			return simonplugin.NewResourceSimilarityPlugin(configuration, handle)
+		simontype.CosineSimilarityPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewCosineSimilarityPlugin(configuration, handle)
 		},
 		simontype.BestFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewBestFitScorePlugin(configuration, handle)

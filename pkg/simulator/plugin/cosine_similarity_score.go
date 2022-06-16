@@ -15,34 +15,32 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-// DotProductScorePlugin implements the packing heuristics proposed by Tetris.
-// https://dl.acm.org/doi/10.1145/2619239.2626334
-type DotProductScorePlugin struct {
+type CosineSimilarityPlugin struct {
 	cfg    *simontype.GpuPluginCfg
 	handle framework.Handle
 }
 
-var _ framework.ScorePlugin = &DotProductScorePlugin{}
+var _ framework.ScorePlugin = &GpuPackingScorePlugin{}
 
-func NewDotProductScorePlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+func NewCosineSimilarityPlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	var cfg *simontype.GpuPluginCfg
 	if err := frameworkruntime.DecodeInto(configuration, &cfg); err != nil {
 		return nil, err
 	}
 
-	plugin := &DotProductScorePlugin{
+	plugin := &CosineSimilarityPlugin{
 		cfg:    cfg,
 		handle: handle,
 	}
-	allocateGpuIdFunc[plugin.Name()] = allocateGpuIdBasedOnDotProduct
+	allocateGpuIdFunc[plugin.Name()] = allocateGpuIdBasedOnCosineSimilarity
 	return plugin, nil
 }
 
-func (plugin *DotProductScorePlugin) Name() string {
-	return simontype.DotProductScorePluginName
+func (plugin *CosineSimilarityPlugin) Name() string {
+	return simontype.CosineSimilarityPluginName
 }
 
-func (plugin *DotProductScorePlugin) Score(ctx context.Context, state *framework.CycleState,
+func (plugin *CosineSimilarityPlugin) Score(ctx context.Context, state *framework.CycleState,
 	p *v1.Pod, nodeName string) (int64, *framework.Status) {
 
 	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
@@ -59,15 +57,15 @@ func (plugin *DotProductScorePlugin) Score(ctx context.Context, state *framework
 	nodeRes := *nodeResPtr
 	podRes := utils.GetPodResource(p)
 
-	score, _, _ := calculateDotProductScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+	score, _, _ := calculateCosineSimilarityScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
 	return score, framework.NewStatus(framework.Success)
 }
 
-func (plugin *DotProductScorePlugin) ScoreExtensions() framework.ScoreExtensions {
+func (plugin *CosineSimilarityPlugin) ScoreExtensions() framework.ScoreExtensions {
 	return nil
 }
 
-func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.PodResource,
+func calculateCosineSimilarityScore(nodeRes simontype.NodeResource, podRes simontype.PodResource,
 	method simontype.GpuDimExtMethod, node *v1.Node) (int64, []float64, []float64) {
 
 	var score float64 = -1
@@ -83,15 +81,13 @@ func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 				continue
 			}
 
-			curScore := utils.CalculateVectorDotProduct(nodeVec, podVec)
+			curScore := utils.CalculateVectorCosineSimilarity(nodeVec, podVec)
 			if curScore == -1 {
 				continue
 			}
 
-			curScore /= float64(len(podVec)) // normalize score to [0, 1]
-			curScore = 1 - curScore          // the larger the dot product, the lower the score
-			log.Tracef("dot product score between nodeRes(%s) and podRes(%s): %.4f\n",
-				nodeRes.Repr(), podRes.Repr(), curScore)
+			log.Tracef("cosine similarity score between nodeVec(%v) and podVec(%v): %.4f\n",
+				nodeVec, podVec, curScore)
 
 			if score < curScore {
 				score = curScore
@@ -114,9 +110,9 @@ func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 	return int64(float64(framework.MaxNodeScore) * score), matchedNodeVec, matchedPodVec
 }
 
-func allocateGpuIdBasedOnDotProduct(nodeRes simontype.NodeResource, podRes simontype.PodResource,
+func allocateGpuIdBasedOnCosineSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodResource,
 	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
 
-	_, nodeVec, podVec := calculateDotProductScore(nodeRes, podRes, method, node)
+	_, nodeVec, podVec := calculateCosineSimilarityScore(nodeRes, podRes, method, node)
 	return utils.ConvertMatchedVecToGpuId(nodeVec, podVec, nodeRes, podRes, method)
 }

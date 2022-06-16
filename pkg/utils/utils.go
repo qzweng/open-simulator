@@ -1110,7 +1110,7 @@ func GetResourceSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodR
 	freeVec := nodeRes.ToResourceVec()
 	requestVec := podRes.ToResourceVec()
 
-	similarity := calculateVectorSimilarity(freeVec, requestVec)
+	similarity := CalculateVectorCosineSimilarity(freeVec, requestVec)
 	delta := 1e-3
 	if (similarity < 0-delta) || (similarity > 1+delta) {
 		log.Errorf("similarity(%.4f) is not in the range [0,1], should not happen. freeVec: %v, requestVec: %v\n",
@@ -1120,7 +1120,7 @@ func GetResourceSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodR
 	return similarity
 }
 
-func calculateVectorSimilarity(vec1, vec2 []float64) float64 {
+func CalculateVectorCosineSimilarity(vec1, vec2 []float64) float64 {
 	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
 		log.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
 		return -1

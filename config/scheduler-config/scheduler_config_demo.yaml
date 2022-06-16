@@ -13,7 +13,7 @@ profiles:
           - name: Gpu-Frag-Score
           - name: Gpu-Frag-Score-Bellman
           - name: Gpu-Packing-Score
-          - name: ResourceSimilarity
+          - name: CosineSimilarityScore
           - name: BestFitScore
           - name: WorstFitScore
           - name: DotProductScore
@@ -29,7 +29,7 @@ profiles:
           - name: NodeResourcesLeastAllocated
           - name: NodePreferAvoidPods
         enabled:
-          - name: DotProductScore
+          - name: CosineSimilarityScore
             weight: 1000
       reserve:
         enabled:
@@ -44,7 +44,10 @@ profiles:
       - name: DotProductScore
         args:
           dimExtMethod: divide
+      - name: CosineSimilarityScore
+        args:
+          dimExtMethod: merge
       - name: Open-Gpu-Share
         args:
           dimExtMethod: divide
-          gpuSelMethod: DotProductScore
+          gpuSelMethod: best

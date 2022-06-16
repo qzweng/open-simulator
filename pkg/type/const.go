@@ -11,7 +11,7 @@ const (
 	GpuFragScorePluginName        = "Gpu-Frag-Score"
 	GpuFragScoreBellmanPluginName = "Gpu-Frag-Score-Bellman"
 	GpuPackingScorePluginName     = "Gpu-Packing-Score"
-	ResourceSimilarityPluginName  = "ResourceSimilarity"
+	CosineSimilarityPluginName    = "CosineSimilarityScore"
 	BestFitScorePluginName        = "BestFitScore"
 	WorstFitScorePluginName       = "WorstFitScore"
 	DotProductScorePluginName     = "DotProductScore"
