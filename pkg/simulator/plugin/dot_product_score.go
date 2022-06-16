@@ -78,7 +78,7 @@ func CalculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 
 	for _, nodeVec := range nodeVecList {
 		for _, podVec := range podVecList {
-			if utils.CompareFloat64Slices(nodeVec, podVec) != 1 {
+			if utils.CompareFloat64Slices(nodeVec[1:], podVec[1:]) != 1 {
 				continue
 			}
 
@@ -100,6 +100,10 @@ func CalculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 				copy(matchedPodVec, podVec)
 			}
 		}
+	}
+
+	if len(matchedNodeVec) == 0 || len(matchedPodVec) == 0 {
+		panic(fmt.Sprintf("failed to match any nodeVec or podVec, nodeVecList(%v), podVecList(%v)", nodeVecList, podVecList))
 	}
 
 	if score == -1 {

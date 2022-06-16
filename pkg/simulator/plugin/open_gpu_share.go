@@ -3,6 +3,8 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"math/rand"
+	"strconv"
 	"sync"
 
 	"github.com/pquerna/ffjson/ffjson"
@@ -41,6 +43,11 @@ func NewGpuSharePlugin(configuration runtime.Object, handle framework.Handle) (f
 	if err := frameworkruntime.DecodeInto(configuration, &cfg); err != nil {
 		return nil, err
 	}
+
+	// register the functions that allocate gpu id
+	allocateGpuIdFunc[string(simontype.SelBestFitGpu)] = allocateGpuIdBasedOnBestFit
+	allocateGpuIdFunc[string(simontype.SelWorstFitGpu)] = allocateGpuIdBasedOnWorstFit
+	allocateGpuIdFunc[string(simontype.SelRandomGpu)] = allocateGpuIdBasedOnRandomFit
 
 	gpuSharePlugin := &GpuSharePlugin{
 		cfg:    cfg,
@@ -241,6 +248,70 @@ func (plugin *GpuSharePlugin) allocateGpuId(pod *v1.Pod, nodeName string) string
 		gpuId := f(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
 		return gpuId
 	} else {
-		return ""
+		panic("undefined allocate gpu id function")
 	}
+}
+
+func allocateGpuIdBasedOnBestFit(nodeRes simontype.NodeResource, podRes simontype.PodResource,
+	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
+
+	gpuId = ""
+
+	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
+		var candidateGpuId = -1
+		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+			if milliGpuLeft >= podRes.MilliGpu {
+				if (candidateGpuId == -1) || (milliGpuLeft < nodeRes.MilliGpuLeftList[candidateGpuId]) {
+					candidateGpuId = id
+					gpuId = strconv.Itoa(id)
+				}
+			}
+		}
+	} else { // exclusive-gpu pod
+		gpuId = utils.AllocateExclusiveGpuId(nodeRes, podRes)
+	}
+
+	return gpuId
+}
+
+func allocateGpuIdBasedOnWorstFit(nodeRes simontype.NodeResource, podRes simontype.PodResource,
+	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
+
+	gpuId = ""
+
+	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
+		var candidateGpuId = -1
+		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+			if milliGpuLeft >= podRes.MilliGpu {
+				if (candidateGpuId == -1) || (milliGpuLeft > nodeRes.MilliGpuLeftList[candidateGpuId]) {
+					candidateGpuId = id
+					gpuId = strconv.Itoa(id)
+				}
+			}
+		}
+	} else { // exclusive-gpu pod
+		gpuId = utils.AllocateExclusiveGpuId(nodeRes, podRes)
+	}
+
+	return gpuId
+}
+
+func allocateGpuIdBasedOnRandomFit(nodeRes simontype.NodeResource, podRes simontype.PodResource,
+	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
+
+	gpuId = ""
+
+	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
+		var cntOfAvailableGpu = 0
+		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+			if milliGpuLeft >= podRes.MilliGpu {
+				cntOfAvailableGpu++
+				if rand.Intn(cntOfAvailableGpu) == 0 {
+					gpuId = strconv.Itoa(id)
+				}
+			}
+		}
+	}
+
+	return gpuId
 }

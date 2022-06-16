@@ -1259,7 +1259,7 @@ func ConvertMatchedVecToGpuId(nodeVec, podVec []float64, nodeRes simontype.NodeR
 
 	if method == simontype.SeparateGpuDimAndShareOtherDim || method == simontype.SeparateGpuDimAndDivideOtherDim {
 		if len(nodeVec) != 2 {
-			panic("")
+			panic(fmt.Sprintf("nodeVec(%v) length is expected to be 2, nodeRes(%v), podRes(%v)", nodeVec, nodeRes, podRes))
 		}
 
 		normalizedGpu = nodeVec[1]
@@ -1282,19 +1282,27 @@ func ConvertMatchedVecToGpuId(nodeVec, podVec []float64, nodeRes simontype.NodeR
 			}
 		}
 	} else { // choose exclusive gpu
-		podGpuReq := podRes.MilliGpu
-		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
-			if podGpuReq <= 0 {
-				break
+		gpuId = AllocateExclusiveGpuId(nodeRes, podRes)
+	}
+
+	return gpuId
+}
+
+func AllocateExclusiveGpuId(nodeRes simontype.NodeResource, podRes simontype.PodResource) (gpuId string) {
+	gpuId = ""
+
+	podGpuReq := podRes.MilliGpu
+	for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+		if podGpuReq <= 0 {
+			break
+		}
+		if milliGpuLeft == utils.MILLI {
+			if gpuId == "" {
+				gpuId = strconv.Itoa(id)
+			} else {
+				gpuId += fmt.Sprintf("%s%d", utils.DevIdSep, id)
 			}
-			if milliGpuLeft == utils.MILLI {
-				if gpuId == "" {
-					gpuId = strconv.Itoa(id)
-				} else {
-					gpuId += fmt.Sprintf("%s%d", utils.DevIdSep, id)
-				}
-				podGpuReq -= utils.MILLI
-			}
+			podGpuReq -= utils.MILLI
 		}
 	}
 

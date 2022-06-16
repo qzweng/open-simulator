@@ -16,6 +16,9 @@ profiles:
           - name: ResourceSimilarity
           - name: BestFitScore
           - name: WorstFitScore
+          - name: DotProductScore
+          - name: L2NormDiffScore
+          - name: L2NormRatioScore
           - name: Simon
           - name: ImageLocality
           - name: NodeAffinity
