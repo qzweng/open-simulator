@@ -46,8 +46,8 @@ profiles:
           dimExtMethod: divide
       - name: CosineSimilarityScore
         args:
-          dimExtMethod: merge
+          dimExtMethod: extend
       - name: Open-Gpu-Share
         args:
-          dimExtMethod: divide
-          gpuSelMethod: best
+          dimExtMethod: extend
+          gpuSelMethod: CosineSimilarityScore
