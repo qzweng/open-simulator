@@ -1291,7 +1291,7 @@ func ConvertMatchedVecToGpuId(nodeVec, podVec []float64, nodeRes simontype.NodeR
 func AllocateExclusiveGpuId(nodeRes simontype.NodeResource, podRes simontype.PodResource) (gpuId string) {
 	gpuId = ""
 
-	podGpuReq := podRes.MilliGpu
+	podGpuReq := podRes.MilliGpu * int64(podRes.GpuNumber)
 	for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
 		if podGpuReq <= 0 {
 			break

@@ -17,6 +17,8 @@ const (
 	DotProductScorePluginName     = "DotProductScore"
 	L2NormDiffScorePluginName     = "L2NormDiffScore"
 	L2NormRatioScorePluginName    = "L2NormRatioScore"
+	FFDProdScoreName              = "FFDProdScore"
+	FFDSumScoreName               = "FFDSumScore"
 	NewNodeNamePrefix             = "simon"
 	SimulatorName                 = "Main"
 	DefaultSchedulerName          = "simon-scheduler"

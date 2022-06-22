@@ -980,5 +980,12 @@ func displaySchedulerConfig(config *config.CompletedConfig) {
 			log.Infof("    %s\n", plugin.Name)
 		}
 		log.Infoln()
+		// Plugin Config
+		log.Infof("  pluginConfig")
+		for _, pc := range profile.PluginConfig {
+			log.Infof("    %s\n", pc.Name)
+			log.Infof("      %v", pc.Args)
+		}
+		log.Infoln()
 	}
 }

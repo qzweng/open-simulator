@@ -5,6 +5,21 @@ import argparse
 import subprocess
 from hashlib import md5
 from pathlib import Path
+""" Usage: paib 0 =dotprod_divide_2K=> 2K pods
+EXPDIR="experiments/0622/seed233/01-dotprod-divide-random" 
+mkdir -p ${EXPDIR} && touch "${EXPDIR}/terminal.out"
+python3 scripts/h_generate_config_and_run.py -d "${EXPDIR}" \
+-seed 233 \
+-e -b \
+-f data/cluster_paib-pod_paib_0318_gpu_3000 \
+-dotprod 1000 \
+-dimext divide \
+-gpusel random \
+-y "${EXPDIR}/snapshot/ds01" | tee -a "${EXPDIR}/terminal.out" \
+&& \ 
+python3 scripts/analysis.py -f -g ${EXPDIR} | tee -a "${EXPDIR}/terminal.out"
+"""
+
 """ Usage: paib 0 =sim_1K=> 3K pods =desch_10%=> snapshot_01 =sim_1K=> 3K pods =desch_10%=> snapshot_02 =frag_1K=> 3K pods
 python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 -e -b \
@@ -36,7 +51,6 @@ python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 -y experiments/exp0516_1/snapshot/dr01x3000 \
 && \
 python3 scripts/analysis.py experiments/exp0516_1
-
 """
 
 def get_args():
@@ -71,12 +85,16 @@ def get_args():
     parser.add_argument("-frag", '--gpu-frag-score', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-bellman", '--gpu-frag-score-bellman', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-pack", '--gpu-packing-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-sim", '--resource-similarity', type=int, default=0, help="score (default: 0)")
+    parser.add_argument("-sim", '--cosine-similarity', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-bestfit", '--best-fit-score', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-worstfit", '--worst-fit-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-dotprod", '--dotprod-score', type=int, default=0, help="score (default: 0)")
+    parser.add_argument("-dotprod", '--dot-prod-score', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-l2diff", '--l2-norm-diff-score', type=int, default=0, help="score (default: 0)")
     parser.add_argument("-l2ratio", '--l2-norm-ratio-score', type=int, default=0, help="score (default: 0)")
+
+    # scheduler plugin config
+    parser.add_argument("-dimext", "--dim-ext-method", type=str, default="share", help="Dimension extend method: merge, share, divide, extend, default: share")
+    parser.add_argument("-gpusel", "--gpu-sel-method", type=str, default="best", help="GPU selection method: best, worst, random, default: best")
 
     # parser.add_argument('-c', '--cluster-config', dest="cluster_config", action="store_true", default=False, help="Generate cluster configuration yaml")
     # parser.add_argument('-s', '--scheduler-config', dest="scheduler_config", action="store_true", default=False, help="Generate scheduler configuration yaml")
@@ -196,7 +214,7 @@ profiles:
           - name: Gpu-Frag-Score
           - name: Gpu-Frag-Score-Bellman
           - name: Gpu-Packing-Score
-          - name: ResourceSimilarity
+          - name: CosineSimilarityScore
           - name: BestFitScore
           - name: Simon
           - name: WorstFitScore
@@ -216,7 +234,7 @@ profiles:
           #   weight: 1000
           # - name: Gpu-Packing-Score
           #   weight: 1000
-          # - name: ResourceSimilarity
+          # - name: CosineSimilarityScore
           #   weight: 1000
           # - name: BestFitScore
           #   weight: 1000
@@ -237,7 +255,7 @@ SCORE_POLICY_ABBR = {
     "Gpu-Frag-Score": "frag",
     "Gpu-Frag-Score-Bellman": "bellman",
     "Gpu-Packing-Score": "pack",
-    "ResourceSimilarity": "sim",
+    "CosineSimilarityScore": "sim",
     "BestFitScore": "bestfit",
     "WorstFitScore": "worstfit",
     "DotProductScore": "dotprod",
@@ -245,10 +263,13 @@ SCORE_POLICY_ABBR = {
     "L2NormRatioScore": "l2ratio",
 }
 
+SCORE_PLUGINS_WITH_GPU_SEL_METHOD = ["DotProductScore", "CosineSimilarityScore"]
+
 def generate_scheduler_config(args, outdir):
     template = yaml.safe_load(SCHEDULER_CONFIG_TEMPLATE)
     for k, v in template.items():
         if k == "profiles":
+            # generate score plugin entries
             s = v[0]['plugins']['score']
             s['enabled'] = []
             if args.gpu_frag_score > 0:
@@ -257,19 +278,35 @@ def generate_scheduler_config(args, outdir):
                 s['enabled'].append({'name': "Gpu-Frag-Score-Bellman", 'weight': args.gpu_frag_score_bellman})
             if args.gpu_packing_score > 0:
                 s['enabled'].append({'name': "Gpu-Packing-Score", 'weight': args.gpu_packing_score})
-            if args.resource_similarity > 0:
-                s['enabled'].append({'name': "ResourceSimilarity", 'weight': args.resource_similarity})
+            if args.cosine_similarity > 0:
+                s['enabled'].append({'name': "CosineSimilarityScore", 'weight': args.cosine_similarity})
             if args.best_fit_score > 0:
                 s['enabled'].append({'name': "BestFitScore", 'weight': args.best_fit_score})
             if args.worst_fit_score > 0:
                 s['enabled'].append({'name': "WorstFitScore", 'weight': args.worst_fit_score})
-            if args.dotprod_score > 0:
-                s['enabled'].append({'name': "DotProductScore", 'weight': args.dotprod_score})
+            if args.dot_prod_score > 0:
+                s['enabled'].append({'name': "DotProductScore", 'weight': args.dot_prod_score})
             if args.l2_norm_diff_score > 0:
                 s['enabled'].append({'name': "L2NormDiffScore", 'weight': args.l2_norm_diff_score})
             if args.l2_norm_ratio_score > 0:
                 s['enabled'].append({'name': "L2NormRatioScore", 'weight': args.l2_norm_ratio_score})
-                        
+
+            # generate pluginConfig via "enabled"
+            v[0]['pluginConfig'] = []
+            pc = v[0]['pluginConfig']
+            ##: select the score with max weight as gpuSelMethod in Open-Gpu-Share's Reserve
+            maxScoreName, maxScoreWeight = None, 0
+            for item in template['profiles'][0]['plugins']['score']['enabled']:
+                if item['weight'] > maxScoreWeight:
+                    maxScoreName = item['name']
+                    maxScoreWeight = item['weight']
+                ###: configure score plugins with the input "dimExtMethod", currently only works for "DotProductScore" and "CosineSimilarityScore"
+                pc.append({'name': item['name'], 'args': {'dimExtMethod': args.dim_ext_method}})
+            if maxScoreName in SCORE_PLUGINS_WITH_GPU_SEL_METHOD:
+                ###: replacing the default gpuSelMethods (best, worst, random) with the implemented score plugins.
+                args.gpu_sel_method = maxScoreName
+            pc.append({'name': "Open-Gpu-Share", 'args': {'gpuSelMethod': args.gpu_sel_method, 'dimExtMethod': args.dim_ext_method}})
+
     # print(template)
     content = yaml.dump(template)
     md = md5()
@@ -277,6 +314,8 @@ def generate_scheduler_config(args, outdir):
     filename = "sc" # scheduler-config
     for item in template['profiles'][0]['plugins']['score']['enabled']:
         filename += FILESEP + SCORE_POLICY_ABBR[item['name']] + str(item['weight'])
+    filename += FILESEP + "de%s" % str(args.dim_ext_method) if args.dim_ext_method else ""  # dim-ext-method
+    filename += FILESEP + "gs%s" % str(args.gpu_sel_method) if args.gpu_sel_method else ""  # gpu-sel-method
     filename += FILESEP + "md" + md.hexdigest()
     filename += ".yaml"
     outfile = outdir / filename

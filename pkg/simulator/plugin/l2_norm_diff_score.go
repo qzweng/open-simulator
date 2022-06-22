@@ -26,20 +26,20 @@ func NewL2NormDiffScorePlugin(configuration runtime.Object, handle framework.Han
 	}, nil
 }
 
-func (lsp *L2NormDiffScorePlugin) Name() string {
+func (plugin *L2NormDiffScorePlugin) Name() string {
 	return simontype.L2NormDiffScorePluginName
 }
 
-func (lsp *L2NormDiffScorePlugin) Score(ctx context.Context, state *framework.CycleState,
+func (plugin *L2NormDiffScorePlugin) Score(ctx context.Context, state *framework.CycleState,
 	p *corev1.Pod, nodeName string) (int64, *framework.Status) {
 
-	node, err := lsp.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
 	if err != nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error,
 			fmt.Sprintf("failed to get node(%s): %v", nodeName, err))
 	}
 
-	nodeResPtr := utils.GetNodeResourceViaHandle(lsp.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error,
 			fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
@@ -62,6 +62,6 @@ func (lsp *L2NormDiffScorePlugin) Score(ctx context.Context, state *framework.Cy
 	return int64(float64(framework.MaxNodeScore) * score), framework.NewStatus(framework.Success)
 }
 
-func (lsp *L2NormDiffScorePlugin) ScoreExtensions() framework.ScoreExtensions {
+func (plugin *L2NormDiffScorePlugin) ScoreExtensions() framework.ScoreExtensions {
 	return nil
 }
