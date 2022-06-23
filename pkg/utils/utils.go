@@ -1212,18 +1212,26 @@ func CompareFloat64Slices(vec1, vec2 []float64) int {
 	return 1
 }
 
-func GetFormalizedAllocatableResourceVec(node *corev1.Node, formalizedGpuResourceVec []float64) []float64 {
+func GetFormalizedAllocatableResourceVec(node *corev1.Node, formalizedGpuResourceVec []float64, method simontype.GpuDimExtMethod) []float64 {
 	var vec []float64
 
 	// milli cpu allocatable
 	vec = append(vec, float64(node.Status.Allocatable.Cpu().MilliValue()))
 
-	// formalized milli gpu allocatable
-	for _, milliGpuLeft := range formalizedGpuResourceVec {
-		if milliGpuLeft >= utils.MILLI {
-			vec = append(vec, milliGpuLeft)
-		} else {
-			vec = append(vec, float64(utils.MILLI))
+	if method == simontype.MergeGpuDim {
+		vec = append(vec, float64(utils.GetGpuMilliOfNode(node)))
+	} else {
+		// formalized milli gpu allocatable
+		for _, milliGpuLeft := range formalizedGpuResourceVec {
+			if milliGpuLeft >= utils.MILLI {
+				if int64(milliGpuLeft)%utils.MILLI == 0 {
+					vec = append(vec, milliGpuLeft)
+				} else {
+					panic("more than one remaining gpu resource but not a multiple of the entire gpu, should not happen")
+				}
+			} else {
+				vec = append(vec, float64(utils.MILLI))
+			}
 		}
 	}
 
@@ -1234,7 +1242,7 @@ func GetNormalizedNodeVecListAfterDimExt(method simontype.GpuDimExtMethod, nodeR
 	nodeVecList := nodeRes.ToDimExtResourceVec(method)
 
 	for i, nodeVec := range nodeVecList {
-		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, nodeVec[1:])
+		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, nodeVec[1:], method)
 		nodeVecList[i] = NormalizeVector(nodeVec, nodeAllocatable)
 	}
 
@@ -1245,7 +1253,7 @@ func GetNormalizedPodVecListAfterDimExt(method simontype.GpuDimExtMethod, podRes
 	podVecList := podRes.ToDimExtResourceVec(method, nodeRes.ToFormalizedGpuResourceVec())
 
 	for i, podVec := range podVecList {
-		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, podVec[1:])
+		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, podVec[1:], method)
 		podVecList[i] = NormalizeVector(podVec, nodeAllocatable)
 	}
 

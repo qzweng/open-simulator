@@ -245,6 +245,9 @@ func (plugin *GpuSharePlugin) allocateGpuId(pod *v1.Pod, nodeName string) string
 	podRes := utils.GetPodResource(pod)
 
 	if f, ok := allocateGpuIdFunc[string(plugin.cfg.GpuSelMethod)]; ok {
+		if podRes.MilliGpu < gpushareutils.MILLI && podRes.GpuNumber > 1 {
+			panic("the pod requests more than one share gpu, should not happen")
+		}
 		gpuId := f(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
 		return gpuId
 	} else {

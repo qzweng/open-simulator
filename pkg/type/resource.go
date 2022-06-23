@@ -166,7 +166,7 @@ func (tpr PodResource) ToDimExtResourceVec(method GpuDimExtMethod, nodeFormalize
 			// milli gpu request
 			for j := 0; j < len(nodeFormalizedGpuResourceVec); j++ {
 				if j == i {
-					vec = append(vec, float64(tpr.MilliGpu))
+					vec = append(vec, float64(tpr.MilliGpu*int64(tpr.GpuNumber)))
 				} else {
 					vec = append(vec, 0)
 				}
@@ -181,7 +181,7 @@ func (tpr PodResource) ToDimExtResourceVec(method GpuDimExtMethod, nodeFormalize
 		vec = append(vec, float64(tpr.MilliCpu))
 
 		// milli gpu request
-		vec = append(vec, float64(tpr.MilliGpu))
+		vec = append(vec, float64(tpr.MilliGpu*int64(tpr.GpuNumber)))
 
 		vecList = append(vecList, vec)
 	}
