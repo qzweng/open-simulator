@@ -191,7 +191,7 @@ def generate_cluster_config(args, outdir):
     filename += FILESEP + "dr%.1f" % args.deschedule_ratio # deschedule-ratio
     filename += FILESEP + "dp%s" % args.deschedule_policy if args.deschedule_policy is not None else "" # deschedule-policy
     filename += FILESEP + "pe" if args.export_pod_snapshot_yaml_file_prefix is not None else "" # pod-export
-    filename += FILESEP + "md" + md.hexdigest() # md5
+    filename += FILESEP + "md" + md.hexdigest()[:4] # md5
     filename += ".yaml"
     outfile = outdir / filename
     with open(outfile, "w") as f:
@@ -305,6 +305,8 @@ def generate_scheduler_config(args, outdir):
             if maxScoreName in SCORE_PLUGINS_WITH_GPU_SEL_METHOD:
                 ###: replacing the default gpuSelMethods (best, worst, random) with the implemented score plugins.
                 args.gpu_sel_method = maxScoreName
+                if args.dim_ext_method == "merge":
+                    args.gpu_sel_method = "best"
             pc.append({'name': "Open-Gpu-Share", 'args': {'gpuSelMethod': args.gpu_sel_method, 'dimExtMethod': args.dim_ext_method}})
 
     # print(template)
@@ -316,7 +318,7 @@ def generate_scheduler_config(args, outdir):
         filename += FILESEP + SCORE_POLICY_ABBR[item['name']] + str(item['weight'])
     filename += FILESEP + "de%s" % str(args.dim_ext_method) if args.dim_ext_method else ""  # dim-ext-method
     filename += FILESEP + "gs%s" % str(args.gpu_sel_method) if args.gpu_sel_method else ""  # gpu-sel-method
-    filename += FILESEP + "md" + md.hexdigest()
+    filename += FILESEP + "md" + md.hexdigest()[:4]
     filename += ".yaml"
     outfile = outdir / filename
     with open(outfile, "w") as f:
