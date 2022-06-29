@@ -72,15 +72,11 @@ func calculateCosineSimilarityScore(nodeRes simontype.NodeResource, podRes simon
 	var matchedNodeVec []float64
 	var matchedPodVec []float64
 
-	nodeVecList := utils.GetNormalizedNodeVecListAfterDimExt(method, nodeRes, node)
-	podVecList := utils.GetNormalizedPodVecListAfterDimExt(method, podRes, nodeRes, node)
+	nodeVecList := utils.GetNormalizedNodeVecListAfterDimExt(method, nodeRes, podRes, node)
+	podVecList := utils.GetNormalizedPodVecListAfterDimExt(method, nodeRes, podRes, node)
 
 	for _, nodeVec := range nodeVecList {
 		for _, podVec := range podVecList {
-			if utils.CompareFloat64Slices(nodeVec[1:], podVec[1:]) != 1 {
-				continue
-			}
-
 			curScore := utils.CalculateVectorCosineSimilarity(nodeVec, podVec)
 			if curScore == -1 {
 				continue

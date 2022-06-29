@@ -149,12 +149,13 @@ func (tnr NodeResource) Flatten(remark string) NodeResourceFlat {
 }
 
 // ToDimExtResourceVec returns a list of extended pod resource vectors, depending on different extension methods.
-func (tpr PodResource) ToDimExtResourceVec(method GpuDimExtMethod, nodeFormalizedGpuResourceVec []float64) [][]float64 {
+func (tpr PodResource) ToDimExtResourceVec(method GpuDimExtMethod, nodeRes NodeResource) [][]float64 {
 	var vecList [][]float64
 
 	if method == ExtGpuDim {
+		nodeFormalizedGpuResourceVec := nodeRes.ToFormalizedGpuResourceVec()
 		for i, milliGpuLeft := range nodeFormalizedGpuResourceVec {
-			if milliGpuLeft < float64(tpr.MilliGpu) {
+			if milliGpuLeft < float64(tpr.MilliGpu*int64(tpr.GpuNumber)) {
 				continue
 			}
 
@@ -190,7 +191,7 @@ func (tpr PodResource) ToDimExtResourceVec(method GpuDimExtMethod, nodeFormalize
 }
 
 // ToDimExtResourceVec returns a list of extended node resource vectors, depending on different extension methods.
-func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod) [][]float64 {
+func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod, podRes PodResource) [][]float64 {
 	var vecList [][]float64
 
 	if method == MergeGpuDim {
@@ -207,6 +208,10 @@ func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod) [][]float64 
 		formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
 
 		for _, milliGpuLeft := range formalizedGpuResourceVec {
+			if milliGpuLeft < float64(podRes.MilliGpu*int64(podRes.GpuNumber)) {
+				continue
+			}
+
 			var vec []float64
 
 			// milli cpu left
@@ -222,6 +227,10 @@ func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod) [][]float64 
 
 		totalMilliGpuLeft := float64(tnr.GetTotalMilliGpuLeft())
 		for _, milliGpuLeft := range formalizedGpuResourceVec {
+			if milliGpuLeft < float64(podRes.MilliGpu*int64(podRes.GpuNumber)) {
+				continue
+			}
+
 			var vec []float64
 
 			// milli cpu left, divided by the percentage of milli gpu left
@@ -250,9 +259,12 @@ func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod) [][]float64 
 }
 
 // ToFormalizedGpuResourceVec returns a formalized gpu resource vector.
-// The first items of the vector are the remaining gpu resources of the shared gpus.
+// The first few items of the vector are the remaining gpu resources of the shared gpus.
 // The last item is the total gpu resources of fully free gpus.
 // Gpus with empty resources are not counted in the vector.
+// Example:
+// - original <200 GPU, 500 GPU, 1000 GPU, 1000 GPU, 1000 GPU, 1000 GPU, 1000 GPU, 1000 GPU>
+// - formalized <200 GPU, 500 GPU, 6000 GPU>
 func (tnr NodeResource) ToFormalizedGpuResourceVec() []float64 {
 	var vec []float64
 

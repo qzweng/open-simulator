@@ -74,8 +74,8 @@ func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 	var matchedNodeVec []float64
 	var matchedPodVec []float64
 
-	nodeVecList := utils.GetNormalizedNodeVecListAfterDimExt(method, nodeRes, node)
-	podVecList := utils.GetNormalizedPodVecListAfterDimExt(method, podRes, nodeRes, node)
+	nodeVecList := utils.GetNormalizedNodeVecListAfterDimExt(method, nodeRes, podRes, node)
+	podVecList := utils.GetNormalizedPodVecListAfterDimExt(method, nodeRes, podRes, node)
 
 	for _, nodeVec := range nodeVecList {
 		for _, podVec := range podVecList {

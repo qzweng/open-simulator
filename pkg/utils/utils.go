@@ -1212,48 +1212,42 @@ func CompareFloat64Slices(vec1, vec2 []float64) int {
 	return 1
 }
 
-func GetFormalizedAllocatableResourceVec(node *corev1.Node, formalizedGpuResourceVec []float64, method simontype.GpuDimExtMethod) []float64 {
+func GetAllocatableResourceVec(node *corev1.Node, nodeRes simontype.NodeResource, method simontype.GpuDimExtMethod) []float64 {
 	var vec []float64
 
 	// milli cpu allocatable
 	vec = append(vec, float64(node.Status.Allocatable.Cpu().MilliValue()))
 
-	if method == simontype.MergeGpuDim {
-		vec = append(vec, float64(utils.GetGpuMilliOfNode(node)))
-	} else {
-		// formalized milli gpu allocatable
-		for _, milliGpuLeft := range formalizedGpuResourceVec {
-			if milliGpuLeft >= utils.MILLI {
-				if int64(milliGpuLeft)%utils.MILLI == 0 {
-					vec = append(vec, milliGpuLeft)
-				} else {
-					panic("more than one remaining gpu resource but not a multiple of the entire gpu, should not happen")
-				}
-			} else {
-				vec = append(vec, float64(utils.MILLI))
-			}
+	// milli gpu allocatable
+	nodeMilliGpu := nodeRes.GpuNumber * utils.MILLI
+	if method == simontype.ExtGpuDim {
+		formalizedGpuResourceVec := nodeRes.ToFormalizedGpuResourceVec()
+		for i := 0; i < len(formalizedGpuResourceVec); i++ {
+			vec = append(vec, float64(nodeMilliGpu))
 		}
+	} else {
+		vec = append(vec, float64(nodeMilliGpu))
 	}
 
 	return vec
 }
 
-func GetNormalizedNodeVecListAfterDimExt(method simontype.GpuDimExtMethod, nodeRes simontype.NodeResource, node *corev1.Node) [][]float64 {
-	nodeVecList := nodeRes.ToDimExtResourceVec(method)
+func GetNormalizedNodeVecListAfterDimExt(method simontype.GpuDimExtMethod, nodeRes simontype.NodeResource, podRes simontype.PodResource, node *corev1.Node) [][]float64 {
+	nodeVecList := nodeRes.ToDimExtResourceVec(method, podRes)
 
+	nodeAllocatable := GetAllocatableResourceVec(node, nodeRes, method)
 	for i, nodeVec := range nodeVecList {
-		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, nodeVec[1:], method)
 		nodeVecList[i] = NormalizeVector(nodeVec, nodeAllocatable)
 	}
 
 	return nodeVecList
 }
 
-func GetNormalizedPodVecListAfterDimExt(method simontype.GpuDimExtMethod, podRes simontype.PodResource, nodeRes simontype.NodeResource, node *corev1.Node) [][]float64 {
-	podVecList := podRes.ToDimExtResourceVec(method, nodeRes.ToFormalizedGpuResourceVec())
+func GetNormalizedPodVecListAfterDimExt(method simontype.GpuDimExtMethod, nodeRes simontype.NodeResource, podRes simontype.PodResource, node *corev1.Node) [][]float64 {
+	podVecList := podRes.ToDimExtResourceVec(method, nodeRes)
 
+	nodeAllocatable := GetAllocatableResourceVec(node, nodeRes, method)
 	for i, podVec := range podVecList {
-		nodeAllocatable := GetFormalizedAllocatableResourceVec(node, podVec[1:], method)
 		podVecList[i] = NormalizeVector(podVec, nodeAllocatable)
 	}
 
@@ -1261,20 +1255,18 @@ func GetNormalizedPodVecListAfterDimExt(method simontype.GpuDimExtMethod, podRes
 }
 
 func ConvertMatchedVecToGpuId(nodeVec, podVec []float64, nodeRes simontype.NodeResource, podRes simontype.PodResource, method simontype.GpuDimExtMethod) (gpuId string) {
-	gpuId = ""
-
-	var normalizedGpu float64 = 0
+	var matchedMilliGpu int64 = 0
 
 	if method == simontype.SeparateGpuDimAndShareOtherDim || method == simontype.SeparateGpuDimAndDivideOtherDim {
 		if len(nodeVec) != 2 {
 			panic(fmt.Sprintf("nodeVec(%v) length is expected to be 2, nodeRes(%v), podRes(%v)", nodeVec, nodeRes, podRes))
 		}
 
-		normalizedGpu = nodeVec[1]
+		matchedMilliGpu = int64(nodeVec[1] * float64(nodeRes.GpuNumber*utils.MILLI))
 	} else if method == simontype.ExtGpuDim {
 		for i := 1; i < len(nodeVec); i++ {
 			if podVec[i] > 0 {
-				normalizedGpu = nodeVec[i]
+				matchedMilliGpu = int64(nodeVec[i] * float64(nodeRes.GpuNumber*utils.MILLI))
 				break
 			}
 		}
@@ -1282,12 +1274,15 @@ func ConvertMatchedVecToGpuId(nodeVec, podVec []float64, nodeRes simontype.NodeR
 		panic(fmt.Sprintf("undefined allocation policy based on GpuDimExtMethod(%v)", method))
 	}
 
-	if normalizedGpu < 1 { // choose shared gpu
+	if matchedMilliGpu < utils.MILLI { // choose shared gpu
 		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
-			if int64(normalizedGpu*utils.MILLI) == milliGpuLeft {
+			if matchedMilliGpu == milliGpuLeft {
 				gpuId = strconv.Itoa(id)
 				break
 			}
+		}
+		if gpuId == "" {
+			panic("matched gpu not found")
 		}
 	} else { // choose exclusive gpu
 		gpuId = AllocateExclusiveGpuId(nodeRes, podRes)
@@ -1312,6 +1307,9 @@ func AllocateExclusiveGpuId(nodeRes simontype.NodeResource, podRes simontype.Pod
 			}
 			podGpuReq -= utils.MILLI
 		}
+	}
+	if podGpuReq > 0 {
+		panic("there is no enough exclusive gpu to serve pod, should not happen")
 	}
 
 	return gpuId
