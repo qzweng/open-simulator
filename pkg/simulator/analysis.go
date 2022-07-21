@@ -1,12 +1,13 @@
 package simulator
 
 import (
-	log "github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
 	"math"
 	"sync"
 
-	"github.com/alibaba/open-simulator/pkg/type"
+	log "github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+
+	simontype "github.com/alibaba/open-simulator/pkg/type"
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
@@ -32,21 +33,43 @@ func (sim *Simulator) ClusterGpuFragReport() {
 	sim.nodeResourceMap = utils.GetNodeResourceMap(nodeStatus)
 	clusterFragAmount := utils.NewFragAmount("cluster", make([]float64, len(utils.FragRatioDataMap)))
 	var clusterFragBellman float64
+	var clusterUsedNodes int      // num. of used nodes
+	var clusterUsedGpus int       // num. of used GPUs
+	var clusterUsedGpuMilli int64 // num. of used GPU in Milli
+	var clusterTotalGpus int      // num. of total GPUs in the cluster
+
 	for _, ns := range nodeStatus {
 		if nodeRes, ok := sim.nodeResourceMap[ns.Node.Name]; ok {
 			clusterFragAmount.Add(sim.NodeGpuFragAmount(nodeRes)) // easy to calculate. The regular Frag definition
 			clusterFragBellman += utils.NodeGpuFragBellman(nodeRes, sim.typicalPods, &sim.fragMemo, 1.0)
+
+			// To calculate the allocation ratio of cluster in an online manner
+			// TODO: examine whether CPU is used (after refactoring nodeResource to contain CPU capacities)
+			clusterTotalGpus += nodeRes.GpuNumber
+			nodeFreeGpuNum := nodeRes.GetFullyFreeGpuNum()
+			if nodeFreeGpuNum < nodeRes.GpuNumber { // the node is used
+				clusterUsedNodes += 1
+				clusterUsedGpus += nodeRes.GpuNumber // treat all GPUs on that node are "used"
+				clusterUsedGpuMilli += int64(nodeRes.GpuNumber*gpushareutils.MILLI) - nodeRes.GetTotalMilliGpuLeft()
+			}
 		}
 	}
-	var idleGpuMilli float64
+
+	var idleGpuMilli float64 // milli GPUs idle in the cluster
 	for _, v := range clusterFragAmount.Data {
 		idleGpuMilli += v
 	}
+
 	fragGpuMilli := clusterFragAmount.FragAmountSumExceptQ3()
 	fragGpuRatio := 100 * fragGpuMilli / idleGpuMilli
 	q124GpuRatio := 100 * clusterFragAmount.FragAmountSumQ1Q2Q4() / idleGpuMilli
 	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; Q124 ratio: %.2f%%; (origin)\n", fragGpuMilli, fragGpuRatio, q124GpuRatio)
 	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; (bellman)\n", clusterFragBellman, 100*clusterFragBellman/idleGpuMilli)
+
+	if clusterTotalGpus*gpushareutils.MILLI-int(idleGpuMilli) != int(clusterUsedGpuMilli) {
+		log.Errorf("totalGpuMilli (%d) - idleGpuMilli (%d) != usedGpuMilli (%d)", clusterTotalGpus*gpushareutils.MILLI, idleGpuMilli, clusterUsedGpuMilli)
+	}
+	log.Infof("[Alloc]; Used nodes: %d; Used GPUs: %d; Used GPU Milli: %d; Total GPUs: %d\n", clusterUsedNodes, clusterUsedGpus, clusterUsedGpuMilli, clusterTotalGpus)
 }
 
 func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary) {

@@ -7,9 +7,7 @@ import (
 	"testing"
 )
 
-func TestNodeGpuFragAmountBellman_EightGpu(t *testing.T) {
-	nodeRes := simontype.NodeResource{"node_2C_4x1080", 78000,
-		[]int64{1000, 1000, 1000, 1000, 1000, 1000, 535, 70}, 8, "V100M32"} // GpuType: See MapGpuTypeMemoryMiB
+func TestingGenerateGetTypicalPods() simontype.TargetPodList {
 	typicalPods := simontype.TargetPodList{}
 	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 6000, MilliGpu: 465, GpuNumber: 1, GpuType: ""}, Percentage: 9.33 / 100})
 	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 8000, MilliGpu: 440, GpuNumber: 1, GpuType: "2080"}, Percentage: 9.15 / 100})
@@ -46,12 +44,63 @@ func TestNodeGpuFragAmountBellman_EightGpu(t *testing.T) {
 	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 16000, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.25 / 100})
 	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 7000, MilliGpu: 1000, GpuNumber: 1, GpuType: "V100M16"}, Percentage: 0.25 / 100})
 	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 24000, MilliGpu: 1000, GpuNumber: 1, GpuType: "T4"}, Percentage: 0.25 / 100})
+	return typicalPods
+}
 
+func TestNodeGpuFragAmountBellman_EightGpu(t *testing.T) {
+	nodeRes := simontype.NodeResource{"node_2C_4x1080", 78000,
+		[]int64{1000, 1000, 1000, 1000, 1000, 1000, 535, 70}, 8, "V100M32"} // GpuType: See MapGpuTypeMemoryMiB
+	typicalPods := TestingGenerateGetTypicalPods()
 	dp := sync.Map{}
 	frag := NodeGpuFragBellman(nodeRes, typicalPods, &dp, 1.0)
 	//assert.Equal(t, FragAmount{"node_2C_4x1080", []float64{211.014, 205.056, 730.296, 870.534, 0, 0, 0}}.Repr(), fragAmount.Repr())
 	assert.InDelta(t, 160.73, frag, 0.01)
 	// Q1LackBoth: 0, Q2LackGpu: 1, Q3Satisfied: 2, Q4LackCpu: 3, XLSatisfied: 4, XRLackCPU: 5, NoAccess: 6
+}
+
+func TestNodeGpuShareFragAmountScore(t *testing.T) {
+	typicalPods := TestingGenerateGetTypicalPods()
+	nodeRes := simontype.NodeResource{"4x1080_used", 1000, []int64{200, 1000, 1000, 500}, 4, "1080"}
+	score := NodeGpuShareFragAmountScore(nodeRes, typicalPods)
+	assert.InDelta(t, 2566.62, score, 0.01)
+
+	nodeRes = simontype.NodeResource{"4x1080_full", 1000, []int64{1000, 1000, 1000, 1000}, 4, "1080"}
+	score = NodeGpuShareFragAmountScore(nodeRes, typicalPods)
+	assert.InDelta(t, 3802.40, score, 0.01)
+
+	nodeRes = simontype.NodeResource{"8x1080_full", 1000, []int64{1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000}, 8, "1080"}
+	score = NodeGpuShareFragAmountScore(nodeRes, typicalPods)
+	assert.InDelta(t, 7604.80, score, 0.01)
+
+	typicalPods = simontype.TargetPodList{}
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 6000, MilliGpu: 465, GpuNumber: 1, GpuType: ""}, Percentage: 9.33 / 100})
+	nodeRes = simontype.NodeResource{"4x1080_used_lack_CPU", 1000, []int64{200, 1000, 1000, 500}, 4, "1080"}
+	assert.Equal(t, GetNodePodFrag(nodeRes, typicalPods[0].TargetPodResource), Q4LackCpu)
+	assert.Equal(t, int64(2700), GetGpuMilliLeftTotal(nodeRes))
+	score = NodeGpuShareFragAmountScore(nodeRes, typicalPods)
+	assert.InDelta(t, 251.91, score, 0.01)
+}
+
+func TestGetGpuFragMilliByNodeResAndPodRes(t *testing.T) {
+	nodeRes := simontype.NodeResource{"4x1080_used", 1000, []int64{200, 1000, 1000, 500}, 4, "1080"}
+	podRes := simontype.PodResource{100, 1000, 2, "1080"}
+	fragMilli := GetGpuFragMilliByNodeResAndPodRes(nodeRes, podRes)
+	assert.Equal(t, int64(700), fragMilli)
+
+	nodeRes = simontype.NodeResource{"4x1080_full", 1000, []int64{1000, 1000, 1000, 1000}, 4, "1080"}
+	podRes = simontype.PodResource{100, 1000, 2, "1080"}
+	fragMilli = GetGpuFragMilliByNodeResAndPodRes(nodeRes, podRes)
+	assert.Equal(t, int64(0), fragMilli)
+
+	nodeRes = simontype.NodeResource{"8x1080_full", 1000, []int64{1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000}, 8, "1080"}
+	podRes = simontype.PodResource{100, 1000, 2, "1080"}
+	fragMilli = GetGpuFragMilliByNodeResAndPodRes(nodeRes, podRes)
+	assert.Equal(t, int64(0), fragMilli)
+
+	nodeRes = simontype.NodeResource{"4x1080_used", 1000, []int64{200, 1000, 1000, 500}, 4, "1080"}
+	podRes = simontype.PodResource{100, 200, 2, "1080"}
+	fragMilli = GetGpuFragMilliByNodeResAndPodRes(nodeRes, podRes)
+	assert.Equal(t, int64(0), fragMilli)
 }
 
 /*

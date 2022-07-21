@@ -131,6 +131,38 @@ func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.Tar
 	return GetFragAmountByNodeResAndFragRatio(nodeRes, fragRatio)
 }
 
+// NodeGpuShareFragAmount: used in GpuShareFragScorePlugin
+func NodeGpuShareFragAmountScore(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) float64 {
+	fragAmountScore := 0.0
+	for _, pod := range typicalPods {
+		freq := pod.Percentage
+		if freq < 0 || freq > 1 {
+			log.Errorf("pod %v has bad freq: %f\n", pod.TargetPodResource, freq)
+			continue
+		}
+
+		fragType := GetNodePodFrag(nodeRes, pod.TargetPodResource)
+		if fragType == Q3Satisfied { // Part of GPUs are treated as fragment
+			gpuFragMilli := GetGpuFragMilliByNodeResAndPodRes(nodeRes, pod.TargetPodResource)
+			fragAmountScore += freq * float64(gpuFragMilli)
+		} else { // Q1, Q2, XL, XR, NA => all idle GPU resources are treated as fragment
+			gpuMilliLeftTotal := GetGpuMilliLeftTotal(nodeRes)
+			fragAmountScore += freq * float64(gpuMilliLeftTotal)
+		}
+	}
+	return fragAmountScore
+}
+
+func GetGpuFragMilliByNodeResAndPodRes(nodeRes simontype.NodeResource, podRes simontype.PodResource) int64 {
+	gpuFragMilli := int64(0)
+	for _, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+		if milliGpuLeft < podRes.MilliGpu {
+			gpuFragMilli += milliGpuLeft
+		}
+	}
+	return gpuFragMilli
+}
+
 func GetFragAmountByNodeResAndFragRatio(nodeRes simontype.NodeResource, fragRatio FragRatio) FragAmount {
 	fragAmount := NewFragAmount(nodeRes.NodeName, fragRatio.Data)
 	gpuMilliLeftTotal := GetGpuMilliLeftTotal(nodeRes)

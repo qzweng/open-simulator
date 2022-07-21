@@ -248,7 +248,13 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 				Name: simontype.GpuPackingScorePluginName,
 			},
 			{
+				Name: simontype.GpuPackingSimScorePluginName,
+			},
+			{
 				Name: simontype.CosineSimilarityPluginName,
+			},
+			{
+				Name: simontype.CosineSimPackingPluginName,
 			},
 			{
 				Name: simontype.BestFitScorePluginName,

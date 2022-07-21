@@ -1120,6 +1120,7 @@ func GetResourceSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodR
 	return similarity
 }
 
+// CalculateVectorCosineSimilarity returns value in range [0, 1] or -1 (error)
 func CalculateVectorCosineSimilarity(vec1, vec2 []float64) float64 {
 	if len(vec1) == 0 || len(vec2) == 0 || len(vec1) != len(vec2) {
 		log.Errorf("empty vector(s) or vectors of unequal size, vec1 %v, vec2 %v\n", vec1, vec2)
@@ -1212,6 +1213,7 @@ func CompareFloat64Slices(vec1, vec2 []float64) int {
 	return 1
 }
 
+// it can be removed after normalization base switched to cluster max node spec
 func GetAllocatableResourceVec(node *corev1.Node, nodeRes simontype.NodeResource, method simontype.GpuDimExtMethod) []float64 {
 	var vec []float64
 

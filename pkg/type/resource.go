@@ -302,6 +302,14 @@ func (tnr NodeResource) ToFormalizedAllocatableResourceVec(node *v1.Node) []floa
 	return vec
 }
 
+// IsGpuShare returns true if pod is a GPU-share pod, otherwise false.
+func (tpr PodResource) IsGpuShare() bool {
+	if (tpr.GpuNumber == 1) && (tpr.MilliGpu < gpushareutils.MILLI) {
+		return true
+	}
+	return false
+}
+
 // ToResourceVec returns a resource vector: [milli cpu request, milli gpu request].
 func (tpr PodResource) ToResourceVec() []float64 {
 	var vec []float64

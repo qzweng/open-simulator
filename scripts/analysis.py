@@ -99,14 +99,16 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
         sc_file = exp_dir / (sconfig + ".yaml")
         if cc_file.is_file() and sc_file.is_file():
             for item in cconfig.split('_'):
-                if item.startswith("ow"):
+                if item.startswith("ow"): # original workloads
                     meta_dict["ow"]=item.split("ow")[1]
-                if item.startswith("dr"):
+                if item.startswith("dr"): # deschedule ratio
                     meta_dict["dr"]=float(item.split("dr")[1])
-                if item.startswith("pe"):
+                if item.startswith("pe"): # export_pod_snapshot_yaml_file
                     meta_dict["pe"]=1
                 if item.startswith("md"):
                     meta_dict["ccmd"] = item.split("md")[1]
+                if item.startswith("dp"): # deschedule policy
+                    meta_dict["dp"] = item.split("dp")[1]
 
             meta_dict["policy"] = ""
             for item in sconfig.split('_'):
@@ -114,6 +116,10 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
                     continue
                 if item.startswith("md"):
                     meta_dict["scmd"] = item.split("md")[1]
+                if item.startswith("de"): # dimension extension
+                    meta_dict["de"] = item.split("de")[1]
+                if item.startswith("gs"): # GPU selection
+                    meta_dict["gs"] = item.split("gs")[1]
                 else: # frag1000, or (bellman400 + sim400 + frag200)
                     meta_dict["policy"] += "_"+item if len(meta_dict) == 0 else item
 
@@ -134,11 +140,13 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
 
 def log_to_csv(log_path: Path, outfile: Path):
     out_frag_path = outfile.parent / (outfile.stem + '_frag.csv')
+    out_allo_path = outfile.parent / (outfile.stem + '_allo.csv')
     # print("Handling logs under  :", log_path)
     
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
     out_frag_col_dict = {}
+    out_allo_col_dict = {}
     log_file_counter = 0
     for file in log_path.glob("*.log"):
         log = file.name
@@ -155,6 +163,7 @@ def log_to_csv(log_path: Path, outfile: Path):
                 amnt_dict = {}
                 totl_dict = {}
                 frag_list_dict = {}
+                allo_list_dict = {}
 
                 counter = 0
                 tag = ""
@@ -230,6 +239,22 @@ def log_to_csv(log_path: Path, outfile: Path):
                             else:
                                 frag_list_dict[remark].append(frag)
 
+                    # out_allo_col_dict -- online allocation rate
+                    if line.startswith("[Alloc]"):
+                        if len(line.split(';')) == 5: # e.g., "[Alloc]; Used nodes: 52; Used GPUs: 383; Used GPU Milli: 375595; Total GPUs: 4933\n" # 0719-
+                            _, un, ug, um, tg = line.split(';')
+                            un = int(un.split(':')[1].strip())
+                            ug = int(ug.split(':')[1].strip())
+                            um = int(um.split(':')[1].strip())
+                            tg = int(tg.split(':')[1].strip()[:-2])
+                            keys = ["used_nodes","used_gpus","used_gpu_milli","total_gpus"]
+                            values = [un, ug, um, tg]
+                            for key, val in zip(keys, values):
+                                if key in allo_list_dict:
+                                    allo_list_dict[key].append(val)
+                                else:
+                                    allo_list_dict[key] = [val]
+
                 out_dict = {}
                 out_dict.update(meta_dict)
                 out_dict.update(fail_dict)
@@ -243,6 +268,8 @@ def log_to_csv(log_path: Path, outfile: Path):
                 meta_as_key = "-".join(["%s_%s" % (k, v) for k, v in meta_dict.items()])
                 for k, v in frag_list_dict.items():
                     out_frag_col_dict[meta_as_key+"-"+k] = v
+                for k, v in allo_list_dict.items():
+                    out_allo_col_dict[meta_as_key+"-"+k] = v
             except Exception as e:
                 print("[Error] Failed at", file, " with error:", e)
 
@@ -254,6 +281,9 @@ def log_to_csv(log_path: Path, outfile: Path):
             df.sort_values('origin_pods', inplace=True, ascending=True)
         df.to_csv(out_frag_path, index=None) 
         # print("Export frag report at:", out_frag_path)
+    if len(out_allo_col_dict) > 0:
+        df = pd.DataFrame().from_dict(out_allo_col_dict, orient='index').T
+        df.to_csv(out_allo_path, index=None)
 
 
 def failed_pods_in_detail(log_path):

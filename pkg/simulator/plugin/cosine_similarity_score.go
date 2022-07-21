@@ -20,7 +20,7 @@ type CosineSimilarityPlugin struct {
 	handle framework.Handle
 }
 
-var _ framework.ScorePlugin = &GpuPackingScorePlugin{}
+var _ framework.ScorePlugin = &CosineSimilarityPlugin{}
 
 func NewCosineSimilarityPlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 	var cfg *simontype.GpuPluginCfg

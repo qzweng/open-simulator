@@ -145,11 +145,20 @@ func New(opts ...Option) (Interface, error) {
 		simontype.GpuFragScoreBellmanPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuFragScoreBellmanPlugin(configuration, handle, &sim.typicalPods, &sim.fragMemo)
 		},
+		simontype.GpuShareFragScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragScorePlugin(configuration, handle, &sim.typicalPods)
+		},
 		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuPackingScorePlugin(configuration, handle)
 		},
+		simontype.GpuPackingSimScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuPackingSimScorePlugin(configuration, handle)
+		},
 		simontype.CosineSimilarityPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewCosineSimilarityPlugin(configuration, handle)
+		},
+		simontype.CosineSimPackingPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewCosineSimPackingPlugin(configuration, handle)
 		},
 		simontype.BestFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewBestFitScorePlugin(configuration, handle)
@@ -336,9 +345,9 @@ func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPo
 		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
 			log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
 			failedPods = append(failedPods, *unscheduledPod)
-		} else { // if failed to schedule --- not update on cluster gpu frag
-			sim.ClusterGpuFragReport()
 		}
+		sim.ClusterGpuFragReport()
+
 	}
 	return failedPods
 }

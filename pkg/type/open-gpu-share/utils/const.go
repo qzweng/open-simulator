@@ -10,6 +10,9 @@ const (
 	PodNsNameSep = "/"
 	DevIdSep     = "-"
 	MILLI        = 1000
+	MaxSpecCpu   = 104000 // CPU MILLI
+	MaxSpecMem   = 773405 // Mem MiB
+	MaxSpecGpu   = 8000   // GPU MILLI
 )
 
 var MapGpuTypeMemoryMiB = map[string]int{
