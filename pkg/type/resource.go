@@ -54,12 +54,14 @@ type PodResource struct { // typical pod, without name and namespace.
 }
 
 type NodeResource struct {
-	NodeName         string
-	MilliCpu         int64
+	NodeName string
+	MilliCpu int64
+	// MilliCpuCapacity int64
 	MilliGpuLeftList []int64 // Do NOT sort it directly, using SortedMilliGpuLeftIndexList instead. Its order matters; the index is the GPU device index.
 	GpuNumber        int
 	GpuType          string
-	//Memory           int64 // TODO
+	// MemoryLeft       int64
+	// MemoryCapacity   int64
 }
 
 type NodeResourceFlat struct {

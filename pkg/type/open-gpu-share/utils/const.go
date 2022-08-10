@@ -7,6 +7,7 @@ const (
 	ModelName    = "alibabacloud.com/gpu-card-model" // GPU card model, for pod and node
 	AssumeTime   = "alibabacloud.com/assume-time"    // To retrieve the scheduling latency
 	CreationTime = "alibabacloud.com/creation-time"  // creation timestamp
+	DeletionTime = "alibabacloud.com/deletion-time"  // deletion timestamp
 	PodNsNameSep = "/"
 	DevIdSep     = "-"
 	MILLI        = 1000

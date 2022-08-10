@@ -66,6 +66,26 @@ python3 scripts/h_generate_config_and_run.py -d experiments/exp0516_1 \
 python3 scripts/analysis.py experiments/exp0516_1
 """
 
+# Add new scheduler policy here
+SCORE_POLICY_ABBR = {
+    "Gpu-Frag-Score":                "frag",
+    "Gpu-Frag-Score-Bellman":        "bellman",
+    "Gpu-Share-Frag-Score":          "fragshare",
+    "Gpu-Share-Frag-Sim-Score":      "fragsharesim",
+    "Gpu-Share-Frag-Sim-Norm-Score": "fragsharesimnorm",
+    "Gpu-Frag-Sim-Score":            "fragsim",
+    "Gpu-Packing-Score":             "pack",
+    "Gpu-Packing-Sim-Score":         "packsim",
+    "CosineSimilarityScore":         "sim",
+    "CosineSimPackingScore":         "simpack",
+    "BestFitScore":                  "bestfit",
+    "WorstFitScore":                 "worstfit",
+    "DotProductScore":               "dotprod",
+    "L2NormDiffScore":               "l2diff",
+    "L2NormRatioScore":              "l2ratio",
+}
+SCORE_PLUGINS_WITH_GPU_SEL_METHOD = ["DotProductScore", "CosineSimilarityScore", "CosineSimPackingScore"]
+
 def get_args():
     parser = argparse.ArgumentParser(description='generate cluster configuration yaml')
     # exp
@@ -95,18 +115,21 @@ def get_args():
     parser.add_argument('-seed','--workload-inflation-seed', type=int, default=233, help='workload inflation seed')
 
     # scheduler config
-    parser.add_argument("-frag", '--gpu-frag-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-bellman", '--gpu-frag-score-bellman', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-fragshare", '--gpu-share-frag-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-pack", '--gpu-packing-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-packsim", '--gpu-packing-sim-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-sim", '--cosine-similarity', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-simpack", '--cosine-sim-packing', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-bestfit", '--best-fit-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-worstfit", '--worst-fit-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-dotprod", '--dot-prod-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-l2diff", '--l2-norm-diff-score', type=int, default=0, help="score (default: 0)")
-    parser.add_argument("-l2ratio", '--l2-norm-ratio-score', type=int, default=0, help="score (default: 0)")
+    for policy_name, policy_abbr in SCORE_POLICY_ABBR.items():
+        parser.add_argument("-%s" % policy_abbr, type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-frag", '--gpu-frag-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-bellman", '--gpu-frag-score-bellman', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-fragshare", '--gpu-share-frag-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-fragsharesim", '--gpu-share-frag-sim-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-pack", '--gpu-packing-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-packsim", '--gpu-packing-sim-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-sim", '--cosine-similarity', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-simpack", '--cosine-sim-packing', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-bestfit", '--best-fit-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-worstfit", '--worst-fit-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-dotprod", '--dot-prod-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-l2diff", '--l2-norm-diff-score', type=int, default=0, help="score (default: 0)")
+    # parser.add_argument("-l2ratio", '--l2-norm-ratio-score', type=int, default=0, help="score (default: 0)")
 
     # scheduler plugin config
     parser.add_argument("-dimext", "--dim-ext-method", type=str, default="share", help="Dimension extend method: merge, share, divide, extend, default: share")
@@ -194,17 +217,17 @@ def generate_cluster_config(args, outdir):
     filename = "cc" # cluster-config
 
     def path_str_shorten(str):
-      if "pod_paib_0613_" in str and "_gpu2000_no_spec" in str:
-        str = str.split("pod_paib_0613_")[1].split("_gpu2000_no_spec")[0]
-        return str
+        if "pod_paib_0613_" in str and "_gpu2000_no_spec" in str:
+            str = str.split("pod_paib_0613_")[1].split("_gpu2000_no_spec")[0]
+            return str
   
-      str = "" if str is None or len(str) == 0 else str
-      str = str.split("/")[-1] if "/" in str else str
-      str = str.split("-")[-1] if "-" in str else str
-      str = str.split("_")[-1] if "_" in str else str
-      str = str.split(".yaml")[0] if ".yaml" in str else str
-      str = str[-12:] if len(str) > 12 else str
-      return str
+        str = "" if str is None or len(str) == 0 else str
+        str = str.split("/")[-1] if "/" in str else str
+        str = str.split("-")[-1] if "-" in str else str
+        str = str.split("_")[-1] if "_" in str else str
+        str = str.split(".yaml")[0] if ".yaml" in str else str
+        str = str[-12:] if len(str) > 12 else str
+        return str
     
     filename += FILESEP + "ow%s" % path_str_shorten(args.custom_config) if args.custom_config is not None else "" # original-workload
     filename += FILESEP + "nw%s" % path_str_shorten(args.new_workload_config) if args.new_workload_config is not None else "" # new-workload
@@ -215,7 +238,7 @@ def generate_cluster_config(args, outdir):
     filename += ".yaml"
     outfile = outdir / filename
     with open(outfile, "w") as f:
-      yaml.dump(template, f)
+        yaml.dump(template, f)
     return outfile
 
 SCHEDULER_CONFIG_TEMPLATE="""
@@ -229,11 +252,18 @@ profiles:
         enabled:
           - name: Open-Local
           - name: Open-Gpu-Share
+      preScore:
+        disabled:
+          - name: Gpu-Share-Frag-Sim-Score
+          - name: Gpu-Share-Frag-Sim-Norm-Score
+          - name: Gpu-Frag-Sim-Score
+        enabled:
       score:
         disabled:
           - name: Gpu-Frag-Score
           - name: Gpu-Frag-Score-Bellman
           - name: Gpu-Share-Frag-Score
+          - name: Gpu-Share-Frag-Sim-Score
           - name: Gpu-Packing-Score
           - name: Gpu-Packing-Sim-Score
           - name: CosineSimilarityScore
@@ -265,23 +295,6 @@ profiles:
           - name: Simon
 """
 
-SCORE_POLICY_ABBR = {
-    "Gpu-Frag-Score": "frag",
-    "Gpu-Frag-Score-Bellman": "bellman",
-    "Gpu-Share-Frag-Score": "fragshare",
-    "Gpu-Packing-Score": "pack",
-    "Gpu-Packing-Sim-Score": "packsim",
-    "CosineSimilarityScore": "sim",
-    "CosineSimPackingScore": "simpack",
-    "BestFitScore": "bestfit",
-    "WorstFitScore": "worstfit",
-    "DotProductScore": "dotprod",
-    "L2NormDiffScore": "l2diff",
-    "L2NormRatioScore": "l2ratio",
-}
-
-SCORE_PLUGINS_WITH_GPU_SEL_METHOD = ["DotProductScore", "CosineSimilarityScore", "CosineSimPackingScore"]
-
 def generate_scheduler_config(args, outdir):
     template = yaml.safe_load(SCHEDULER_CONFIG_TEMPLATE)
     for k, v in template.items():
@@ -289,30 +302,44 @@ def generate_scheduler_config(args, outdir):
             # generate score plugin entries
             s = v[0]['plugins']['score']
             s['enabled'] = []
-            if args.gpu_frag_score > 0:
-                s['enabled'].append({'name': "Gpu-Frag-Score", 'weight': args.gpu_frag_score})
-            if args.gpu_frag_score_bellman > 0:
-                s['enabled'].append({'name': "Gpu-Frag-Score-Bellman", 'weight': args.gpu_frag_score_bellman})
-            if args.gpu_share_frag_score > 0:
-                s['enabled'].append({'name': "Gpu-Share-Frag-Score", 'weight': args.gpu_share_frag_score})
-            if args.gpu_packing_score > 0:
-                s['enabled'].append({'name': "Gpu-Packing-Score", 'weight': args.gpu_packing_score})
-            if args.gpu_packing_sim_score > 0:
-                s['enabled'].append({'name': "Gpu-Packing-Sim-Score", 'weight': args.gpu_packing_sim_score})
-            if args.cosine_similarity > 0:
-                s['enabled'].append({'name': "CosineSimilarityScore", 'weight': args.cosine_similarity})
-            if args.cosine_sim_packing > 0:
-                s['enabled'].append({'name': "CosineSimPackingScore", 'weight': args.cosine_sim_packing})
-            if args.best_fit_score > 0:
-                s['enabled'].append({'name': "BestFitScore", 'weight': args.best_fit_score})
-            if args.worst_fit_score > 0:
-                s['enabled'].append({'name': "WorstFitScore", 'weight': args.worst_fit_score})
-            if args.dot_prod_score > 0:
-                s['enabled'].append({'name': "DotProductScore", 'weight': args.dot_prod_score})
-            if args.l2_norm_diff_score > 0:
-                s['enabled'].append({'name': "L2NormDiffScore", 'weight': args.l2_norm_diff_score})
-            if args.l2_norm_ratio_score > 0:
-                s['enabled'].append({'name': "L2NormRatioScore", 'weight': args.l2_norm_ratio_score})
+
+            for policy_name, policy_abbr in SCORE_POLICY_ABBR.items():
+                if args.__dict__.get(policy_abbr, 0) > 0:
+                    s['enabled'].append({'name': policy_name, 'weight': args.__dict__.get(policy_abbr, 0)})
+
+                    # for fragsharesim, add PreScore
+                    if policy_abbr in ["fragsharesim", "fragsharesimnorm", "fragsim"]:
+                        prescore = v[0]['plugins']['preScore']
+                        if 'enabled' not in prescore or type(prescore['enabled']) != list:
+                            prescore['enabled'] = []
+                        prescore['enabled'].append({'name': policy_name})
+
+            # if args.gpu_frag_score > 0:
+            #     s['enabled'].append({'name': "Gpu-Frag-Score", 'weight': args.gpu_frag_score})
+            # if args.gpu_frag_score_bellman > 0:
+            #     s['enabled'].append({'name': "Gpu-Frag-Score-Bellman", 'weight': args.gpu_frag_score_bellman})
+            # if args.gpu_share_frag_score > 0:
+            #     s['enabled'].append({'name': "Gpu-Share-Frag-Score", 'weight': args.gpu_share_frag_score})
+            # if args.gpu_share_frag_sim_score > 0:
+            #     s['enabled'].append({'name': "Gpu-Share-Frag-Sim-Score", 'weight': args.gpu_share_frag_sim_score})
+            # if args.gpu_packing_score > 0:
+            #     s['enabled'].append({'name': "Gpu-Packing-Score", 'weight': args.gpu_packing_score})
+            # if args.gpu_packing_sim_score > 0:
+            #     s['enabled'].append({'name': "Gpu-Packing-Sim-Score", 'weight': args.gpu_packing_sim_score})
+            # if args.cosine_similarity > 0:
+            #     s['enabled'].append({'name': "CosineSimilarityScore", 'weight': args.cosine_similarity})
+            # if args.cosine_sim_packing > 0:
+            #     s['enabled'].append({'name': "CosineSimPackingScore", 'weight': args.cosine_sim_packing})
+            # if args.best_fit_score > 0:
+            #     s['enabled'].append({'name': "BestFitScore", 'weight': args.best_fit_score})
+            # if args.worst_fit_score > 0:
+            #     s['enabled'].append({'name': "WorstFitScore", 'weight': args.worst_fit_score})
+            # if args.dot_prod_score > 0:
+            #     s['enabled'].append({'name': "DotProductScore", 'weight': args.dot_prod_score})
+            # if args.l2_norm_diff_score > 0:
+            #     s['enabled'].append({'name': "L2NormDiffScore", 'weight': args.l2_norm_diff_score})
+            # if args.l2_norm_ratio_score > 0:
+            #     s['enabled'].append({'name': "L2NormRatioScore", 'weight': args.l2_norm_ratio_score})
 
             # generate pluginConfig via "enabled"
             v[0]['pluginConfig'] = []
@@ -437,11 +464,11 @@ def exp(args):
         print("    Ex:", command)
         print("    >>:", log_file, "\n")
         if args.execute:
-          with open(log_file,"wb") as log, open(log_file,"wb") as log:
-              if args.block:
-                  subprocess.call(command.split(),stdout=log,stderr=log)  # it blocks. the python will exit but the process remains.
-              else:
-                  subprocess.Popen(command.split(),stdout=log,stderr=log)  # it is non-block. the python will exit but the process remains.
+            with open(log_file,"wb") as log, open(log_file,"wb") as log:
+                if args.block:
+                    subprocess.call(command.split(),stdout=log,stderr=log)  # it blocks. the python will exit but the process remains.
+                else:
+                    subprocess.Popen(command.split(),stdout=log,stderr=log)  # it is non-block. the python will exit but the process remains.
     else:
         print("  Exit without execution")
 

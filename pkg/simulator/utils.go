@@ -230,6 +230,19 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 	if kcfg.Profiles[0].Plugins == nil {
 		kcfg.Profiles[0].Plugins = &kubeschedulerconfig.Plugins{}
 	}
+	kcfg.Profiles[0].Plugins.PreScore = &kubeschedulerconfig.PluginSet{
+		Enabled: []kubeschedulerconfig.Plugin{
+			{
+				Name: simontype.GpuShareFragSimScorePluginName,
+			},
+			{
+				Name: simontype.GpuShareFragSimNormScorePluginName,
+			},
+			{
+				Name: simontype.GpuFragSimScorePluginName,
+			},
+		},
+	}
 	kcfg.Profiles[0].Plugins.Score = &kubeschedulerconfig.PluginSet{
 		Enabled: []kubeschedulerconfig.Plugin{
 			{
@@ -245,6 +258,18 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 				Name: simontype.GpuFragScoreBellmanPluginName,
 			},
 			{
+				Name: simontype.GpuShareFragScorePluginName,
+			},
+			{
+				Name: simontype.GpuShareFragSimScorePluginName,
+			},
+			{
+				Name: simontype.GpuShareFragSimNormScorePluginName,
+			},
+			{
+				Name: simontype.GpuFragSimScorePluginName,
+			},
+			{
 				Name: simontype.GpuPackingScorePluginName,
 			},
 			{
@@ -258,6 +283,18 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 			},
 			{
 				Name: simontype.BestFitScorePluginName,
+			},
+			{
+				Name: simontype.WorstFitScorePluginName,
+			},
+			{
+				Name: simontype.DotProductScorePluginName,
+			},
+			{
+				Name: simontype.L2NormDiffScorePluginName,
+			},
+			{
+				Name: simontype.L2NormRatioScorePluginName,
 			},
 		},
 	}

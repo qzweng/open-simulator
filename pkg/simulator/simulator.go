@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
@@ -147,6 +148,15 @@ func New(opts ...Option) (Interface, error) {
 		},
 		simontype.GpuShareFragScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuShareFragSimScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragSimScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuShareFragSimNormScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragSimNormScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuFragSimScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuFragSimScorePlugin(configuration, handle, &sim.typicalPods)
 		},
 		simontype.GpuPackingScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuPackingScorePlugin(configuration, handle)
@@ -971,6 +981,12 @@ func displaySchedulerConfig(config *config.CompletedConfig) {
 			log.Infof("    %s\n", plugin.Name)
 		}
 		log.Infoln()
+		// PreScore
+		log.Infof("  PreScore Plugin")
+		for _, plugin := range profile.Plugins.PreScore.Enabled {
+			log.Infof("    %s: %d\n", plugin.Name, plugin.Weight)
+		}
+		log.Infoln()
 		// Score
 		log.Infof("  Score Plugin")
 		for _, plugin := range profile.Plugins.Score.Enabled {
@@ -993,7 +1009,8 @@ func displaySchedulerConfig(config *config.CompletedConfig) {
 		log.Infof("  pluginConfig")
 		for _, pc := range profile.PluginConfig {
 			log.Infof("    %s\n", pc.Name)
-			log.Infof("      %v", pc.Args)
+			args, _ := json.Marshal(pc.Args)
+			log.Infof("      %s", args)
 		}
 		log.Infoln()
 	}

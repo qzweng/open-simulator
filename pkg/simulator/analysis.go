@@ -66,9 +66,9 @@ func (sim *Simulator) ClusterGpuFragReport() {
 	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; Q124 ratio: %.2f%%; (origin)\n", fragGpuMilli, fragGpuRatio, q124GpuRatio)
 	log.Infof("[Report]; Frag amount: %.2f; Frag ratio: %.2f%%; (bellman)\n", clusterFragBellman, 100*clusterFragBellman/idleGpuMilli)
 
-	if clusterTotalGpus*gpushareutils.MILLI-int(idleGpuMilli) != int(clusterUsedGpuMilli) {
-		log.Errorf("totalGpuMilli (%d) - idleGpuMilli (%d) != usedGpuMilli (%d)", clusterTotalGpus*gpushareutils.MILLI, idleGpuMilli, clusterUsedGpuMilli)
-	}
+	//if clusterTotalGpus*gpushareutils.MILLI-int(idleGpuMilli) != int(clusterUsedGpuMilli) { // this prints unnecessary logs due to the int rounding error
+	//	log.Errorf("totalGpuMilli (%d) - idleGpuMilli (%d) != usedGpuMilli (%d)", clusterTotalGpus*gpushareutils.MILLI, idleGpuMilli, clusterUsedGpuMilli)
+	//}
 	log.Infof("[Alloc]; Used nodes: %d; Used GPUs: %d; Used GPU Milli: %d; Total GPUs: %d\n", clusterUsedNodes, clusterUsedGpus, clusterUsedGpuMilli, clusterTotalGpus)
 }
 
