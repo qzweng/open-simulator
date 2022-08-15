@@ -155,6 +155,18 @@ func New(opts ...Option) (Interface, error) {
 		simontype.GpuShareFragSimNormScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragSimNormScorePlugin(configuration, handle, &sim.typicalPods)
 		},
+		simontype.GpuShareFragDotProductScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragDotProductScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuShareFragBestFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragBestFitScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuShareFragL2NormRatioScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragL2NormRatioScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuShareFragPackingScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragPackingScorePlugin(configuration, handle, &sim.typicalPods)
+		},
 		simontype.GpuFragSimScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuFragSimScorePlugin(configuration, handle, &sim.typicalPods)
 		},

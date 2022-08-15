@@ -68,23 +68,40 @@ python3 scripts/analysis.py experiments/exp0516_1
 
 # Add new scheduler policy here
 SCORE_POLICY_ABBR = {
-    "Gpu-Frag-Score":                "frag",
-    "Gpu-Frag-Score-Bellman":        "bellman",
-    "Gpu-Share-Frag-Score":          "fragshare",
-    "Gpu-Share-Frag-Sim-Score":      "fragsharesim",
-    "Gpu-Share-Frag-Sim-Norm-Score": "fragsharesimnorm",
-    "Gpu-Frag-Sim-Score":            "fragsim",
-    "Gpu-Packing-Score":             "pack",
-    "Gpu-Packing-Sim-Score":         "packsim",
-    "CosineSimilarityScore":         "sim",
-    "CosineSimPackingScore":         "simpack",
-    "BestFitScore":                  "bestfit",
-    "WorstFitScore":                 "worstfit",
-    "DotProductScore":               "dotprod",
-    "L2NormDiffScore":               "l2diff",
-    "L2NormRatioScore":              "l2ratio",
+    "Gpu-Frag-Score":                     "frag",
+    "Gpu-Frag-Score-Bellman":             "bellman",
+    "Gpu-Share-Frag-Score":               "fragshare",
+    "Gpu-Share-Frag-Sim-Score":           "fragsharesim",
+    "Gpu-Share-Frag-Sim-Norm-Score":      "fragsharesimnorm",
+    "Gpu-Share-Frag-Dot-Product-Score":   "fragsharedotprod",
+    "Gpu-Share-Frag-Best-Fit-Score":      "fragsharebestfit",
+    "Gpu-Share-Frag-L2-Norm-Ratio-Score": "fragsharel2normratio",
+    "Gpu-Share-Frag-Packing-Score":       "fragsharepack",
+    "Gpu-Frag-Sim-Score":                 "fragsim",
+    "Gpu-Packing-Score":                  "pack",
+    "Gpu-Packing-Sim-Score":              "packsim",
+    "CosineSimilarityScore":              "sim",
+    "CosineSimPackingScore":              "simpack",
+    "BestFitScore":                       "bestfit",
+    "WorstFitScore":                      "worstfit",
+    "DotProductScore":                    "dotprod",
+    "L2NormDiffScore":                    "l2diff",
+    "L2NormRatioScore":                   "l2ratio",
 }
-SCORE_PLUGINS_WITH_GPU_SEL_METHOD = ["DotProductScore", "CosineSimilarityScore", "CosineSimPackingScore"]
+SCORE_PLUGINS_WITH_GPU_SEL_METHOD = [
+    "CosineSimilarityScore",
+    "CosineSimPackingScore"
+    "DotProductScore",
+]
+SCORE_PLUGINS_WITH_PRE_SCORE = [
+    "Gpu-Share-Frag-Sim-Score",
+    "Gpu-Share-Frag-Sim-Norm-Score",
+    "Gpu-Share-Frag-Dot-Product-Score",
+    "Gpu-Share-Frag-Best-Fit-Score",
+    "Gpu-Share-Frag-L2-Norm-Ratio-Score",
+    "Gpu-Share-Frag-Packing-Score",
+    "Gpu-Frag-Sim-Score"
+]
 
 def get_args():
     parser = argparse.ArgumentParser(description='generate cluster configuration yaml')
@@ -308,7 +325,7 @@ def generate_scheduler_config(args, outdir):
                     s['enabled'].append({'name': policy_name, 'weight': args.__dict__.get(policy_abbr, 0)})
 
                     # for fragsharesim, add PreScore
-                    if policy_abbr in ["fragsharesim", "fragsharesimnorm", "fragsim"]:
+                    if policy_name in SCORE_PLUGINS_WITH_PRE_SCORE:
                         prescore = v[0]['plugins']['preScore']
                         if 'enabled' not in prescore or type(prescore['enabled']) != list:
                             prescore['enabled'] = []
