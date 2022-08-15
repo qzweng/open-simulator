@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"math"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -27,67 +26,44 @@ func NewWorstFitScorePlugin(configuration runtime.Object, handle framework.Handl
 	}, nil
 }
 
-func (wfs *WorstFitScorePlugin) Name() string {
+func (plugin *WorstFitScorePlugin) Name() string {
 	return simontype.WorstFitScorePluginName
 }
 
-func (wfs *WorstFitScorePlugin) Score(ctx context.Context, state *framework.CycleState,
-	p *corev1.Pod, nodeName string) (int64, *framework.Status) {
-
-	node, err := wfs.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+func (plugin *WorstFitScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+	// < common procedure that prepares node, podRes, nodeRes>
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 	if err != nil {
-		return framework.MinNodeScore,
-			framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node(%s): %s\n", nodeName, err.Error()))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
-	nodeResPtr := utils.GetNodeResourceViaHandle(wfs.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
 	if nodeResPtr == nil {
-		return framework.MinNodeScore,
-			framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
 	nodeRes := *nodeResPtr
-	podRes := utils.GetPodResource(p)
+
+	podRes := utils.GetPodResource(pod)
+	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
+		log.Errorf("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
+	}
+	// </common procedure that prepares node, podRes, nodeRes>
 
 	score := getWorstFitScore(nodeRes, podRes)
 	if score == -1 {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error,
-			fmt.Sprintf("the score between node(%s) and pod(%s) is negative, should not happen\n", nodeName, utils.GeneratePodKey(p)))
+			fmt.Sprintf("the score between node(%s) and pod(%s) is negative, should not happen\n", nodeName, utils.GeneratePodKey(pod)))
 	}
 	return score, framework.NewStatus(framework.Success)
 }
 
-func (wfs *WorstFitScorePlugin) ScoreExtensions() framework.ScoreExtensions {
-	return wfs
+func (plugin *WorstFitScorePlugin) ScoreExtensions() framework.ScoreExtensions {
+	return plugin
 }
 
-func (wfs *WorstFitScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState,
-	p *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
-
-	// find highest and lowest scores
-	var highest int64 = -math.MaxInt64
-	var lowest int64 = math.MaxInt64
-	for _, nodeScore := range scores {
-		if nodeScore.Score > highest {
-			highest = nodeScore.Score
-		}
-		if nodeScore.Score < lowest {
-			lowest = nodeScore.Score
-		}
-	}
-	log.Tracef("[WorstFitScore] [Normalized] highest: %d, lowest: %d\n", highest, lowest)
-
-	// transform the highest to the lowest score range to fit the framework's min to max node score range
-	oldRange := highest - lowest
-	newRange := framework.MaxNodeScore - framework.MinNodeScore
-	for i, nodeScore := range scores {
-		if oldRange == 0 {
-			scores[i].Score = framework.MinNodeScore
-		} else {
-			scores[i].Score = ((nodeScore.Score - lowest) * newRange / oldRange) + framework.MinNodeScore
-		}
-		log.Tracef("[WorstFitScore] [Normalized] Node %s, Score: %d\n", scores[i].Name, scores[i].Score)
-	}
-	return framework.NewStatus(framework.Success)
+func (plugin *WorstFitScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, p *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
+	return NormalizeScore(scores)
 }
 
 // WorstFit assigns a score Σ_{i} weights_{i} (free_{i} - request_{i}),

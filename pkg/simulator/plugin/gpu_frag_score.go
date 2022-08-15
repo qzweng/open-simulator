@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"math"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -40,9 +39,8 @@ func (plugin *GpuFragScorePlugin) Name() string {
 
 // Score invoked at the score extension point.
 func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
-	//fmt.Printf("score_gpu: pod %s/%s, nodeName %s\n", pod.Namespace, pod.Name, nodeName)
-	podReq, _ := resourcehelper.PodRequestsAndLimits(pod)
-	if len(podReq) == 0 {
+	// < common procedure that prepares podRes, nodeRes, newNodeRes for Frag related score plugins>
+	if podReq, _ := resourcehelper.PodRequestsAndLimits(pod); len(podReq) == 0 {
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
 	}
 
@@ -60,19 +58,20 @@ func (plugin *GpuFragScorePlugin) Score(ctx context.Context, state *framework.Cy
 	podRes := utils.GetPodResource(pod)
 	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
 		log.Errorf("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
-		return int64(0), framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
 	}
+
 	newNodeRes, err := nodeRes.Sub(podRes)
 	if err != nil {
 		log.Errorf(err.Error())
-		return int64(0), framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not have sufficient resource for pod (%s) %s\n", nodeName, nodeRes.Repr(), pod.Name, podRes.Repr()))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not have sufficient resource for pod (%s) %s\n", nodeName, nodeRes.Repr(), pod.Name, podRes.Repr()))
 	}
 
-	//plugin.SetTypicalPods()
 	if plugin.typicalPods == nil {
 		log.Errorf("typical pods list is empty\n")
-		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("typical pods list is empty\n"))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, "typical pods list is empty\n")
 	}
+	// </common procedure that prepares podRes, nodeRes, newNodeRes for Frag related score plugins>
 
 	//nodeGpuFragRatio := utils.NodeGpuFragRatio(nodeRes, *plugin.typicalPods)
 	nodeGpuFrag := utils.NodeGpuFragAmount(nodeRes, *plugin.typicalPods)
@@ -90,29 +89,5 @@ func (plugin *GpuFragScorePlugin) ScoreExtensions() framework.ScoreExtensions {
 
 // NormalizeScore invoked after scoring all nodes.
 func (plugin *GpuFragScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
-	// Find highest and lowest scores.
-	var highest int64 = -math.MaxInt64
-	var lowest int64 = math.MaxInt64
-	for _, nodeScore := range scores {
-		if nodeScore.Score > highest {
-			highest = nodeScore.Score
-		}
-		if nodeScore.Score < lowest {
-			lowest = nodeScore.Score
-		}
-	}
-	log.Tracef("[GpuFragScore] [Normalized] highest: %d, lowest: %d\n", highest, lowest)
-
-	// Transform the highest to the lowest score range to fit the framework's min to max node score range.
-	oldRange := highest - lowest
-	newRange := framework.MaxNodeScore - framework.MinNodeScore
-	for i, nodeScore := range scores {
-		if oldRange == 0 {
-			scores[i].Score = framework.MinNodeScore
-		} else {
-			scores[i].Score = ((nodeScore.Score - lowest) * newRange / oldRange) + framework.MinNodeScore
-		}
-		log.Tracef("[GpuFragScore] [Normalized] Node %s, Score: %d\n", scores[i].Name, scores[i].Score)
-	}
-	return framework.NewStatus(framework.Success)
+	return NormalizeScore(scores)
 }

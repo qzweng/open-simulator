@@ -30,22 +30,25 @@ func (plugin *L2NormRatioScorePlugin) Name() string {
 	return simontype.L2NormRatioScorePluginName
 }
 
-func (plugin *L2NormRatioScorePlugin) Score(ctx context.Context, state *framework.CycleState,
-	p *corev1.Pod, nodeName string) (int64, *framework.Status) {
-
-	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+func (plugin *L2NormRatioScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+	// < common procedure that prepares node, podRes, nodeRes>
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error,
-			fmt.Sprintf("failed to get node(%s): %v", nodeName, err))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
 	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
 	if nodeResPtr == nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error,
-			fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
 	nodeRes := *nodeResPtr
-	podRes := utils.GetPodResource(p)
+
+	podRes := utils.GetPodResource(pod)
+	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
+		log.Errorf("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
+	}
+	// </common procedure that prepares node, podRes, nodeRes>
 
 	nodeCap := utils.GetNodeAllocatableCpuGpu(node)
 	nodeVec := utils.NormalizeVector(nodeRes.ToResourceVec(), nodeCap)

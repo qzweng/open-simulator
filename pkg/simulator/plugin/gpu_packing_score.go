@@ -39,9 +39,10 @@ func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
 
-	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	// < common procedure that prepares node, podRes, nodeRes>
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node(%s): %s\n", nodeName, err.Error()))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
 	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
@@ -51,13 +52,13 @@ func (plugin *GpuPackingScorePlugin) Score(ctx context.Context, state *framework
 	nodeRes := *nodeResPtr
 
 	podRes := utils.GetPodResource(pod)
-	_, err = nodeRes.Sub(podRes)
-	if err != nil {
-		log.Errorf("failed to schedule pod(%s) on node(%s)\n", utils.GeneratePodKey(pod), node.Name)
-		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to schedule pod(%s) on node(%s) because of insufficient resources\n", utils.GeneratePodKey(pod), nodeName))
+	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
+		log.Errorf("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
 	}
+	// </common procedure that prepares node, podRes, nodeRes>
 
-	score, err := getPackingScore(podRes, nodeRes)
+	score, err := getPackingScore(nodeRes, podRes)
 	if err != nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to schedule pod(%s) on node(%s)", utils.GeneratePodKey(pod), nodeName))
 	}
@@ -73,7 +74,7 @@ func (plugin *GpuPackingScorePlugin) ScoreExtensions() framework.ScoreExtensions
 //     case-1. use shared GPUs: return maxNodeScore - freeGPUMemRatioOnUsedGpu/10, capped in the range [maxNodeScore/2, maxNodeScore]
 //     case-2. use free GPUs on a used node: return maxNodeScore/2 - fullyFreeGpuNumToUse, capped in the range [maxNodeScore/3, maxNodeScore/2]
 //     case-3. use free GPUs on a free node: return maxNodeScore/3 - freeGpuNum, capped in the range [minNodeScore, maxNodeScore/3]
-func getPackingScore(podRes simontype.PodResource, nodeRes simontype.NodeResource) (int64, error) {
+func getPackingScore(nodeRes simontype.NodeResource, podRes simontype.PodResource) (int64, error) {
 	fullyFreeGpuNum := nodeRes.GetFullyFreeGpuNum()
 
 	// case-3: all gpus on the node are free

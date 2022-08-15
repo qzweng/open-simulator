@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"math"
 
 	localtype "github.com/alibaba/open-local/pkg"
 	localalgorithm "github.com/alibaba/open-local/pkg/scheduler/algorithm"
@@ -143,30 +142,7 @@ func (plugin *LocalPlugin) ScoreExtensions() framework.ScoreExtensions {
 
 // NormalizeScore invoked after scoring all nodes.
 func (plugin *LocalPlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
-	// Find highest and lowest scores.
-	var highest int64 = -math.MaxInt64
-	var lowest int64 = math.MaxInt64
-	for _, nodeScore := range scores {
-		if nodeScore.Score > highest {
-			highest = nodeScore.Score
-		}
-		if nodeScore.Score < lowest {
-			lowest = nodeScore.Score
-		}
-	}
-
-	// Transform the highest to lowest score range to fit the framework's min to max node score range.
-	oldRange := highest - lowest
-	newRange := framework.MaxNodeScore - framework.MinNodeScore
-	for i, nodeScore := range scores {
-		if oldRange == 0 {
-			scores[i].Score = framework.MinNodeScore
-		} else {
-			scores[i].Score = ((nodeScore.Score - lowest) * newRange / oldRange) + framework.MinNodeScore
-		}
-	}
-
-	return framework.NewStatus(framework.Success)
+	return NormalizeScore(scores)
 }
 
 // Bind invoked at the bind extension point.

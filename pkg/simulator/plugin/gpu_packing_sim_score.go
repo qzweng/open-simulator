@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -40,12 +41,11 @@ func (plugin *GpuPackingSimScorePlugin) Name() string {
 	return simontype.GpuPackingSimScorePluginName
 }
 
-func (plugin *GpuPackingSimScorePlugin) Score(ctx context.Context, state *framework.CycleState,
-	p *v1.Pod, nodeName string) (int64, *framework.Status) {
-
-	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+func (plugin *GpuPackingSimScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *v1.Pod, nodeName string) (int64, *framework.Status) {
+	// < common procedure that prepares node, podRes, nodeRes>
+	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
 	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node(%s): %s", nodeName, err.Error()))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
 	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
@@ -53,16 +53,24 @@ func (plugin *GpuPackingSimScorePlugin) Score(ctx context.Context, state *framew
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
 	nodeRes := *nodeResPtr
-	podRes := utils.GetPodResource(p)
 
-	// Cosine Similarity Score
+	podRes := utils.GetPodResource(pod)
+	if !utils.IsNodeAccessibleToPod(nodeRes, podRes) {
+		log.Errorf("Node (%s) %s does not match GPU type request of pod %s. Should be filtered by GpuSharePlugin", nodeName, nodeRes.Repr(), podRes.Repr())
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("Node (%s) %s does not match GPU type request of pod %s\n", nodeName, nodeRes.Repr(), podRes.Repr()))
+	}
+	// </common procedure that prepares node, podRes, nodeRes>
+
+	// < cosine similarity score>
 	scoreCosSim, _, _ := calculateCosineSimilarityScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
 	similarity := float64(scoreCosSim) / float64(framework.MaxNodeScore) // range: 0-1
+	// </cosine similarity score>
 
-	// Packing Score
+	// < packing score>
 	packBaseScore, _ := getPackingBaseScore(podRes, nodeRes)
+	// </packing score>
 
-	// Combine two scores with multiplication: Cosine Similarity (0-1) x 33 + Packing base (0 / 33 / 67)
+	// combine two scores with multiplication: Cosine Similarity (0-1) x 33 + Packing base (0 / 33 / 67)
 	score := int64(similarity*float64(framework.MaxNodeScore-framework.MinNodeScore)/3) + packBaseScore
 
 	return score, framework.NewStatus(framework.Success)
