@@ -3,9 +3,9 @@ package simontype
 import (
 	"fmt"
 	"sort"
+	"strconv"
 
 	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
 
 	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
@@ -49,19 +49,40 @@ type PodResource struct { // typical pod, without name and namespace.
 	MilliCpu  int64
 	MilliGpu  int64 // Milli GPU request per GPU, 0-1000
 	GpuNumber int
-	GpuType   string //
+	GpuType   string
 	//Memory	  int64
 }
 
 type NodeResource struct {
-	NodeName string
-	MilliCpu int64
-	// MilliCpuCapacity int64
+	NodeName         string
+	MilliCpuLeft     int64
+	MilliCpuCapacity int64
 	MilliGpuLeftList []int64 // Do NOT sort it directly, using SortedMilliGpuLeftIndexList instead. Its order matters; the index is the GPU device index.
 	GpuNumber        int
 	GpuType          string
 	// MemoryLeft       int64
 	// MemoryCapacity   int64
+}
+
+type VirtualPodResource struct {
+	ResourceVec []float64
+	GpuId       string
+}
+
+type VirtualNodeResource struct {
+	ResourceVec []float64
+	GpuId       string
+}
+
+type SchedulingMatchGroup struct {
+	NodeResourceVec []float64
+	PodResourceVec  []float64
+	GpuId           string
+}
+
+type GpuResource struct {
+	MilliGpuLeft int64
+	Id           string
 }
 
 type NodeResourceFlat struct {
@@ -84,7 +105,7 @@ func (tpr PodResource) Repr() string {
 
 func (tnr NodeResource) Repr() string {
 	outStr := "<"
-	outStr += fmt.Sprintf("CPU: %6.2f", float64(tnr.MilliCpu)/1000)
+	outStr += fmt.Sprintf("CPU: %6.2f", float64(tnr.MilliCpuLeft)/1000)
 	outStr += fmt.Sprintf(", GPU (%s): %d", tnr.GpuType, tnr.GpuNumber)
 	if tnr.GpuNumber > 0 {
 		outStr += fmt.Sprintf(" x %dm, Left:", gpushareutils.MILLI)
@@ -133,7 +154,7 @@ func (tnr NodeResource) SortedMilliGpuLeftIndexList(ascending bool) []int {
 }
 
 func (tnr NodeResource) Flatten(remark string) NodeResourceFlat {
-	nrf := NodeResourceFlat{tnr.MilliCpu, "", tnr.GpuType, remark}
+	nrf := NodeResourceFlat{tnr.MilliCpuLeft, "", tnr.GpuType, remark}
 
 	// Sort NodeRes's GpuLeft in descending
 	sortedIndex := tnr.SortedMilliGpuLeftIndexList(false)
@@ -150,158 +171,192 @@ func (tnr NodeResource) Flatten(remark string) NodeResourceFlat {
 	return nrf
 }
 
-// ToDimExtResourceVec returns a list of extended pod resource vectors, depending on different extension methods.
-func (tpr PodResource) ToDimExtResourceVec(method GpuDimExtMethod, nodeRes NodeResource) [][]float64 {
-	var vecList [][]float64
+func (tnr NodeResource) ToFormalizedGpuResourceList() (gpuResourceList []GpuResource) {
+	var idleGpuNum = 0
+	var idleGpuIds = ""
+	for id, milliGpuLeft := range tnr.MilliGpuLeftList {
+		if milliGpuLeft == gpushareutils.MILLI {
+			idleGpuNum++
+			if idleGpuIds == "" {
+				idleGpuIds = strconv.Itoa(id)
+			} else {
+				idleGpuIds += fmt.Sprintf("%s%d", gpushareutils.DevIdSep, id)
+			}
+		} else if milliGpuLeft > 0 {
+			gpuResource := GpuResource{
+				MilliGpuLeft: milliGpuLeft,
+				Id:           strconv.Itoa(id),
+			}
+			gpuResourceList = append(gpuResourceList, gpuResource)
+		}
+	}
+	if idleGpuNum > 0 {
+		gpuResource := GpuResource{
+			MilliGpuLeft: int64(idleGpuNum * gpushareutils.MILLI),
+			Id:           idleGpuIds,
+		}
+		gpuResourceList = append(gpuResourceList, gpuResource)
+	}
+	return gpuResourceList
+}
 
-	if method == ExtGpuDim {
-		nodeFormalizedGpuResourceVec := nodeRes.ToFormalizedGpuResourceVec()
-		for i, milliGpuLeft := range nodeFormalizedGpuResourceVec {
-			if milliGpuLeft < float64(tpr.MilliGpu*int64(tpr.GpuNumber)) {
+func (tpr PodResource) ToVirtualPodResourceList(method GpuDimExtMethod, nodeRes NodeResource) (virtualPodResourceList []VirtualPodResource) {
+	podMilliGpuReq := tpr.MilliGpu * int64(tpr.GpuNumber)
+
+	if method == MergeGpuDim ||
+		method == SeparateGpuDimAndShareOtherDim ||
+		method == SeparateGpuDimAndDivideOtherDim {
+
+		virtualPodResource := VirtualPodResource{}
+		var resourceVec []float64
+		// milli cpu request
+		resourceVec = append(resourceVec, float64(tpr.MilliCpu))
+		// milli gpu request
+		resourceVec = append(resourceVec, float64(podMilliGpuReq))
+		virtualPodResource.ResourceVec = resourceVec
+		virtualPodResourceList = append(virtualPodResourceList, virtualPodResource)
+	} else if method == ExtGpuDim {
+
+		nodeFormalizedGpuResourceList := nodeRes.ToFormalizedGpuResourceList()
+		for i, nodeGpuResource := range nodeFormalizedGpuResourceList {
+			if nodeGpuResource.MilliGpuLeft < podMilliGpuReq {
 				continue
 			}
 
-			var vec []float64
-
+			virtualPodResource := VirtualPodResource{}
+			var resourceVec []float64
 			// milli cpu request
-			vec = append(vec, float64(tpr.MilliCpu))
-
+			resourceVec = append(resourceVec, float64(tpr.MilliCpu))
 			// milli gpu request
-			for j := 0; j < len(nodeFormalizedGpuResourceVec); j++ {
+			for j := 0; j < len(nodeFormalizedGpuResourceList); j++ {
 				if j == i {
-					vec = append(vec, float64(tpr.MilliGpu*int64(tpr.GpuNumber)))
+					resourceVec = append(resourceVec, float64(podMilliGpuReq))
 				} else {
-					vec = append(vec, 0)
+					resourceVec = append(resourceVec, 0)
 				}
 			}
-
-			vecList = append(vecList, vec)
+			virtualPodResource.ResourceVec = resourceVec
+			if nodeGpuResource.MilliGpuLeft < gpushareutils.MILLI { // choose share gpu
+				virtualPodResource.GpuId = nodeGpuResource.Id
+			} else { // choose idle gpus
+				virtualPodResource.GpuId = AllocateExclusiveGpuId(nodeRes, tpr)
+			}
+			virtualPodResourceList = append(virtualPodResourceList, virtualPodResource)
 		}
 	} else {
-		var vec []float64
-
-		// milli cpu request
-		vec = append(vec, float64(tpr.MilliCpu))
-
-		// milli gpu request
-		vec = append(vec, float64(tpr.MilliGpu*int64(tpr.GpuNumber)))
-
-		vecList = append(vecList, vec)
+		panic(fmt.Sprintf("undefined gpu dimension extension method: %v", method))
 	}
 
-	return vecList
+	return virtualPodResourceList
 }
 
-// ToDimExtResourceVec returns a list of extended node resource vectors, depending on different extension methods.
-func (tnr NodeResource) ToDimExtResourceVec(method GpuDimExtMethod, podRes PodResource) [][]float64 {
-	var vecList [][]float64
+func (tnr NodeResource) ToVirtualNodeResourceList(method GpuDimExtMethod, podRes PodResource) (virtualNodeResourceList []VirtualNodeResource) {
+	// node cpu resource is not enough to supply the pod
+	if tnr.MilliCpuLeft < podRes.MilliCpu {
+		return nil
+	}
+
+	podMilliGpuReq := podRes.MilliGpu * int64(podRes.GpuNumber)
+	nodeTotalMilliGpuLeft := tnr.GetTotalMilliGpuLeft()
 
 	if method == MergeGpuDim {
-		var vec []float64
-
+		virtualNodeResource := VirtualNodeResource{}
+		var resourceVec []float64
 		// milli cpu left
-		vec = append(vec, float64(tnr.MilliCpu))
-
+		resourceVec = append(resourceVec, float64(tnr.MilliCpuLeft))
 		// total milli gpu left
-		vec = append(vec, float64(tnr.GetTotalMilliGpuLeft()))
+		resourceVec = append(resourceVec, float64(nodeTotalMilliGpuLeft))
+		virtualNodeResource.ResourceVec = resourceVec
+		virtualNodeResourceList = append(virtualNodeResourceList, virtualNodeResource)
+	} else if method == SeparateGpuDimAndShareOtherDim ||
+		method == SeparateGpuDimAndDivideOtherDim {
 
-		vecList = append(vecList, vec)
-	} else if method == SeparateGpuDimAndShareOtherDim {
-		formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
+		if podMilliGpuReq < gpushareutils.MILLI { // choose shared gpu
+			for id, milliGpuLeft := range tnr.MilliGpuLeftList {
+				// ignore idle gpu
+				if milliGpuLeft >= gpushareutils.MILLI {
+					continue
+				}
+				// current gpu is not enough to supply the pod
+				if milliGpuLeft < podMilliGpuReq {
+					continue
+				}
 
-		for _, milliGpuLeft := range formalizedGpuResourceVec {
-			if milliGpuLeft < float64(podRes.MilliGpu*int64(podRes.GpuNumber)) {
-				continue
+				virtualNodeResource := VirtualNodeResource{}
+				var resourceVec []float64
+				if method == SeparateGpuDimAndShareOtherDim {
+					// milli cpu left
+					resourceVec = append(resourceVec, float64(tnr.MilliCpuLeft))
+				} else {
+					// milli cpu left, divided by the percentage of milli gpu left
+					resourceVec = append(resourceVec, float64(tnr.MilliCpuLeft*milliGpuLeft)/float64(nodeTotalMilliGpuLeft))
+				}
+				// milli gpu left
+				resourceVec = append(resourceVec, float64(milliGpuLeft))
+				virtualNodeResource.ResourceVec = resourceVec
+				virtualNodeResource.GpuId = strconv.Itoa(id)
+				virtualNodeResourceList = append(virtualNodeResourceList, virtualNodeResource)
 			}
-
-			var vec []float64
-
-			// milli cpu left
-			vec = append(vec, float64(tnr.MilliCpu))
-
-			// milli gpu left
-			vec = append(vec, milliGpuLeft)
-
-			vecList = append(vecList, vec)
 		}
-	} else if method == SeparateGpuDimAndDivideOtherDim {
-		formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
 
-		totalMilliGpuLeft := float64(tnr.GetTotalMilliGpuLeft())
-		for _, milliGpuLeft := range formalizedGpuResourceVec {
-			if milliGpuLeft < float64(podRes.MilliGpu*int64(podRes.GpuNumber)) {
-				continue
+		// choose exclusive gpus
+		var idleGpuNum = tnr.GetFullyFreeGpuNum()
+		if int64(idleGpuNum*gpushareutils.MILLI) >= podMilliGpuReq {
+			var selectedExclusiveGpuId = AllocateExclusiveGpuId(tnr, podRes)
+			virtualNodeResource := VirtualNodeResource{}
+			var resourceVec []float64
+			if method == SeparateGpuDimAndShareOtherDim {
+				// milli cpu left
+				resourceVec = append(resourceVec, float64(tnr.MilliCpuLeft))
+			} else {
+				// milli cpu left, divided by the percentage of milli gpu left
+				resourceVec = append(resourceVec, float64(tnr.MilliCpuLeft*int64(idleGpuNum*gpushareutils.MILLI))/float64(nodeTotalMilliGpuLeft))
 			}
-
-			var vec []float64
-
-			// milli cpu left, divided by the percentage of milli gpu left
-			vec = append(vec, float64(tnr.MilliCpu)*milliGpuLeft/totalMilliGpuLeft)
-
 			// milli gpu left
-			vec = append(vec, milliGpuLeft)
-
-			vecList = append(vecList, vec)
+			resourceVec = append(resourceVec, float64(idleGpuNum*gpushareutils.MILLI))
+			virtualNodeResource.ResourceVec = resourceVec
+			virtualNodeResource.GpuId = selectedExclusiveGpuId
+			virtualNodeResourceList = append(virtualNodeResourceList, virtualNodeResource)
 		}
-	} else {
-		formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
-
-		var vec []float64
-
+	} else if method == ExtGpuDim {
+		virtualNodeResource := VirtualNodeResource{}
+		var resourceVec []float64
 		// milli cpu left
-		vec = append(vec, float64(tnr.MilliCpu))
-
+		resourceVec = append(resourceVec, float64(tnr.MilliCpuLeft))
 		// milli gpu left
-		vec = append(vec, formalizedGpuResourceVec...)
-
-		vecList = append(vecList, vec)
+		formalizedGpuResourceList := tnr.ToFormalizedGpuResourceList()
+		for _, gpuResource := range formalizedGpuResourceList {
+			resourceVec = append(resourceVec, float64(gpuResource.MilliGpuLeft))
+		}
+		virtualNodeResource.ResourceVec = resourceVec
+		virtualNodeResourceList = append(virtualNodeResourceList, virtualNodeResource)
+	} else {
+		panic(fmt.Sprintf("undefined gpu dimension extension method: %v", method))
 	}
 
-	return vecList
+	return virtualNodeResourceList
 }
 
-// ToFormalizedGpuResourceVec returns a formalized gpu resource vector.
-// The first few items of the vector are the remaining gpu resources of the shared gpus.
-// The last item is the total gpu resources of fully free gpus.
-// Gpus with empty resources are not counted in the vector.
-// Example:
-// - original <200 GPU, 500 GPU, 1000 GPU, 1000 GPU, 1000 GPU, 1000 GPU, 1000 GPU, 1000 GPU>
-// - formalized <200 GPU, 500 GPU, 6000 GPU>
-func (tnr NodeResource) ToFormalizedGpuResourceVec() []float64 {
-	var vec []float64
-
-	var fullyFreeGpuNum = 0
-	for _, millGpuLeft := range tnr.MilliGpuLeftList {
-		if millGpuLeft == gpushareutils.MILLI {
-			fullyFreeGpuNum++
-		} else if millGpuLeft > 0 {
-			vec = append(vec, float64(millGpuLeft))
+func AllocateExclusiveGpuId(nodeRes NodeResource, podRes PodResource) (gpuId string) {
+	podGpuReq := podRes.MilliGpu * int64(podRes.GpuNumber)
+	for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
+		if podGpuReq <= 0 {
+			break
+		}
+		if milliGpuLeft == gpushareutils.MILLI {
+			if gpuId == "" {
+				gpuId = strconv.Itoa(id)
+			} else {
+				gpuId += fmt.Sprintf("%s%d", gpushareutils.DevIdSep, id)
+			}
+			podGpuReq -= gpushareutils.MILLI
 		}
 	}
-	if fullyFreeGpuNum > 0 {
-		vec = append(vec, float64(fullyFreeGpuNum*gpushareutils.MILLI))
+	if podGpuReq > 0 {
+		panic("there is no enough exclusive gpu to serve pod, should not happen")
 	}
 
-	return vec
-}
-
-func (tnr NodeResource) ToFormalizedAllocatableResourceVec(node *v1.Node) []float64 {
-	var vec []float64
-
-	// milli cpu allocatable
-	vec = append(vec, float64(node.Status.Allocatable.Cpu().MilliValue()))
-
-	formalizedGpuResourceVec := tnr.ToFormalizedGpuResourceVec()
-	// formalized milli gpu allocatable
-	for _, milliGpuLeft := range formalizedGpuResourceVec {
-		if milliGpuLeft >= gpushareutils.MILLI {
-			vec = append(vec, milliGpuLeft)
-		} else {
-			vec = append(vec, float64(gpushareutils.MILLI))
-		}
-	}
-
-	return vec
+	return gpuId
 }
 
 // IsGpuShare returns true if pod is a GPU-share pod, otherwise false.
@@ -327,7 +382,7 @@ func (tpr PodResource) ToResourceVec() []float64 {
 func (tnr NodeResource) ToResourceVec() []float64 {
 	var vec []float64
 	// milli cpu left
-	vec = append(vec, float64(tnr.MilliCpu))
+	vec = append(vec, float64(tnr.MilliCpuLeft))
 
 	totalMilliGpuLeft := tnr.GetTotalMilliGpuLeft()
 	// total milli gpu left
@@ -343,7 +398,7 @@ func (tnr NodeResource) Copy() NodeResource {
 
 	return NodeResource{
 		NodeName:         tnr.NodeName,
-		MilliCpu:         tnr.MilliCpu,
+		MilliCpuLeft:     tnr.MilliCpuLeft,
 		MilliGpuLeftList: milliGpuLeftList,
 		GpuNumber:        tnr.GpuNumber,
 		GpuType:          tnr.GpuType,
@@ -352,10 +407,10 @@ func (tnr NodeResource) Copy() NodeResource {
 
 func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 	out := tnr.Copy()
-	if out.MilliCpu < tpr.MilliCpu || out.GpuNumber < tpr.GpuNumber {
+	if out.MilliCpuLeft < tpr.MilliCpu || out.GpuNumber < tpr.GpuNumber {
 		return out, fmt.Errorf("node: %s failed to accommodate pod: %s", tnr.Repr(), tpr.Repr())
 	}
-	out.MilliCpu -= tpr.MilliCpu
+	out.MilliCpuLeft -= tpr.MilliCpu
 
 	gpuRequest := tpr.GpuNumber
 	if gpuRequest == 0 {
@@ -380,7 +435,7 @@ func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 
 func (tnr NodeResource) Add(tpr PodResource, idl []int) (NodeResource, error) {
 	out := tnr.Copy()
-	out.MilliCpu += tpr.MilliCpu
+	out.MilliCpuLeft += tpr.MilliCpu
 
 	gpuRequest := tpr.GpuNumber
 	if tpr.GpuNumber == 0 {
