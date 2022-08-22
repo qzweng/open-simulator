@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"math"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -62,7 +63,7 @@ func (plugin *L2NormDiffScorePlugin) Score(ctx context.Context, state *framework
 	}
 	score /= float64(len(podVec)) // normalize score to [0, 1]
 	score = 1 - score             // the larger the norm diff, the lower the score
-	return int64(float64(framework.MaxNodeScore) * score), framework.NewStatus(framework.Success)
+	return int64(math.Round(float64(framework.MaxNodeScore) * score)), framework.NewStatus(framework.Success)
 }
 
 func (plugin *L2NormDiffScorePlugin) ScoreExtensions() framework.ScoreExtensions {

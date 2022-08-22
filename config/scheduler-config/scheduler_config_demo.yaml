@@ -62,4 +62,5 @@ profiles:
       - name: Open-Gpu-Share
         args:
           dimExtMethod: divide
+          normMethod: node
           gpuSelMethod: CosineSimilarityScore

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"math"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -61,7 +62,7 @@ func (plugin *L2NormRatioScorePlugin) Score(ctx context.Context, state *framewor
 		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
 	score /= float64(len(podVec)) // normalize score to [0, 1]
-	return int64(float64(framework.MaxNodeScore) * score), framework.NewStatus(framework.Success)
+	return int64(math.Round(float64(framework.MaxNodeScore) * score)), framework.NewStatus(framework.Success)
 }
 
 func (plugin *L2NormRatioScorePlugin) ScoreExtensions() framework.ScoreExtensions {

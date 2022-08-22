@@ -1031,7 +1031,7 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 	return &simontype.NodeResource{
 		NodeName:         node.Name,
 		MilliCpuLeft:     milliCpuLeft,
-		MilliCpuCapacity: node.Status.Capacity.Cpu().MilliValue(),
+		MilliCpuCapacity: node.Status.Allocatable.Cpu().MilliValue(),
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
 		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),
@@ -1046,7 +1046,7 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 	return &simontype.NodeResource{
 		NodeName:         node.Name,
 		MilliCpuLeft:     allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
-		MilliCpuCapacity: node.Status.Capacity.Cpu().MilliValue(),
+		MilliCpuCapacity: allocatable.Cpu().MilliValue(),
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
 		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),

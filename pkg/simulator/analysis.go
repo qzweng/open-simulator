@@ -44,10 +44,8 @@ func (sim *Simulator) ClusterGpuFragReport() {
 			clusterFragBellman += utils.NodeGpuFragBellman(nodeRes, sim.typicalPods, &sim.fragMemo, 1.0)
 
 			// To calculate the allocation ratio of cluster in an online manner
-			// TODO: examine whether CPU is used (after refactoring nodeResource to contain CPU capacities)
 			clusterTotalGpus += nodeRes.GpuNumber
-			nodeFreeGpuNum := nodeRes.GetFullyFreeGpuNum()
-			if nodeFreeGpuNum < nodeRes.GpuNumber { // the node is used
+			if nodeRes.GetFullyFreeGpuNum() < nodeRes.GpuNumber || nodeRes.MilliCpuLeft < nodeRes.MilliCpuCapacity { // the node is used
 				clusterUsedNodes += 1
 				clusterUsedGpus += nodeRes.GpuNumber // treat all GPUs on that node are "used"
 				clusterUsedGpuMilli += int64(nodeRes.GpuNumber*gpushareutils.MILLI) - nodeRes.GetTotalMilliGpuLeft()

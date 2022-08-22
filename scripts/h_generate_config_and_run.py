@@ -150,6 +150,7 @@ def get_args():
 
     # scheduler plugin config
     parser.add_argument("-dimext", "--dim-ext-method", type=str, default="share", help="Dimension extend method: merge, share, divide, extend, default: share")
+    parser.add_argument("-norm", "--norm-method", type=str, default="max", help="Norm method") # TODO 
     parser.add_argument("-gpusel", "--gpu-sel-method", type=str, default="best", help="GPU selection method: best, worst, random, default: best")
 
     # parser.add_argument('-c', '--cluster-config', dest="cluster_config", action="store_true", default=False, help="Generate cluster configuration yaml")
@@ -368,12 +369,12 @@ def generate_scheduler_config(args, outdir):
                     maxScoreName = item['name']
                     maxScoreWeight = item['weight']
                 ###: configure score plugins with the input "dimExtMethod", currently only works for "DotProductScore" and "CosineSimilarityScore"
-                pc.append({'name': item['name'], 'args': {'dimExtMethod': args.dim_ext_method}})
+                pc.append({'name': item['name'], 'args': {'dimExtMethod': args.dim_ext_method, 'normMethod': args.norm_method}})
             if maxScoreName in SCORE_PLUGINS_WITH_GPU_SEL_METHOD:
                 if args.dim_ext_method != "merge":
                     ###: replacing the default gpuSelMethods (best, worst, random) with the implemented score plugins.
                     args.gpu_sel_method = maxScoreName
-            pc.append({'name': "Open-Gpu-Share", 'args': {'gpuSelMethod': args.gpu_sel_method, 'dimExtMethod': args.dim_ext_method}})
+            pc.append({'name': "Open-Gpu-Share", 'args': {'gpuSelMethod': args.gpu_sel_method, 'dimExtMethod': args.dim_ext_method, 'normMethod':args.norm_method}})
 
     # print(template)
     content = yaml.dump(template)

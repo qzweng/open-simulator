@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"math"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -66,7 +67,7 @@ func (plugin *SimonPlugin) Score(ctx context.Context, state *framework.CycleStat
 		}
 	}
 
-	return int64(float64(framework.MaxNodeScore-framework.MinNodeScore) * res), framework.NewStatus(framework.Success)
+	return int64(math.Round(float64(framework.MaxNodeScore-framework.MinNodeScore) * res)), framework.NewStatus(framework.Success)
 }
 
 // ScoreExtensions of the Score plugin.

@@ -76,3 +76,37 @@ func TestCalculateL2NormDiff(t *testing.T) {
 	podVec = NormalizeVector(podRes.ToResourceVec(), nodeCap)   // (0.5, 1)
 	assert.InDelta(t, CalculateL2NormDiff(nodeVec, podVec), 0.25, 1e-3)
 }
+
+func TestCalculateVectorCosineSimilarity(t *testing.T) {
+	type args struct {
+		vec1 []float64
+		vec2 []float64
+	}
+	tests := []struct {
+		name string
+		args args
+		want float64
+	}{
+		{
+			"a",
+			args{
+				[]float64{0.5, 0.675},
+				[]float64{0.05, 0.5},
+			},
+			0.85880,
+		},
+		{
+			"b",
+			args{
+				[]float64{0.5, 0.675},
+				[]float64{0.05, 0.1},
+			},
+			0.98492,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.InDeltaf(t, tt.want, CalculateVectorCosineSimilarity(tt.args.vec1, tt.args.vec2), 1e-3, "CalculateVectorCosineSimilarity(%v, %v)", tt.args.vec1, tt.args.vec2)
+		})
+	}
+}

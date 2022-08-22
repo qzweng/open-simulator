@@ -53,6 +53,7 @@ type PodResource struct { // typical pod, without name and namespace.
 	//Memory	  int64
 }
 
+// NodeResource is initialized by utils.GetNodeResourceViaPodList and utils.GetNodeResourceViaHandle
 type NodeResource struct {
 	NodeName         string
 	MilliCpuLeft     int64
@@ -105,7 +106,7 @@ func (tpr PodResource) Repr() string {
 
 func (tnr NodeResource) Repr() string {
 	outStr := "<"
-	outStr += fmt.Sprintf("CPU: %6.2f", float64(tnr.MilliCpuLeft)/1000)
+	outStr += fmt.Sprintf("CPU: %6.2f/%6.2f", float64(tnr.MilliCpuLeft)/1000, float64(tnr.MilliCpuCapacity)/1000)
 	outStr += fmt.Sprintf(", GPU (%s): %d", tnr.GpuType, tnr.GpuNumber)
 	if tnr.GpuNumber > 0 {
 		outStr += fmt.Sprintf(" x %dm, Left:", gpushareutils.MILLI)
@@ -301,7 +302,7 @@ func (tnr NodeResource) ToVirtualNodeResourceList(method GpuDimExtMethod, podRes
 
 		// choose exclusive gpus
 		var idleGpuNum = tnr.GetFullyFreeGpuNum()
-		if int64(idleGpuNum*gpushareutils.MILLI) >= podMilliGpuReq {
+		if podMilliGpuReq <= int64(idleGpuNum*gpushareutils.MILLI) {
 			var selectedExclusiveGpuId = AllocateExclusiveGpuId(tnr, podRes)
 			virtualNodeResource := VirtualNodeResource{}
 			var resourceVec []float64
@@ -399,6 +400,7 @@ func (tnr NodeResource) Copy() NodeResource {
 	return NodeResource{
 		NodeName:         tnr.NodeName,
 		MilliCpuLeft:     tnr.MilliCpuLeft,
+		MilliCpuCapacity: tnr.MilliCpuCapacity,
 		MilliGpuLeftList: milliGpuLeftList,
 		GpuNumber:        tnr.GpuNumber,
 		GpuType:          tnr.GpuType,
@@ -436,6 +438,12 @@ func (tnr NodeResource) Sub(tpr PodResource) (NodeResource, error) {
 func (tnr NodeResource) Add(tpr PodResource, idl []int) (NodeResource, error) {
 	out := tnr.Copy()
 	out.MilliCpuLeft += tpr.MilliCpu
+	if out.MilliCpuLeft > out.MilliCpuCapacity {
+		err := fmt.Errorf("[ERROR] CPU of pod %s + node %s exceeds %d", tpr.Repr(), tnr.Repr(), tnr.MilliCpuCapacity)
+		log.Errorln(err.Error())
+		out.MilliCpuLeft -= tpr.MilliCpu
+		return out, err
+	}
 
 	gpuRequest := tpr.GpuNumber
 	if tpr.GpuNumber == 0 {
