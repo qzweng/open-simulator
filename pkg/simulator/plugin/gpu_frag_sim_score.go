@@ -98,7 +98,7 @@ func (plugin *GpuFragSimScorePlugin) Score(ctx context.Context, state *framework
 	// </frag score>
 
 	// < cosine similarity score>
-	cosScore, _, _ := calculateCosineSimilarityScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+	cosScore, _ := calculateCosineSimilarityScore(nodeRes, podRes, *plugin.cfg)
 	// </cosine similarity score>
 
 	score := int64(fragScore*plugin.fragGpuRatio + float64(cosScore)*(1.0-plugin.fragGpuRatio))

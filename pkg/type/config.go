@@ -36,9 +36,26 @@ const (
 	SelRandomGpu   GpuSelMethod = "random"
 )
 
+type NormMethod string
+
+const (
+	// NormByNode indicates the resource vector will be normalized by node allocatable.
+	NormByNode NormMethod = "node"
+	// NormByPod indicates the resource vector will be normalized by pod request.
+	NormByPod NormMethod = "pod"
+	// NormByMax indicates the resource vector will be normalized by the machine's maximum available resources.
+	NormByMax NormMethod = "max"
+)
+
 type GpuPluginCfg struct {
 	DimExtMethod GpuDimExtMethod `json:"dimExtMethod,omitempty"`
 
-	// only used for OpenGpuShare plugin.
+	// By default, we do not apply any normalization.
+	NormMethod NormMethod `json:"normMethod,omitempty"`
+}
+
+type OpenGpuSharePluginCfg struct {
+	GpuPluginCfg
+
 	GpuSelMethod GpuSelMethod `json:"gpuSelMethod,omitempty"`
 }

@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/pquerna/ffjson/ffjson"
@@ -1031,7 +1030,8 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 
 	return &simontype.NodeResource{
 		NodeName:         node.Name,
-		MilliCpu:         milliCpuLeft,
+		MilliCpuLeft:     milliCpuLeft,
+		MilliCpuCapacity: node.Status.Capacity.Cpu().MilliValue(),
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
 		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),
@@ -1045,7 +1045,8 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 
 	return &simontype.NodeResource{
 		NodeName:         node.Name,
-		MilliCpu:         allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
+		MilliCpuLeft:     allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
+		MilliCpuCapacity: node.Status.Capacity.Cpu().MilliValue(),
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
 		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),
@@ -1199,122 +1200,74 @@ func CalculateL2NormRatio(vec1, vec2 []float64) (l2norm float64) {
 	return l2norm
 }
 
-func CompareFloat64Slices(vec1, vec2 []float64) int {
-	if len(vec1) != len(vec2) {
-		log.Errorf("vectors of unequal size, vec %v, vec2 %v\n", vec1, vec2)
-		return -1
-	}
-	for index, num1 := range vec1 {
-		num2 := vec2[index]
-		if num1 < num2 {
-			return 0
-		}
-	}
-	return 1
-}
+func GenerateSchedulingMatchGroups(nodeRes simontype.NodeResource, podRes simontype.PodResource,
+	gpuDimExtMethod simontype.GpuDimExtMethod, normMethod simontype.NormMethod) (matchGroups []simontype.SchedulingMatchGroup) {
 
-// it can be removed after normalization base switched to cluster max node spec
-func GetAllocatableResourceVec(node *corev1.Node, nodeRes simontype.NodeResource, method simontype.GpuDimExtMethod) []float64 {
-	var vec []float64
+	virtualNodeResourceList := nodeRes.ToVirtualNodeResourceList(gpuDimExtMethod, podRes)
+	virtualPodResourceList := podRes.ToVirtualPodResourceList(gpuDimExtMethod, nodeRes)
+	for _, virtualNodeResource := range virtualNodeResourceList {
+		for _, virtualPodResource := range virtualPodResourceList {
+			nodeResourceVec := make([]float64, len(virtualNodeResource.ResourceVec))
+			copy(nodeResourceVec, virtualNodeResource.ResourceVec)
+			podResourceVec := make([]float64, len(virtualPodResource.ResourceVec))
+			copy(podResourceVec, virtualPodResource.ResourceVec)
 
-	// milli cpu allocatable
-	vec = append(vec, float64(node.Status.Allocatable.Cpu().MilliValue()))
-
-	// milli gpu allocatable
-	nodeMilliGpu := nodeRes.GpuNumber * utils.MILLI
-	if method == simontype.ExtGpuDim {
-		formalizedGpuResourceVec := nodeRes.ToFormalizedGpuResourceVec()
-		for i := 0; i < len(formalizedGpuResourceVec); i++ {
-			vec = append(vec, float64(nodeMilliGpu))
-		}
-	} else {
-		vec = append(vec, float64(nodeMilliGpu))
-	}
-
-	return vec
-}
-
-func GetNormalizedNodeVecListAfterDimExt(method simontype.GpuDimExtMethod, nodeRes simontype.NodeResource, podRes simontype.PodResource, node *corev1.Node) [][]float64 {
-	nodeVecList := nodeRes.ToDimExtResourceVec(method, podRes)
-
-	nodeAllocatable := GetAllocatableResourceVec(node, nodeRes, method)
-	for i, nodeVec := range nodeVecList {
-		nodeVecList[i] = NormalizeVector(nodeVec, nodeAllocatable)
-	}
-
-	return nodeVecList
-}
-
-func GetNormalizedPodVecListAfterDimExt(method simontype.GpuDimExtMethod, nodeRes simontype.NodeResource, podRes simontype.PodResource, node *corev1.Node) [][]float64 {
-	podVecList := podRes.ToDimExtResourceVec(method, nodeRes)
-
-	nodeAllocatable := GetAllocatableResourceVec(node, nodeRes, method)
-	for i, podVec := range podVecList {
-		podVecList[i] = NormalizeVector(podVec, nodeAllocatable)
-	}
-
-	return podVecList
-}
-
-func ConvertMatchedVecToGpuId(nodeVec, podVec []float64, nodeRes simontype.NodeResource, podRes simontype.PodResource, method simontype.GpuDimExtMethod) (gpuId string) {
-	var matchedMilliGpu int64 = 0
-
-	if method == simontype.SeparateGpuDimAndShareOtherDim || method == simontype.SeparateGpuDimAndDivideOtherDim {
-		if len(nodeVec) != 2 {
-			panic(fmt.Sprintf("nodeVec(%v) length is expected to be 2, nodeRes(%v), podRes(%v)", nodeVec, nodeRes, podRes))
-		}
-
-		matchedMilliGpu = int64(nodeVec[1] * float64(nodeRes.GpuNumber*utils.MILLI))
-	} else if method == simontype.ExtGpuDim {
-		for i := 1; i < len(nodeVec); i++ {
-			if podVec[i] > 0 {
-				matchedMilliGpu = int64(nodeVec[i] * float64(nodeRes.GpuNumber*utils.MILLI))
-				break
+			matchGroup := simontype.SchedulingMatchGroup{
+				NodeResourceVec: nodeResourceVec,
+				PodResourceVec:  podResourceVec,
 			}
-		}
-	} else {
-		panic(fmt.Sprintf("undefined allocation policy based on GpuDimExtMethod(%v)", method))
-	}
 
-	if matchedMilliGpu < utils.MILLI { // choose shared gpu
-		for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
-			if matchedMilliGpu == milliGpuLeft {
-				gpuId = strconv.Itoa(id)
-				break
+			if gpuDimExtMethod == simontype.SeparateGpuDimAndShareOtherDim || gpuDimExtMethod == simontype.SeparateGpuDimAndDivideOtherDim {
+				matchGroup.GpuId = virtualNodeResource.GpuId
+			} else if gpuDimExtMethod == simontype.ExtGpuDim {
+				matchGroup.GpuId = virtualPodResource.GpuId
 			}
-		}
-		if gpuId == "" {
-			panic("matched gpu not found")
-		}
-	} else { // choose exclusive gpu
-		gpuId = AllocateExclusiveGpuId(nodeRes, podRes)
-	}
 
-	return gpuId
-}
-
-func AllocateExclusiveGpuId(nodeRes simontype.NodeResource, podRes simontype.PodResource) (gpuId string) {
-	gpuId = ""
-
-	podGpuReq := podRes.MilliGpu * int64(podRes.GpuNumber)
-	for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
-		if podGpuReq <= 0 {
-			break
-		}
-		if milliGpuLeft == utils.MILLI {
-			if gpuId == "" {
-				gpuId = strconv.Itoa(id)
-			} else {
-				gpuId += fmt.Sprintf("%s%d", utils.DevIdSep, id)
+			if normMethod == simontype.NormByNode {
+				var nodeCapacity []float64
+				if gpuDimExtMethod == simontype.ExtGpuDim {
+					nodeCapacity = []float64{float64(nodeRes.MilliCpuCapacity)}
+					nodeGpuResourceList := nodeRes.ToFormalizedGpuResourceList()
+					for i := 0; i < len(nodeGpuResourceList); i++ {
+						nodeCapacity = append(nodeCapacity, float64(nodeRes.GpuNumber*utils.MILLI))
+					}
+				} else {
+					nodeCapacity = []float64{float64(nodeRes.MilliCpuCapacity), float64(nodeRes.GpuNumber * utils.MILLI)}
+				}
+				matchGroup.NodeResourceVec = NormalizeVector(matchGroup.NodeResourceVec, nodeCapacity)
+				matchGroup.PodResourceVec = NormalizeVector(matchGroup.PodResourceVec, nodeCapacity)
+			} else if normMethod == simontype.NormByPod {
+				var podRequest []float64
+				if gpuDimExtMethod == simontype.ExtGpuDim {
+					podRequest = []float64{float64(podRes.MilliCpu)}
+					nodeGpuResourceList := nodeRes.ToFormalizedGpuResourceList()
+					for i := 0; i < len(nodeGpuResourceList); i++ {
+						podRequest = append(podRequest, float64(podRes.MilliGpu*int64(podRes.GpuNumber)))
+					}
+				} else {
+					podRequest = []float64{float64(podRes.MilliCpu), float64(podRes.MilliGpu * int64(podRes.GpuNumber))}
+				}
+				matchGroup.NodeResourceVec = NormalizeVector(matchGroup.NodeResourceVec, podRequest)
+				matchGroup.PodResourceVec = NormalizeVector(matchGroup.PodResourceVec, podRequest)
+			} else if normMethod == simontype.NormByMax {
+				var maxNodeCapacity []float64
+				if gpuDimExtMethod == simontype.ExtGpuDim {
+					maxNodeCapacity = []float64{float64(simontype.MaxNodeCpuCapacity)}
+					nodeGpuResourceList := nodeRes.ToFormalizedGpuResourceList()
+					for i := 0; i < len(nodeGpuResourceList); i++ {
+						maxNodeCapacity = append(maxNodeCapacity, float64(simontype.MaxNodeGpuCapacity))
+					}
+				} else {
+					maxNodeCapacity = []float64{float64(simontype.MaxNodeCpuCapacity), float64(simontype.MaxNodeGpuCapacity)}
+				}
+				matchGroup.NodeResourceVec = NormalizeVector(matchGroup.NodeResourceVec, maxNodeCapacity)
+				matchGroup.PodResourceVec = NormalizeVector(matchGroup.PodResourceVec, maxNodeCapacity)
 			}
-			podGpuReq -= utils.MILLI
+
+			matchGroups = append(matchGroups, matchGroup)
 		}
 	}
-	if podGpuReq > 0 {
-		panic("there is no enough exclusive gpu to serve pod, should not happen")
-	}
-
-	return gpuId
+	return matchGroups
 }
 
 func ReportFailedPods(fp []simontype.UnscheduledPod) {

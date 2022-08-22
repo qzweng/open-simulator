@@ -60,7 +60,7 @@ func (sim *Simulator) descheduleClusterOnCosSim(numPodsToDeschedule int, nodeSta
 		}
 		// nodeFilter
 		nodeRes := nodeResMap[ns.Node.Name]
-		if nodeRes.MilliCpu >= milliCpuBar {
+		if nodeRes.MilliCpuLeft >= milliCpuBar {
 			continue
 		}
 		gpuBarPass := false

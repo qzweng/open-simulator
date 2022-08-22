@@ -62,7 +62,7 @@ func (plugin *GpuPackingSimScorePlugin) Score(ctx context.Context, state *framew
 	// </common procedure that prepares node, podRes, nodeRes>
 
 	// < cosine similarity score>
-	scoreCosSim, _, _ := calculateCosineSimilarityScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+	scoreCosSim, _ := calculateCosineSimilarityScore(nodeRes, podRes, *plugin.cfg)
 	similarity := float64(scoreCosSim) / float64(framework.MaxNodeScore) // range: 0-1
 	// </cosine similarity score>
 

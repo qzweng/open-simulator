@@ -59,7 +59,7 @@ func (plugin *DotProductScorePlugin) Score(ctx context.Context, state *framework
 	nodeRes := *nodeResPtr
 	podRes := utils.GetPodResource(p)
 
-	score, _, _ := calculateDotProductScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+	score, _ := calculateDotProductScore(nodeRes, podRes, *plugin.cfg)
 	return score, framework.NewStatus(framework.Success)
 }
 
@@ -68,55 +68,44 @@ func (plugin *DotProductScorePlugin) ScoreExtensions() framework.ScoreExtensions
 }
 
 func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (int64, []float64, []float64) {
+	cfg simontype.GpuPluginCfg) (int64, string) {
 
 	var score float64 = -1
-	var matchedNodeVec []float64
-	var matchedPodVec []float64
+	var gpuId = ""
 
-	nodeVecList := utils.GetNormalizedNodeVecListAfterDimExt(method, nodeRes, podRes, node)
-	podVecList := utils.GetNormalizedPodVecListAfterDimExt(method, nodeRes, podRes, node)
+	matchGroups := utils.GenerateSchedulingMatchGroups(nodeRes, podRes, cfg.DimExtMethod, cfg.NormMethod)
+	for _, matchGroup := range matchGroups {
+		curScore := utils.CalculateVectorDotProduct(matchGroup.NodeResourceVec, matchGroup.PodResourceVec)
+		if curScore == -1 {
+			continue
+		}
 
-	for _, nodeVec := range nodeVecList {
-		for _, podVec := range podVecList {
-			if utils.CompareFloat64Slices(nodeVec[1:], podVec[1:]) != 1 {
-				continue
-			}
+		if cfg.NormMethod == simontype.NormByNode || cfg.NormMethod == simontype.NormByMax {
+			curScore /= float64(len(matchGroup.PodResourceVec)) // normalize to [0, 1]
+			curScore = 1 - curScore                             // the larger the dot product, the lower the score
+		} else {
+			panic(fmt.Sprintf("undefined normalization for dot product: %v", cfg.NormMethod))
+		}
 
-			curScore := utils.CalculateVectorDotProduct(nodeVec, podVec)
-			if curScore == -1 {
-				continue
-			}
+		log.Tracef("dot product score between nodeVec(%v) and podVec(%v): %.4f\n",
+			matchGroup.NodeResourceVec, matchGroup.PodResourceVec, curScore)
 
-			curScore /= float64(len(podVec)) // normalize score to [0, 1]
-			curScore = 1 - curScore          // the larger the dot product, the lower the score
-			log.Tracef("dot product score between nodeRes(%s) and podRes(%s): %.4f\n",
-				nodeRes.Repr(), podRes.Repr(), curScore)
-
-			if score < curScore {
-				score = curScore
-				matchedNodeVec = make([]float64, len(nodeVec))
-				copy(matchedNodeVec, nodeVec)
-				matchedPodVec = make([]float64, len(podVec))
-				copy(matchedPodVec, podVec)
-			}
+		if score < curScore {
+			score = curScore
+			gpuId = matchGroup.GpuId
 		}
 	}
 
-	if len(matchedNodeVec) == 0 || len(matchedPodVec) == 0 {
-		panic(fmt.Sprintf("failed to match any nodeVec or podVec, nodeVecList(%v), podVecList(%v)", nodeVecList, podVecList))
-	}
-
 	if score == -1 {
-		return framework.MinNodeScore, nil, nil
+		return framework.MinNodeScore, ""
 	}
 
-	return int64(float64(framework.MaxNodeScore) * score), matchedNodeVec, matchedPodVec
+	return int64(float64(framework.MaxNodeScore) * score), gpuId
 }
 
 func allocateGpuIdBasedOnDotProduct(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
+	cfg simontype.GpuPluginCfg) (gpuId string) {
 
-	_, nodeVec, podVec := calculateDotProductScore(nodeRes, podRes, method, node)
-	return utils.ConvertMatchedVecToGpuId(nodeVec, podVec, nodeRes, podRes, method)
+	_, gpuId = calculateDotProductScore(nodeRes, podRes, cfg)
+	return gpuId
 }

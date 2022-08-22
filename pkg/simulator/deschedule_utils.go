@@ -54,14 +54,14 @@ func sortNodeStatusByResource(milliCpuBar int64, nodeStatus []simontype.NodeStat
 		nodeResJ := nodeResMap[nodeJ]
 		milliGpuLeftJ := nodeResJ.GetTotalMilliGpuLeft()
 
-		if nodeResI.MilliCpu < milliCpuBar {
-			if nodeResJ.MilliCpu < milliCpuBar {
+		if nodeResI.MilliCpuLeft < milliCpuBar {
+			if nodeResJ.MilliCpuLeft < milliCpuBar {
 				return milliGpuLeftI > milliGpuLeftJ || (milliGpuLeftI == milliGpuLeftJ && nodeI < nodeJ)
 			} else {
 				return true
 			}
 		} else {
-			if nodeResJ.MilliCpu < milliCpuBar {
+			if nodeResJ.MilliCpuLeft < milliCpuBar {
 				return false
 			} else {
 				return milliGpuLeftI > milliGpuLeftJ || (milliGpuLeftI == milliGpuLeftJ && nodeI < nodeJ)

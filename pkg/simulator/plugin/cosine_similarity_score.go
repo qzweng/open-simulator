@@ -60,7 +60,7 @@ func (plugin *CosineSimilarityPlugin) Score(ctx context.Context, state *framewor
 	}
 	// </common procedure that prepares node, podRes, nodeRes>
 
-	score, _, _ := calculateCosineSimilarityScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+	score, _ := calculateCosineSimilarityScore(nodeRes, podRes, *plugin.cfg)
 	return score, framework.NewStatus(framework.Success)
 }
 
@@ -69,49 +69,39 @@ func (plugin *CosineSimilarityPlugin) ScoreExtensions() framework.ScoreExtension
 }
 
 func calculateCosineSimilarityScore(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (int64, []float64, []float64) {
+	cfg simontype.GpuPluginCfg) (score int64, gpuId string) {
 
-	var score float64 = -1
-	var matchedNodeVec []float64
-	var matchedPodVec []float64
+	var similarity float64 = -1
+	gpuId = ""
 
-	nodeVecList := utils.GetNormalizedNodeVecListAfterDimExt(method, nodeRes, podRes, node)
-	podVecList := utils.GetNormalizedPodVecListAfterDimExt(method, nodeRes, podRes, node)
+	matchGroups := utils.GenerateSchedulingMatchGroups(nodeRes, podRes, cfg.DimExtMethod, cfg.NormMethod)
+	for _, matchGroup := range matchGroups {
+		curSimilarity := utils.CalculateVectorCosineSimilarity(matchGroup.NodeResourceVec, matchGroup.PodResourceVec)
+		if curSimilarity == -1 {
+			continue
+		}
 
-	for _, nodeVec := range nodeVecList {
-		for _, podVec := range podVecList {
-			curScore := utils.CalculateVectorCosineSimilarity(nodeVec, podVec)
-			if curScore == -1 {
-				continue
-			}
+		log.Tracef("cosine similarity score between nodeVec(%v) and podVec(%v): %.4f\n",
+			matchGroup.NodeResourceVec, matchGroup.PodResourceVec, curSimilarity)
 
-			log.Tracef("cosine similarity score between nodeVec(%v) and podVec(%v): %.4f\n",
-				nodeVec, podVec, curScore)
-
-			if score < curScore {
-				score = curScore
-				matchedNodeVec = make([]float64, len(nodeVec))
-				copy(matchedNodeVec, nodeVec)
-				matchedPodVec = make([]float64, len(podVec))
-				copy(matchedPodVec, podVec)
-			}
+		if similarity < curSimilarity {
+			similarity = curSimilarity
+			gpuId = matchGroup.GpuId
 		}
 	}
 
-	if len(matchedNodeVec) == 0 || len(matchedPodVec) == 0 {
-		panic(fmt.Sprintf("failed to match any nodeVec or podVec, nodeVecList(%v), podVecList(%v)", nodeVecList, podVecList))
+	if similarity == -1 {
+		return framework.MinNodeScore, ""
 	}
 
-	if score == -1 {
-		return framework.MinNodeScore, nil, nil
-	}
-
-	return int64(float64(framework.MaxNodeScore) * score), matchedNodeVec, matchedPodVec
+	// The range of cosine similarity: [0, 1]
+	// Scale it to [0, 100]
+	return int64(float64(framework.MaxNodeScore) * similarity), gpuId
 }
 
 func allocateGpuIdBasedOnCosineSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
+	cfg simontype.GpuPluginCfg) (gpuId string) {
 
-	_, nodeVec, podVec := calculateCosineSimilarityScore(nodeRes, podRes, method, node)
-	return utils.ConvertMatchedVecToGpuId(nodeVec, podVec, nodeRes, podRes, method)
+	_, gpuId = calculateCosineSimilarityScore(nodeRes, podRes, cfg)
+	return gpuId
 }

@@ -99,7 +99,7 @@ func (plugin *GpuShareFragDotProductScorePlugin) Score(ctx context.Context, stat
 	// </frag score>
 
 	// < dot product score>
-	dotProdScore, _, _ := calculateDotProductScore(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+	dotProdScore, _ := calculateDotProductScore(nodeRes, podRes, *plugin.cfg)
 	// </dot product score>
 
 	score := int64(fragScore*plugin.fragGpuRatio + float64(dotProdScore)*(1.0-plugin.fragGpuRatio))

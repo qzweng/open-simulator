@@ -27,7 +27,7 @@ import (
 type GpuSharePlugin struct {
 	sync.RWMutex
 	cache  *gpusharecache.SchedulerCache
-	cfg    *simontype.GpuPluginCfg
+	cfg    *simontype.OpenGpuSharePluginCfg
 	handle framework.Handle
 }
 
@@ -35,11 +35,10 @@ type GpuSharePlugin struct {
 var _ framework.FilterPlugin = &GpuSharePlugin{}
 var _ framework.ReservePlugin = &GpuSharePlugin{}
 
-var allocateGpuIdFunc = map[string]func(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string){}
+var allocateGpuIdFunc = map[string]func(nodeRes simontype.NodeResource, podRes simontype.PodResource, cfg simontype.GpuPluginCfg) (gpuId string){}
 
 func NewGpuSharePlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-	var cfg *simontype.GpuPluginCfg
+	var cfg *simontype.OpenGpuSharePluginCfg
 	if err := frameworkruntime.DecodeInto(configuration, &cfg); err != nil {
 		return nil, err
 	}
@@ -248,16 +247,14 @@ func (plugin *GpuSharePlugin) allocateGpuId(pod *v1.Pod, nodeName string) string
 		if podRes.MilliGpu < gpushareutils.MILLI && podRes.GpuNumber > 1 {
 			panic("the pod requests more than one share gpu, should not happen")
 		}
-		gpuId := f(nodeRes, podRes, plugin.cfg.DimExtMethod, node)
+		gpuId := f(nodeRes, podRes, plugin.cfg.GpuPluginCfg)
 		return gpuId
 	} else {
 		panic("undefined allocate gpu id function")
 	}
 }
 
-func allocateGpuIdBasedOnBestFit(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
-
+func allocateGpuIdBasedOnBestFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg) (gpuId string) {
 	gpuId = ""
 
 	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
@@ -271,15 +268,13 @@ func allocateGpuIdBasedOnBestFit(nodeRes simontype.NodeResource, podRes simontyp
 			}
 		}
 	} else { // exclusive-gpu pod
-		gpuId = utils.AllocateExclusiveGpuId(nodeRes, podRes)
+		gpuId = simontype.AllocateExclusiveGpuId(nodeRes, podRes)
 	}
 
 	return gpuId
 }
 
-func allocateGpuIdBasedOnWorstFit(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
-
+func allocateGpuIdBasedOnWorstFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg) (gpuId string) {
 	gpuId = ""
 
 	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
@@ -293,15 +288,13 @@ func allocateGpuIdBasedOnWorstFit(nodeRes simontype.NodeResource, podRes simonty
 			}
 		}
 	} else { // exclusive-gpu pod
-		gpuId = utils.AllocateExclusiveGpuId(nodeRes, podRes)
+		gpuId = simontype.AllocateExclusiveGpuId(nodeRes, podRes)
 	}
 
 	return gpuId
 }
 
-func allocateGpuIdBasedOnRandomFit(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	method simontype.GpuDimExtMethod, node *v1.Node) (gpuId string) {
-
+func allocateGpuIdBasedOnRandomFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg) (gpuId string) {
 	gpuId = ""
 
 	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
@@ -315,7 +308,7 @@ func allocateGpuIdBasedOnRandomFit(nodeRes simontype.NodeResource, podRes simont
 			}
 		}
 	} else { // exclusive-gpu pod
-		gpuId = utils.AllocateExclusiveGpuId(nodeRes, podRes)
+		gpuId = simontype.AllocateExclusiveGpuId(nodeRes, podRes)
 	}
 
 	return gpuId

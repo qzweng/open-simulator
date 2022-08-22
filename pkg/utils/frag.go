@@ -496,7 +496,7 @@ func CanNodeHostPodOnGpuMemory(nodeRes simontype.NodeResource, podRes simontype.
 
 func GetNodePodFrag(nodeRes simontype.NodeResource, podRes simontype.PodResource) string {
 	if podRes.MilliGpu == 0 {
-		if nodeRes.MilliCpu >= podRes.MilliCpu {
+		if nodeRes.MilliCpuLeft >= podRes.MilliCpu {
 			return XLSatisfied
 		} else {
 			return XRLackCPU
@@ -508,13 +508,13 @@ func GetNodePodFrag(nodeRes simontype.NodeResource, podRes simontype.PodResource
 	}
 
 	if CanNodeHostPodOnGpuMemory(nodeRes, podRes) {
-		if nodeRes.MilliCpu >= podRes.MilliCpu {
+		if nodeRes.MilliCpuLeft >= podRes.MilliCpu {
 			return Q3Satisfied
 		} else {
 			return Q4LackCpu
 		}
 	} else {
-		if nodeRes.MilliCpu >= podRes.MilliCpu {
+		if nodeRes.MilliCpuLeft >= podRes.MilliCpu {
 			return Q2LackGpu
 		} else {
 			return Q1LackBoth

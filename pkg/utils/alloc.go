@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	ResourceMilliCpu = "MilliCpu"
+	ResourceMilliCpu = "MilliCpuLeft"
 	ResourceMemory   = "Memory"
 	ResourceGpu      = "Gpu"
 	ResourceMilliGpu = "MilliGpu"

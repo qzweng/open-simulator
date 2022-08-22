@@ -139,7 +139,7 @@ func (sim *Simulator) ExportNodeSnapshotInCSV(filePath string) {
 		data = append(data, strconv.Itoa(numPod))
 
 		// cpu_milli_left
-		data = append(data, strconv.FormatInt(nodeRes.MilliCpu, 10))
+		data = append(data, strconv.FormatInt(nodeRes.MilliCpuLeft, 10))
 
 		// memory_mib_left
 		data = append(data, "0")

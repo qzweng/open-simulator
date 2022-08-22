@@ -8,18 +8,29 @@ profiles:
         enabled:
           - name: Open-Local
           - name: Open-Gpu-Share
+      preScore:
+        disabled:
+          - name: Gpu-Share-Frag-Sim-Score
+          - name: Gpu-Share-Frag-Sim-Norm-Score
+          - name: Gpu-Frag-Sim-Score
+        enabled:
       score:
         disabled:
           - name: Gpu-Frag-Score
           - name: Gpu-Frag-Score-Bellman
+          - name: Gpu-Share-Frag-Score
+          - name: Gpu-Share-Frag-Sim-Score
           - name: Gpu-Packing-Score
+          - name: Gpu-Packing-Sim-Score
           - name: CosineSimilarityScore
+          - name: CosineSimPackingScore
           - name: BestFitScore
+          - name: Simon
           - name: WorstFitScore
           - name: DotProductScore
           - name: L2NormDiffScore
           - name: L2NormRatioScore
-          - name: Simon
+
           - name: ImageLocality
           - name: NodeAffinity
           - name: PodTopologySpread
@@ -46,8 +57,9 @@ profiles:
           dimExtMethod: divide
       - name: CosineSimilarityScore
         args:
-          dimExtMethod: extend
+          dimExtMethod: divide
+          normMethod: node
       - name: Open-Gpu-Share
         args:
-          dimExtMethod: extend
+          dimExtMethod: divide
           gpuSelMethod: CosineSimilarityScore

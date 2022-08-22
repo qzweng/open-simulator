@@ -112,43 +112,43 @@ func TestNodeGpuFragAmountBellman_Direct(t *testing.T) {
 
 	// Q1LackBoth
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 2000, MilliGpu: 1000, GpuNumber: 4, GpuType: "",
+		MilliCpuLeft: 2000, MilliGpu: 1000, GpuNumber: 4, GpuType: "",
 	}, Percentage: 0.1}
 	typicalPods = append(typicalPods, pod)
 
 	// Q2LackGpu
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1000, MilliGpu: 1000, GpuNumber: 4, GpuType: "",
+		MilliCpuLeft: 1000, MilliGpu: 1000, GpuNumber: 4, GpuType: "",
 	}, Percentage: 0.2}
 	typicalPods = append(typicalPods, pod)
 
 	// Q3Satisfied
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1000, MilliGpu: 100, GpuNumber: 4, GpuType: "",
+		MilliCpuLeft: 1000, MilliGpu: 100, GpuNumber: 4, GpuType: "",
 	}, Percentage: 0.3}
 	typicalPods = append(typicalPods, pod)
 
 	// Q4LackCpu
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 2000, MilliGpu: 100, GpuNumber: 1, GpuType: "",
+		MilliCpuLeft: 2000, MilliGpu: 100, GpuNumber: 1, GpuType: "",
 	}, Percentage: 0.1}
 	typicalPods = append(typicalPods, pod)
 
 	// XLSatisfied
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1000, MilliGpu: 0, GpuNumber: 0, GpuType: "",
+		MilliCpuLeft: 1000, MilliGpu: 0, GpuNumber: 0, GpuType: "",
 	}, Percentage: 0.1}
 	typicalPods = append(typicalPods, pod)
 
 	// XRLackCPU
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 2000, MilliGpu: 0, GpuNumber: 0, GpuType: "",
+		MilliCpuLeft: 2000, MilliGpu: 0, GpuNumber: 0, GpuType: "",
 	}, Percentage: 0.1}
 	typicalPods = append(typicalPods, pod)
 
 	// NoAccess
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1000, MilliGpu: 200, GpuNumber: 2, GpuType: "V100M32",
+		MilliCpuLeft: 1000, MilliGpu: 200, GpuNumber: 2, GpuType: "V100M32",
 	}, Percentage: 0.1}
 	typicalPods = append(typicalPods, pod)
 
@@ -169,27 +169,27 @@ func TestNodeGpuFragAmountBellman_NonDirect(t *testing.T) {
 	pod := simontype.TargetPod{}
 
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1500, MilliGpu: 900, GpuNumber: 4, GpuType: "",
+		MilliCpuLeft: 1500, MilliGpu: 900, GpuNumber: 4, GpuType: "",
 	}, Percentage: 0.1}
 	typicalPods = append(typicalPods, pod)
 
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1000, MilliGpu: 900, GpuNumber: 4, GpuType: "",
+		MilliCpuLeft: 1000, MilliGpu: 900, GpuNumber: 4, GpuType: "",
 	}, Percentage: 0.2}
 	typicalPods = append(typicalPods, pod)
 
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 500, MilliGpu: 100, GpuNumber: 4, GpuType: "",
+		MilliCpuLeft: 500, MilliGpu: 100, GpuNumber: 4, GpuType: "",
 	}, Percentage: 0.3}
 	typicalPods = append(typicalPods, pod)
 
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1500, MilliGpu: 100, GpuNumber: 1, GpuType: "",
+		MilliCpuLeft: 1500, MilliGpu: 100, GpuNumber: 1, GpuType: "",
 	}, Percentage: 0.2}
 	typicalPods = append(typicalPods, pod)
 
 	pod = simontype.TargetPod{TargetPodResource: simontype.PodResource{
-		MilliCpu: 1000, MilliGpu: 200, GpuNumber: 2, GpuType: "1080",
+		MilliCpuLeft: 1000, MilliGpu: 200, GpuNumber: 2, GpuType: "1080",
 	}, Percentage: 0.2}
 	typicalPods = append(typicalPods, pod)
 
