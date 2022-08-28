@@ -61,6 +61,7 @@ type NodeResource struct {
 	MilliGpuLeftList []int64 // Do NOT sort it directly, using SortedMilliGpuLeftIndexList instead. Its order matters; the index is the GPU device index.
 	GpuNumber        int
 	GpuType          string
+	GpuAffinity      map[string]int
 	// MemoryLeft       int64
 	// MemoryCapacity   int64
 }

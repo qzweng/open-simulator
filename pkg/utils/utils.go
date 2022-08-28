@@ -1027,6 +1027,12 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 		return nil
 	}
 	milliCpuLeft := node.Status.Allocatable.Cpu().MilliValue() - nodeInfo.Requested.MilliCPU
+	nodeGpuAffinity := map[string]int{}
+	for i := 0; i < len(nodeInfo.Pods); i++ {
+		p := nodeInfo.Pods[i].Pod
+		affinity := utils.GetGpuAffinityFromPodAnnotation(p)
+		nodeGpuAffinity[affinity] += 1
+	}
 
 	return &simontype.NodeResource{
 		NodeName:         node.Name,
@@ -1035,6 +1041,7 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
 		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),
+		GpuAffinity:      nodeGpuAffinity,
 	}
 }
 
@@ -1042,6 +1049,11 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 	allocatable := node.Status.Allocatable
 	reqs, _ := GetPodsTotalRequestsAndLimitsByNodeName(podList, node.Name)
 	nodeCpuReq, _ := reqs[corev1.ResourceCPU], reqs[corev1.ResourceMemory]
+	nodeGpuAffinity := map[string]int{}
+	for _, p := range podList {
+		affinity := utils.GetGpuAffinityFromPodAnnotation(p)
+		nodeGpuAffinity[affinity] += 1
+	}
 
 	return &simontype.NodeResource{
 		NodeName:         node.Name,
@@ -1050,7 +1062,31 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
 		GpuNumber:        utils.GetGpuCountOfNode(node),
 		GpuType:          utils.GetGpuModelOfNode(node),
+		GpuAffinity:      nodeGpuAffinity,
 	}
+}
+
+func GetNodeResourceAndPodResourceViaHandle(p *corev1.Pod, nodeName string, handle framework.Handle) (nodeResPtr *simontype.NodeResource, podResPtr *simontype.PodResource) {
+	node, err := handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
+	if err != nil {
+		return nil, nil
+	}
+
+	nodeResPtr = GetNodeResourceViaHandle(handle, node)
+	if nodeResPtr == nil {
+		return nil, nil
+	}
+
+	if p == nil {
+		return nil, nil
+	}
+	podRes := GetPodResource(p)
+	podResPtr = &podRes
+	if !IsNodeAccessibleToPod(*nodeResPtr, *podResPtr) {
+		return nil, nil
+	}
+
+	return nodeResPtr, podResPtr
 }
 
 func getGpuMilliLeftListOnNode(node *corev1.Node) []int64 {

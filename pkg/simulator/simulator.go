@@ -197,6 +197,12 @@ func New(opts ...Option) (Interface, error) {
 		simontype.L2NormRatioScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewL2NormRatioScorePlugin(configuration, handle)
 		},
+		simontype.GandivaScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGandivaScorePlugin(configuration, handle)
+		},
+		simontype.SynergyScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewSynergyScorePlugin(configuration, handle)
+		},
 	}
 	sim.scheduler, err = scheduler.New(
 		sim.client,

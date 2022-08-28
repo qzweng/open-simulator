@@ -30,6 +30,8 @@ profiles:
           - name: DotProductScore
           - name: L2NormDiffScore
           - name: L2NormRatioScore
+          - name: GandivaScore
+          - name: SynergyScore
 
           - name: ImageLocality
           - name: NodeAffinity
@@ -40,7 +42,7 @@ profiles:
           - name: NodeResourcesLeastAllocated
           - name: NodePreferAvoidPods
         enabled:
-          - name: CosineSimilarityScore
+          - name: GandivaScore
             weight: 1000
       reserve:
         enabled:
@@ -61,6 +63,6 @@ profiles:
           normMethod: node
       - name: Open-Gpu-Share
         args:
-          dimExtMethod: divide
-          normMethod: node
-          gpuSelMethod: CosineSimilarityScore
+#          dimExtMethod: divide
+#          normMethod: node
+          gpuSelMethod: best

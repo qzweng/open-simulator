@@ -29,6 +29,8 @@ const (
 	L2NormRatioScorePluginName             = "L2NormRatioScore"
 	FFDProdScoreName                       = "FFDProdScore"
 	FFDSumScoreName                        = "FFDSumScore"
+	GandivaScorePluginName                 = "GandivaScore"
+	SynergyScorePluginName                 = "SynergyScore"
 	NewNodeNamePrefix                      = "simon"
 	SimulatorName                          = "Main"
 	DefaultSchedulerName                   = "simon-scheduler"

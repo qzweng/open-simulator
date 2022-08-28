@@ -88,6 +88,27 @@ func GetGpuCountFromPodAnnotation(pod *v1.Pod) (gpuCount int) {
 	return gpuCount
 }
 
+// GetGpuAffinityFromPodAnnotation returns the gpu affinity of the pod
+func GetGpuAffinityFromPodAnnotation(p *v1.Pod) (affinity string) {
+	gpuCount := GetGpuCountFromPodAnnotation(p)
+	gpuMilli := GetGpuMilliFromPodAnnotation(p)
+	if gpuCount == 0 {
+		return NoGpuTag
+	} else if gpuCount == 1 && gpuMilli < MILLI {
+		return ShareGpuTag
+	} else if gpuCount == 1 && gpuMilli == MILLI {
+		return OneGpuTag
+	} else if gpuCount == 2 && gpuMilli == MILLI {
+		return TwoGpuTag
+	} else if gpuCount == 4 && gpuMilli == MILLI {
+		return FourGpuTag
+	} else if gpuCount == 8 && gpuMilli == MILLI {
+		return EightGpuTag
+	} else {
+		panic(fmt.Sprintf("unknown gpu affinity, gpu count = %d, gpu milli = %d", gpuCount, gpuMilli))
+	}
+}
+
 // GpuIdStrToIntList follows the string formed in func (n *GpuNodeInfo) AllocateGpuId
 func GpuIdStrToIntList(id string) (idl []int, err error) {
 	if len(id) <= 0 {
