@@ -405,6 +405,7 @@ func (tnr NodeResource) Copy() NodeResource {
 		MilliGpuLeftList: milliGpuLeftList,
 		GpuNumber:        tnr.GpuNumber,
 		GpuType:          tnr.GpuType,
+		GpuAffinity:      tnr.GpuAffinity,
 	}
 }
 

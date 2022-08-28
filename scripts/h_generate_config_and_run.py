@@ -88,6 +88,8 @@ SCORE_POLICY_ABBR = {
     "DotProductScore":                    "dotprod",
     "L2NormDiffScore":                    "l2diff",
     "L2NormRatioScore":                   "l2ratio",
+    "GandivaScore":                       "gandiva",
+    "SynergyScore":                       "synergy",
 }
 SCORE_PLUGINS_WITH_DIM_NORM_GPU_METHOD = [
     "DotProductScore",                  # dot product
@@ -301,6 +303,8 @@ profiles:
           - name: DotProductScore
           - name: L2NormDiffScore
           - name: L2NormRatioScore
+          - name: GandivaScore
+          - name: SynergyScore
           # 
           - name: ImageLocality
           - name: NodeAffinity

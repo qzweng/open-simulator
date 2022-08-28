@@ -44,6 +44,7 @@ import (
 	simontype "github.com/alibaba/open-simulator/pkg/type"
 	gpusharecache "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/cache"
 	"github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 )
 
 var nameDelimiter = "/"
@@ -783,7 +784,7 @@ func GetNodeAllocatable(node *corev1.Node) (resource.Quantity, resource.Quantity
 
 func GetNodeAllocatableCpuGpu(node *corev1.Node) []float64 {
 	milliCpu := node.Status.Allocatable.Cpu().MilliValue()
-	milliGpu := utils.GetGpuCountOfNode(node) * utils.MILLI
+	milliGpu := gpushareutils.GetGpuCountOfNode(node) * gpushareutils.MILLI
 	return []float64{float64(milliCpu), float64(milliGpu)}
 }
 
@@ -960,13 +961,13 @@ func IsNodeAccessibleToPodByType(nodeGpuType string, podGpuType string) bool {
 		return false // i.e., CPU node
 	}
 
-	pm, ok := utils.MapGpuTypeMemoryMiB[podGpuType]
+	pm, ok := gpushareutils.MapGpuTypeMemoryMiB[podGpuType]
 	if !ok {
 		log.Errorf("Pod GPU Type: %s not in Map", podGpuType)
 		return false
 	}
 
-	nm, ok := utils.MapGpuTypeMemoryMiB[nodeGpuType]
+	nm, ok := gpushareutils.MapGpuTypeMemoryMiB[nodeGpuType]
 	if !ok {
 		log.Errorf("Node GPU Type: %s not in Map", nodeGpuType)
 		return false
@@ -979,9 +980,9 @@ func IsNodeAccessibleToPodByType(nodeGpuType string, podGpuType string) bool {
 }
 
 func GetPodResource(pod *corev1.Pod) simontype.PodResource {
-	gpuNumber := utils.GetGpuCountFromPodAnnotation(pod)
-	gpuMilli := utils.GetGpuMilliFromPodAnnotation(pod)
-	gpuType := utils.GetGpuModelFromPodAnnotation(pod)
+	gpuNumber := gpushareutils.GetGpuCountFromPodAnnotation(pod)
+	gpuMilli := gpushareutils.GetGpuMilliFromPodAnnotation(pod)
+	gpuType := gpushareutils.GetGpuModelFromPodAnnotation(pod)
 
 	var non0CPU, non0Mem int64
 	for _, c := range pod.Spec.Containers {
@@ -1030,7 +1031,7 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 	nodeGpuAffinity := map[string]int{}
 	for i := 0; i < len(nodeInfo.Pods); i++ {
 		p := nodeInfo.Pods[i].Pod
-		affinity := utils.GetGpuAffinityFromPodAnnotation(p)
+		affinity := gpushareutils.GetGpuAffinityFromPodAnnotation(p)
 		nodeGpuAffinity[affinity] += 1
 	}
 
@@ -1039,8 +1040,8 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 		MilliCpuLeft:     milliCpuLeft,
 		MilliCpuCapacity: node.Status.Allocatable.Cpu().MilliValue(),
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
-		GpuNumber:        utils.GetGpuCountOfNode(node),
-		GpuType:          utils.GetGpuModelOfNode(node),
+		GpuNumber:        gpushareutils.GetGpuCountOfNode(node),
+		GpuType:          gpushareutils.GetGpuModelOfNode(node),
 		GpuAffinity:      nodeGpuAffinity,
 	}
 }
@@ -1051,7 +1052,7 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 	nodeCpuReq, _ := reqs[corev1.ResourceCPU], reqs[corev1.ResourceMemory]
 	nodeGpuAffinity := map[string]int{}
 	for _, p := range podList {
-		affinity := utils.GetGpuAffinityFromPodAnnotation(p)
+		affinity := gpushareutils.GetGpuAffinityFromPodAnnotation(p)
 		nodeGpuAffinity[affinity] += 1
 	}
 
@@ -1060,8 +1061,8 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 		MilliCpuLeft:     allocatable.Cpu().MilliValue() - nodeCpuReq.MilliValue(),
 		MilliCpuCapacity: allocatable.Cpu().MilliValue(),
 		MilliGpuLeftList: getGpuMilliLeftListOnNode(node),
-		GpuNumber:        utils.GetGpuCountOfNode(node),
-		GpuType:          utils.GetGpuModelOfNode(node),
+		GpuNumber:        gpushareutils.GetGpuCountOfNode(node),
+		GpuType:          gpushareutils.GetGpuModelOfNode(node),
 		GpuAffinity:      nodeGpuAffinity,
 	}
 }
@@ -1095,10 +1096,10 @@ func getGpuMilliLeftListOnNode(node *corev1.Node) []int64 {
 		return nil
 	}
 
-	gpuNum := utils.GetGpuCountOfNode(node)
+	gpuNum := gpushareutils.GetGpuCountOfNode(node)
 	gpuMilliLeftList := make([]int64, gpuNum)
 	for i := 0; i < gpuNum; i++ {
-		gpuMilliLeftList[i] = utils.MILLI
+		gpuMilliLeftList[i] = gpushareutils.MILLI
 	}
 	if gpuNodeInfoStr, err := GetGpuNodeInfoFromAnnotation(node); err == nil && gpuNodeInfoStr != nil {
 		for _, dev := range gpuNodeInfoStr.DevsBrief {
@@ -1268,7 +1269,7 @@ func GenerateSchedulingMatchGroups(nodeRes simontype.NodeResource, podRes simont
 						nodeCapacity = append(nodeCapacity, float64(nodeRes.GpuNumber*utils.MILLI))
 					}
 				} else {
-					nodeCapacity = []float64{float64(nodeRes.MilliCpuCapacity), float64(nodeRes.GpuNumber * utils.MILLI)}
+					nodeCapacity = []float64{float64(nodeRes.MilliCpuCapacity), float64(nodeRes.GpuNumber * gpushareutils.MILLI)}
 				}
 				matchGroup.NodeResourceVec = NormalizeVector(matchGroup.NodeResourceVec, nodeCapacity)
 				matchGroup.PodResourceVec = NormalizeVector(matchGroup.PodResourceVec, nodeCapacity)
