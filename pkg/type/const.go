@@ -35,9 +35,6 @@ const (
 	SimulatorName                          = "Main"
 	DefaultSchedulerName                   = "simon-scheduler"
 
-	MaxNodeCpuCapacity int64 = 104000
-	MaxNodeGpuCapacity int64 = 8000
-
 	StopReasonSuccess   = "everything is ok"
 	StopReasonDoNotStop = "do not stop"
 	CreatePodError      = "failed to create pod"

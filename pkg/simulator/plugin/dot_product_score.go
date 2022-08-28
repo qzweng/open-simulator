@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"math"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -82,10 +83,13 @@ func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 
 		if cfg.NormMethod == simontype.NormByNode || cfg.NormMethod == simontype.NormByMax {
 			curScore /= float64(len(matchGroup.PodResourceVec)) // normalize to [0, 1]
-			curScore = 1 - curScore                             // the larger the dot product, the lower the score
+		} else if cfg.NormMethod == simontype.NormByPod {
+			curScore /= float64(len(matchGroup.PodResourceVec))
+			curScore = math.Tanh(curScore) // normalize to [0, 1]
 		} else {
 			panic(fmt.Sprintf("undefined normalization for dot product: %v", cfg.NormMethod))
 		}
+		curScore = 1 - curScore // the larger the dot product, the lower the score
 
 		log.Tracef("dot product score between nodeVec(%v) and podVec(%v): %.4f\n",
 			matchGroup.NodeResourceVec, matchGroup.PodResourceVec, curScore)

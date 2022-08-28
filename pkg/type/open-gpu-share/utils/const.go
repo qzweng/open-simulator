@@ -11,15 +11,16 @@ const (
 	PodNsNameSep = "/"
 	DevIdSep     = "-"
 	MILLI        = 1000
-	MaxSpecCpu   = 104000 // CPU MILLI
-	MaxSpecMem   = 773405 // Mem MiB
-	MaxSpecGpu   = 8000   // GPU MILLI
-	NoGpuTag     = "no-gpu"
-	ShareGpuTag  = "share-gpu"
-	OneGpuTag    = "one-gpu"
-	TwoGpuTag    = "two-gpu"
-	FourGpuTag   = "four-gpu"
-	EightGpuTag  = "eight-gpu"
+
+	MaxSpecCpu  = 104000 // CPU MILLI
+	MaxSpecMem  = 773405 // Mem MiB
+	MaxSpecGpu  = 8000   // GPU MILLI
+	NoGpuTag    = "no-gpu"
+	ShareGpuTag = "share-gpu"
+	OneGpuTag   = "one-gpu"
+	TwoGpuTag   = "two-gpu"
+	FourGpuTag  = "four-gpu"
+	EightGpuTag = "eight-gpu"
 )
 
 var MapGpuTypeMemoryMiB = map[string]int{

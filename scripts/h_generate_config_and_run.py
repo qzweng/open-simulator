@@ -1,3 +1,4 @@
+from lib2to3.pgen2.literals import simple_escapes
 import os
 import yaml
 import shutil
@@ -88,10 +89,15 @@ SCORE_POLICY_ABBR = {
     "L2NormDiffScore":                    "l2diff",
     "L2NormRatioScore":                   "l2ratio",
 }
-SCORE_PLUGINS_WITH_GPU_SEL_METHOD = [
-    "CosineSimilarityScore",
-    "CosineSimPackingScore"
-    "DotProductScore",
+SCORE_PLUGINS_WITH_DIM_NORM_GPU_METHOD = [
+    "DotProductScore",                  # dot product
+    "Gpu-Share-Frag-Dot-Product-Score", # dot product
+    "CosineSimPackingScore",            # cosine similarity
+    "CosineSimilarityScore",            # cosine similarity
+    "Gpu-Packing-Sim-Score",            # cosine similarity
+    "Gpu-Frag-Sim-Score",               # cosine similarity
+    "Gpu-Share-Frag-Sim-Norm-Score",    # cosine similarity
+    "Gpu-Share-Frag-Sim-Score",         # cosine similarity
 ]
 SCORE_PLUGINS_WITH_PRE_SCORE = [
     "Gpu-Share-Frag-Sim-Score",
@@ -149,9 +155,12 @@ def get_args():
     # parser.add_argument("-l2ratio", '--l2-norm-ratio-score', type=int, default=0, help="score (default: 0)")
 
     # scheduler plugin config
-    parser.add_argument("-dimext", "--dim-ext-method", type=str, default="share", help="Dimension extend method: merge, share, divide, extend, default: share")
-    parser.add_argument("-norm", "--norm-method", type=str, default="max", help="Norm method") # TODO 
-    parser.add_argument("-gpusel", "--gpu-sel-method", type=str, default="best", help="GPU selection method: best, worst, random, default: best")
+    parser.add_argument("-gpusel", "--gpu-sel-method", dest="gpu_sel_method", type=str, default="best", 
+                            help="GPU selection method: best, worst, random, default: best")
+    parser.add_argument("-dimext", "--dim-ext-method", dest="dim_ext_method", type=str, default="share", 
+                            help="Dimension extend method: merge, share, divide, extend, default: share")
+    parser.add_argument("-norm", "--norm-method", dest="norm_method", type=str, default="max", 
+                            help="Norm method: node, pod, max, default: max")
 
     # parser.add_argument('-c', '--cluster-config', dest="cluster_config", action="store_true", default=False, help="Generate cluster configuration yaml")
     # parser.add_argument('-s', '--scheduler-config', dest="scheduler_config", action="store_true", default=False, help="Generate scheduler configuration yaml")
@@ -368,12 +377,14 @@ def generate_scheduler_config(args, outdir):
                 if item['weight'] > maxScoreWeight:
                     maxScoreName = item['name']
                     maxScoreWeight = item['weight']
-                ###: configure score plugins with the input "dimExtMethod", currently only works for "DotProductScore" and "CosineSimilarityScore"
+                ###: configure score plugins with the input "dimExtMethod" and "normMethod", works for SCORE_PLUGINS_WITH_DIM_NORM_GPU_METHOD
                 pc.append({'name': item['name'], 'args': {'dimExtMethod': args.dim_ext_method, 'normMethod': args.norm_method}})
-            if maxScoreName in SCORE_PLUGINS_WITH_GPU_SEL_METHOD:
+            if maxScoreName in SCORE_PLUGINS_WITH_DIM_NORM_GPU_METHOD:
+                ##: if the max-weight score requires gpuSelMethod and has its own opinions on "dim_ext_method"
                 if args.dim_ext_method != "merge":
-                    ###: replacing the default gpuSelMethods (best, worst, random) with the implemented score plugins.
+                    ###: replacing the default gpuSelMethods (best, worst, random) with the implemented score plugins (use score plugin name as key).
                     args.gpu_sel_method = maxScoreName
+            ###: normMethod should be set twice: in Open-Gpu-Share and in each score plugins
             pc.append({'name': "Open-Gpu-Share", 'args': {'gpuSelMethod': args.gpu_sel_method, 'dimExtMethod': args.dim_ext_method, 'normMethod':args.norm_method}})
 
     # print(template)

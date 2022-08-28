@@ -106,7 +106,7 @@ func (tpr PodResource) Repr() string {
 }
 
 func (tnr NodeResource) Repr() string {
-	outStr := "<"
+	outStr := fmt.Sprintf("%s<", tnr.NodeName)
 	outStr += fmt.Sprintf("CPU: %6.2f/%6.2f", float64(tnr.MilliCpuLeft)/1000, float64(tnr.MilliCpuCapacity)/1000)
 	outStr += fmt.Sprintf(", GPU (%s): %d", tnr.GpuType, tnr.GpuNumber)
 	if tnr.GpuNumber > 0 {

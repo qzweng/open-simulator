@@ -1288,13 +1288,13 @@ func GenerateSchedulingMatchGroups(nodeRes simontype.NodeResource, podRes simont
 			} else if normMethod == simontype.NormByMax {
 				var maxNodeCapacity []float64
 				if gpuDimExtMethod == simontype.ExtGpuDim {
-					maxNodeCapacity = []float64{float64(simontype.MaxNodeCpuCapacity)}
+					maxNodeCapacity = []float64{float64(utils.MaxSpecCpu)}
 					nodeGpuResourceList := nodeRes.ToFormalizedGpuResourceList()
 					for i := 0; i < len(nodeGpuResourceList); i++ {
-						maxNodeCapacity = append(maxNodeCapacity, float64(simontype.MaxNodeGpuCapacity))
+						maxNodeCapacity = append(maxNodeCapacity, float64(utils.MaxSpecGpu))
 					}
 				} else {
-					maxNodeCapacity = []float64{float64(simontype.MaxNodeCpuCapacity), float64(simontype.MaxNodeGpuCapacity)}
+					maxNodeCapacity = []float64{float64(utils.MaxSpecCpu), float64(utils.MaxSpecGpu)}
 				}
 				matchGroup.NodeResourceVec = NormalizeVector(matchGroup.NodeResourceVec, maxNodeCapacity)
 				matchGroup.PodResourceVec = NormalizeVector(matchGroup.PodResourceVec, maxNodeCapacity)
