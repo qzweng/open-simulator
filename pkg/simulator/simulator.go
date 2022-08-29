@@ -369,13 +369,20 @@ func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPo
 			continue
 		}
 
-		log.Infof("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
-		if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
-			log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
-			failedPods = append(failedPods, *unscheduledPod)
+		deletionTime := gpushareutils.GetDeletionTimeFromPodAnnotation(pod)
+		if deletionTime == nil {
+			log.Infof("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
+			if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
+				log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
+				failedPods = append(failedPods, *unscheduledPod)
+			}
+		} else {
+			log.Infof("[%d] attempt to delete pod(%s)\n", i, utils.GeneratePodKey(pod))
+			if err := sim.deletePod(pod); err != nil {
+				log.Errorf("failed to delete pod(%s)\n", utils.GeneratePodKey(pod))
+			}
 		}
 		sim.ClusterGpuFragReport()
-
 	}
 	return failedPods
 }
@@ -586,7 +593,44 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]sim
 	}
 
 	// sync pods
-	failedPods := sim.SchedulePods(resourceList.Pods)
+	var podEvents []*corev1.Pod
+	for _, p := range resourceList.Pods {
+		// pod creation event
+		podCreate := p.DeepCopy()
+		delete(podCreate.Annotations, gpushareutils.DeletionTime)
+		podEvents = append(podEvents, podCreate)
+
+		// pod deletion event
+		deletionTime := gpushareutils.GetDeletionTimeFromPodAnnotation(p)
+		if deletionTime != nil {
+			podDelete := p.DeepCopy()
+			delete(podDelete.Annotations, gpushareutils.CreationTime)
+			podEvents = append(podEvents, podDelete)
+		}
+	}
+	// sort pod creation/deletion events according to timestamp
+	sort.SliceStable(podEvents, func(i, j int) bool {
+		// c: creation, d: deletion
+		ci, di := gpushareutils.GetCreationTimeFromPodAnnotation(podEvents[i]), gpushareutils.GetDeletionTimeFromPodAnnotation(podEvents[i])
+		cj, dj := gpushareutils.GetCreationTimeFromPodAnnotation(podEvents[j]), gpushareutils.GetDeletionTimeFromPodAnnotation(podEvents[j])
+
+		var ti time.Time
+		if ci != nil {
+			ti = *ci
+		} else if di != nil {
+			ti = *di
+		}
+
+		var tj time.Time
+		if cj != nil {
+			tj = *cj
+		} else if dj != nil {
+			tj = *dj
+		}
+
+		return ti.Before(tj)
+	})
+	failedPods := sim.SchedulePods(podEvents)
 
 	return failedPods, nil
 }
@@ -819,6 +863,10 @@ func (sim *Simulator) SetWorkloadPods(pods []*corev1.Pod) {
 		if pod.Spec.NodeSelector != nil {
 			delete(pod.Spec.NodeSelector, simontype.HostName)
 			delete(pod.Spec.NodeSelector, simontype.NodeIp)
+		}
+		if pod.Annotations != nil {
+			delete(pod.Annotations, gpushareutils.CreationTime)
+			delete(pod.Annotations, gpushareutils.DeletionTime)
 		}
 		ClearPodUnscheduledAnno(pod)
 		sim.workloadPods = append(sim.workloadPods, pod)

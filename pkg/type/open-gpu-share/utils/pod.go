@@ -109,6 +109,28 @@ func GetGpuAffinityFromPodAnnotation(p *v1.Pod) (affinity string) {
 	}
 }
 
+func GetCreationTimeFromPodAnnotation(p *v1.Pod) (t *time.Time) {
+	if creationTime, ok := p.Annotations[CreationTime]; ok {
+		value, err := time.Parse(time.RFC3339, creationTime)
+		if err != nil {
+			return nil
+		}
+		return &value
+	}
+	return nil
+}
+
+func GetDeletionTimeFromPodAnnotation(p *v1.Pod) (t *time.Time) {
+	if deletionTime, ok := p.Annotations[DeletionTime]; ok {
+		value, err := time.Parse(time.RFC3339, deletionTime)
+		if err != nil {
+			return nil
+		}
+		return &value
+	}
+	return nil
+}
+
 // GpuIdStrToIntList follows the string formed in func (n *GpuNodeInfo) AllocateGpuId
 func GpuIdStrToIntList(id string) (idl []int, err error) {
 	if len(id) <= 0 {
