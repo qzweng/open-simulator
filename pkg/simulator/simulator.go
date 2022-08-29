@@ -628,6 +628,7 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]sim
 			tj = *dj
 		}
 
+		// undefined goes before all, see simulator.TestSortPodsByTimestamp
 		return ti.Before(tj)
 	})
 	failedPods := sim.SchedulePods(podEvents)

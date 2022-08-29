@@ -2,9 +2,11 @@ package simulator
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/alibaba/open-simulator/pkg/api/v1alpha1"
 	log "github.com/sirupsen/logrus"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"k8s.io/client-go/informers"
@@ -32,4 +34,21 @@ func TestGenerateWorkloadInflationPods(t *testing.T) {
 	sim.SetTypicalPods()
 	log.Infof("TypicalPodsConfig: %v\n", sim.customConfig.TypicalPodsConfig)
 	assert.Equal(t, "s", "s")
+}
+
+func TestSortPodsByTimestamp(t *testing.T) {
+	creationTime := "2022-08-01T10:48:26+08:00"
+	deletionTime := "2022-08-21T00:46:07+08:00"
+	ci, _ := time.Parse(time.RFC3339, creationTime)
+	di, _ := time.Parse(time.RFC3339, deletionTime)
+
+	assert.Equal(t, true, ci.Before(di))
+	assert.Equal(t, false, di.Before(ci))
+	assert.Equal(t, false, ci.Before(ci))
+
+	var tj time.Time // undefined goes before all values
+	assert.Equal(t, true, tj.Before(ci))
+	assert.Equal(t, false, ci.Before(tj))
+	assert.Equal(t, true, tj.Before(di))
+	assert.Equal(t, false, di.Before(tj))
 }
