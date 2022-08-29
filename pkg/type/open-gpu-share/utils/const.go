@@ -17,10 +17,10 @@ const (
 	MaxSpecGpu  = 8000   // GPU MILLI
 	NoGpuTag    = "no-gpu"
 	ShareGpuTag = "share-gpu"
-	OneGpuTag   = "one-gpu"
-	TwoGpuTag   = "two-gpu"
-	FourGpuTag  = "four-gpu"
-	EightGpuTag = "eight-gpu"
+	// OneGpuTag   = "one-gpu"
+	// TwoGpuTag   = "two-gpu"
+	// FourGpuTag  = "four-gpu"
+	// EightGpuTag = "eight-gpu"
 )
 
 var MapGpuTypeMemoryMiB = map[string]int{
@@ -34,6 +34,7 @@ var MapGpuTypeMemoryMiB = map[string]int{
 	"A10":     int(23835181056 / 1024 / 1024), // 22731 MiB, "A10", "NVIDIA-A10"
 	"3090":    int(25446842368 / 1024 / 1024), // 24268 MiB, "GeForce-RTX-3090"
 	"V100M32": int(34089205760 / 1024 / 1024), // 32510 MiB, "Tesla-V100-SXM2-32GB", "Tesla-V100S-PCIE-32GB"
+	"A100":    int(85198045184 / 1024 / 1024), // 81251 MiB, "A100", "A100-SXM4-80GB"
 }
 
 /*
