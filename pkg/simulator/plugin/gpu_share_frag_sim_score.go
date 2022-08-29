@@ -41,6 +41,7 @@ func NewGpuShareFragSimScorePlugin(configuration runtime.Object, handle framewor
 		typicalPods:  typicalPods,
 		fragGpuRatio: 0.0,
 	}
+	allocateGpuIdFunc[gpuFragScorePlugin.Name()] = allocateGpuIdBasedOnCosineSimilarity
 	return gpuFragScorePlugin, nil
 }
 

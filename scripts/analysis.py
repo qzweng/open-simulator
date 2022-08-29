@@ -90,6 +90,8 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
 
     meta_dict = {}
     meta = log.split('-')
+    if len(meta) > 2: # e.g., ['cc_owtime_dr0.0_pe_md3d55.yaml', 'sc_packsim1000_deshare_gsGpu', 'Packing', 'Sim', 'Score_md87e2.yaml.log']
+        meta[1] = "-".join(meta[1:]) # i.e., Gpu-Packing-Sim-Score can be reserved
 
     if log_dir: # experiment_dir
         # e.g., experiments/exp0516_1/log-cc_ow1000_dr0.0_pe_mde2bee5c4e1a7415b95ae76e10d556520.yaml-sc_frag1000_mdf0915880b7b35b894ada5b57a69c9e15.yaml.log
@@ -123,10 +125,9 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
                 else: # frag1000, or (bellman400 + sim400 + frag200)
                     meta_dict["policy"] += "_"+item if len(meta_dict) == 0 else item
 
-            return meta_dict
-        else:
-            pass # fall back to normal execution
+        return meta_dict
 
+    # (086f701 2022-05-11 deprecated)
     # e.g., 0501_paib_snapshot/paib_snapshot3000_seed233_dr0.1_dpfragMultiPod.yaml-pure_bestfit1000.yaml.log
     cconfig, sconfig = meta[0].split('.yaml')[0], meta[1].split('.yaml')[0]
     cconfigs = cconfig.split('_')
@@ -153,7 +154,11 @@ def log_to_csv(log_path: Path, outfile: Path):
         with open(file, 'r') as f:
             try:
                 meta_dict = get_meta_dict_from_logname(log=log, log_dir=log_path)
-
+            except Exception as e:
+                print("[Error] file(%s) failed in get_meta_dict_from_logname(): %s" % (log, e))
+                meta_dict = {}
+            
+            try:
                 log_file_counter += 1
                 # print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
 
@@ -271,7 +276,7 @@ def log_to_csv(log_path: Path, outfile: Path):
                 for k, v in allo_list_dict.items():
                     out_allo_col_dict[meta_as_key+"-"+k] = v
             except Exception as e:
-                print("[Error] Failed at", file, " with error:", e)
+                print("[Error] log_to_csv() Failed at", file, " with error:", e)
 
     outdf = pd.concat(out_row_list)
     outdf.to_csv(outfile, index=False)
@@ -299,9 +304,7 @@ def failed_pods_in_detail(log_path):
         log = file.name
         with open(file, 'r') as f:
             try:
-                meta_dict = get_meta_dict_from_logname(log=log, log_dir=log_path)
                 log_file_counter += 1
-                # print('[%4d] %s => %s' % (log_file_counter, log, meta_dict))
                 outfile.write("\n===\n%s\n" % log)
 
                 counter = 0
@@ -347,7 +350,7 @@ def failed_pods_in_detail(log_path):
                             counter = 1
 
             except Exception as e:
-                print("[Error] Failed at", file, " with error:", e)
+                print("[Error] failed_pods_in_detail() Failed at", file, " with error:", e)
 
 def grep_log_cluster_analysis(log_path):
     outfile = Path(log_path) / "analysis_grep.out"

@@ -42,6 +42,7 @@ func NewGpuShareFragDotProductScorePlugin(configuration runtime.Object, handle f
 		typicalPods:  typicalPods,
 		fragGpuRatio: 0.0,
 	}
+	allocateGpuIdFunc[gpuFragScorePlugin.Name()] = allocateGpuIdBasedOnDotProduct
 	return gpuFragScorePlugin, nil
 }
 
