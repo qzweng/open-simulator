@@ -6,7 +6,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -50,10 +49,18 @@ func (plugin *GpuShareFragSimScorePlugin) Name() string {
 	return simontype.GpuShareFragSimScorePluginName
 }
 
-func (plugin *GpuShareFragSimScorePlugin) PreScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) *framework.Status {
+func (plugin *GpuShareFragSimScorePlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
 	var frameworkStatus *framework.Status
-	plugin.fragGpuRatio, frameworkStatus = PreScoreFragGpuRatio(nodes, plugin.handle, *plugin.typicalPods)
+	nodeInfoList, err := plugin.handle.SnapshotSharedLister().NodeInfos().List()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get nodeInfoList: %s", err.Error()))
+	}
+	plugin.fragGpuRatio, frameworkStatus = PreFilterFragGpuRatio(nodeInfoList, *plugin.typicalPods)
 	return frameworkStatus
+}
+
+func (plugin *GpuShareFragSimScorePlugin) PreFilterExtensions() framework.PreFilterExtensions {
+	return nil
 }
 
 // Score invoked at the score extension point.
@@ -63,12 +70,7 @@ func (plugin *GpuShareFragSimScorePlugin) Score(ctx context.Context, state *fram
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
 	}
 
-	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
-	}
-
-	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandleAndName(plugin.handle, nodeName)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
@@ -96,6 +98,7 @@ func (plugin *GpuShareFragSimScorePlugin) Score(ctx context.Context, state *fram
 	nodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(nodeRes, *plugin.typicalPods)
 	newNodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(newNodeRes, *plugin.typicalPods)
 	fragScore := nodeGpuShareFragScore - newNodeGpuShareFragScore // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
+	// log.Infof("[GSFSSP] %.2f=%.2f-%.2f\n", fragScore, nodeGpuShareFragScore, newNodeGpuShareFragScore)
 	// </frag score>
 
 	// < cosine similarity score>
@@ -103,7 +106,7 @@ func (plugin *GpuShareFragSimScorePlugin) Score(ctx context.Context, state *fram
 	// </cosine similarity score>
 
 	score := int64(fragScore*plugin.fragGpuRatio + float64(cosScore)*(1.0-plugin.fragGpuRatio))
-	log.Debugf("[Score][%s] %d = fragScore[%5.2f] * fragGpuRatio[%5.2f%%] + cosScore[%d] * (1-fragGpuRatio)\n", node.Name, score, fragScore, 100*plugin.fragGpuRatio, cosScore)
+	log.Debugf("[Score][%s] %d = fragScore[%5.2f] * fragGpuRatio[%5.2f%%] + cosScore[%d] * (1-fragGpuRatio)\n", nodeName, score, fragScore, 100*plugin.fragGpuRatio, cosScore)
 
 	return score, framework.NewStatus(framework.Success)
 }

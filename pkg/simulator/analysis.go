@@ -38,10 +38,12 @@ func (sim *Simulator) ClusterGpuFragReport() {
 	var clusterUsedGpuMilli int64 // num. of used GPU in Milli
 	var clusterTotalGpus int      // num. of total GPUs in the cluster
 
+	var nodeCnt int = 0
 	for _, ns := range nodeStatus {
 		if nodeRes, ok := sim.nodeResourceMap[ns.Node.Name]; ok {
 			clusterFragAmount.Add(sim.NodeGpuFragAmount(nodeRes)) // easy to calculate. The regular Frag definition
 			clusterFragBellman += utils.NodeGpuFragBellman(nodeRes, sim.typicalPods, &sim.fragMemo, 1.0)
+			log.Debugf("[DEBUG][sim.ClusterGpuFragReport] calc [%d] node(%s) frag (%.2f): %s\n", nodeCnt, nodeRes.NodeName, clusterFragAmount.FragAmountSumExceptQ3(), clusterFragAmount.Repr())
 
 			// To calculate the allocation ratio of cluster in an online manner
 			clusterTotalGpus += nodeRes.GpuNumber
@@ -51,12 +53,14 @@ func (sim *Simulator) ClusterGpuFragReport() {
 				clusterUsedGpuMilli += int64(nodeRes.GpuNumber*gpushareutils.MILLI) - nodeRes.GetTotalMilliGpuLeft()
 			}
 		}
+		nodeCnt += 1
 	}
 
 	var idleGpuMilli float64 // milli GPUs idle in the cluster
 	for _, v := range clusterFragAmount.Data {
 		idleGpuMilli += v
 	}
+	log.Debugf("[DEBUG][plugin.ClusterGpuFragReport] idleGpuMilli of %d nodes: %.2f\n", nodeCnt, idleGpuMilli)
 
 	fragGpuMilli := clusterFragAmount.FragAmountSumExceptQ3()
 	fragGpuRatio := 100 * fragGpuMilli / idleGpuMilli
@@ -146,13 +150,16 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 	if fa, ok := sim.fragMemo.Load(nodeResKey); ok {
 		if fragData, ok2 := fa.([]float64); ok2 {
 			frag := utils.NewFragAmount(nodeRes.NodeName, fragData)
+			log.Debugf("[DEBUG][sim.NodeGpuFragAmount] load node(%s) frag (%.2f): %s\n", nodeRes.NodeName, frag.FragAmountSumExceptQ3(), frag.Repr())
 			return frag
 		}
 	} else {
 		frag := utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
 		sim.fragMemo.Store(nodeResKey, frag.Data)
+		log.Debugf("[DEBUG][sim.NodeGpuFragAmount] calc node(%s) frag (%.2f): %s\n", nodeRes.NodeName, frag.FragAmountSumExceptQ3(), frag.Repr())
 		return frag
 	}
+	log.Debugf("[DEBUG][sim.NodeGpuFragAmount] miss node(%s) frag: <NULL>\n", nodeRes.NodeName)
 	return utils.FragAmount{}
 }
 

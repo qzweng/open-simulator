@@ -1042,16 +1042,16 @@ func displaySchedulerConfig(config *config.CompletedConfig) {
 	}
 	for _, profile := range profiles {
 		log.Infof("Scheduler Config: %s\n", profile.SchedulerName)
+		// PreFilter
+		log.Infof("  PreFilter Plugin")
+		for _, plugin := range profile.Plugins.PreFilter.Enabled {
+			log.Infof("    %s\n", plugin.Name)
+		}
+		log.Infoln()
 		// Filter
 		log.Infof("  Filter Plugin")
 		for _, plugin := range profile.Plugins.Filter.Enabled {
 			log.Infof("    %s\n", plugin.Name)
-		}
-		log.Infoln()
-		// PreScore
-		log.Infof("  PreScore Plugin")
-		for _, plugin := range profile.Plugins.PreScore.Enabled {
-			log.Infof("    %s: %d\n", plugin.Name, plugin.Weight)
 		}
 		log.Infoln()
 		// Score

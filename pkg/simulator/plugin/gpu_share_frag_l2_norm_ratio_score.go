@@ -41,10 +41,18 @@ func (plugin *GpuShareFragL2NormRatioScorePlugin) Name() string {
 	return simontype.GpuShareFragL2NormRatioScorePluginName
 }
 
-func (plugin *GpuShareFragL2NormRatioScorePlugin) PreScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) *framework.Status {
+func (plugin *GpuShareFragL2NormRatioScorePlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
 	var frameworkStatus *framework.Status
-	plugin.fragGpuRatio, frameworkStatus = PreScoreFragGpuRatio(nodes, plugin.handle, *plugin.typicalPods)
+	nodeInfoList, err := plugin.handle.SnapshotSharedLister().NodeInfos().List()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get nodeInfoList: %s", err.Error()))
+	}
+	plugin.fragGpuRatio, frameworkStatus = PreFilterFragGpuRatio(nodeInfoList, *plugin.typicalPods)
 	return frameworkStatus
+}
+
+func (plugin *GpuShareFragL2NormRatioScorePlugin) PreFilterExtensions() framework.PreFilterExtensions {
+	return nil
 }
 
 // Score invoked at the score extension point.
@@ -59,7 +67,7 @@ func (plugin *GpuShareFragL2NormRatioScorePlugin) Score(ctx context.Context, sta
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
-	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandleAndName(plugin.handle, nodeName)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
@@ -102,7 +110,7 @@ func (plugin *GpuShareFragL2NormRatioScorePlugin) Score(ctx context.Context, sta
 	// </l2 norm ratio score>
 
 	score := int64(fragScore*plugin.fragGpuRatio + l2NormScore*(1.0-plugin.fragGpuRatio))
-	log.Debugf("[Score][%s] %d = fragScore[%5.2f] * fragGpuRatio[%5.2f%%] + l2NormScore[%.2f] * (1-fragGpuRatio)\n", node.Name, score, fragScore, 100*plugin.fragGpuRatio, l2NormScore)
+	log.Debugf("[Score][%s] %d = fragScore[%5.2f] * fragGpuRatio[%5.2f%%] + l2NormScore[%.2f] * (1-fragGpuRatio)\n", nodeName, score, fragScore, 100*plugin.fragGpuRatio, l2NormScore)
 
 	return score, framework.NewStatus(framework.Success)
 }

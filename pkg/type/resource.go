@@ -53,7 +53,7 @@ type PodResource struct { // typical pod, without name and namespace.
 	//Memory	  int64
 }
 
-// NodeResource is initialized by utils.GetNodeResourceViaPodList and utils.GetNodeResourceViaHandle
+// NodeResource is initialized by utils.GetNodeResourceViaPodList, utils.GetNodeResourceViaHandleAndName, utils.GetNodeResourceViaNodeInfo
 type NodeResource struct {
 	NodeName         string
 	MilliCpuLeft     int64

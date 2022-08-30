@@ -8,7 +8,6 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	resourcehelper "k8s.io/kubectl/pkg/util/resource"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -41,10 +40,18 @@ func (plugin *GpuShareFragBestFitScorePlugin) Name() string {
 	return simontype.GpuShareFragBestFitScorePluginName
 }
 
-func (plugin *GpuShareFragBestFitScorePlugin) PreScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) *framework.Status {
+func (plugin *GpuShareFragBestFitScorePlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
 	var frameworkStatus *framework.Status
-	plugin.fragGpuRatio, frameworkStatus = PreScoreFragGpuRatio(nodes, plugin.handle, *plugin.typicalPods)
+	nodeInfoList, err := plugin.handle.SnapshotSharedLister().NodeInfos().List()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to get nodeInfoList: %s", err.Error()))
+	}
+	plugin.fragGpuRatio, frameworkStatus = PreFilterFragGpuRatio(nodeInfoList, *plugin.typicalPods)
 	return frameworkStatus
+}
+
+func (plugin *GpuShareFragBestFitScorePlugin) PreFilterExtensions() framework.PreFilterExtensions {
+	return nil
 }
 
 // Score invoked at the score extension point.
@@ -54,12 +61,7 @@ func (plugin *GpuShareFragBestFitScorePlugin) Score(ctx context.Context, state *
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
 	}
 
-	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(context.Background(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
-	}
-
-	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandleAndName(plugin.handle, nodeName)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}
@@ -99,7 +101,7 @@ func (plugin *GpuShareFragBestFitScorePlugin) Score(ctx context.Context, state *
 	// </best fit score>
 
 	score := int64(fragScore*plugin.fragGpuRatio + float64(bestFitScore)*(1.0-plugin.fragGpuRatio))
-	log.Debugf("[Score][%s] %d = fragScore[%5.2f] * fragGpuRatio[%5.2f%%] + bestFitScore[%d] * (1-fragGpuRatio)\n", node.Name, score, fragScore, 100*plugin.fragGpuRatio, bestFitScore)
+	log.Debugf("[Score][%s] %d = fragScore[%5.2f] * fragGpuRatio[%5.2f%%] + bestFitScore[%d] * (1-fragGpuRatio)\n", nodeName, score, fragScore, 100*plugin.fragGpuRatio, bestFitScore)
 
 	return score, framework.NewStatus(framework.Success)
 }

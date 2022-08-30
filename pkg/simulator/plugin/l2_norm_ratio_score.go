@@ -38,7 +38,7 @@ func (plugin *L2NormRatioScorePlugin) Score(ctx context.Context, state *framewor
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get node %s: %s\n", nodeName, err.Error()))
 	}
 
-	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandleAndName(plugin.handle, nodeName)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))
 	}

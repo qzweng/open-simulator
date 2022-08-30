@@ -101,7 +101,7 @@ SCORE_PLUGINS_WITH_DIM_NORM_GPU_METHOD = [
     "Gpu-Share-Frag-Sim-Norm-Score",    # cosine similarity
     "Gpu-Share-Frag-Sim-Score",         # cosine similarity
 ]
-SCORE_PLUGINS_WITH_PRE_SCORE = [
+SCORE_PLUGINS_WITH_PRE_FILTER = [
     "Gpu-Share-Frag-Sim-Score",
     "Gpu-Share-Frag-Sim-Norm-Score",
     "Gpu-Share-Frag-Dot-Product-Score",
@@ -281,10 +281,14 @@ profiles:
         enabled:
           - name: Open-Local
           - name: Open-Gpu-Share
-      preScore:
+      preFilter:
         disabled:
           - name: Gpu-Share-Frag-Sim-Score
           - name: Gpu-Share-Frag-Sim-Norm-Score
+          - name: Gpu-Share-Frag-Dot-Product-Score
+          - name: Gpu-Share-Frag-Best-Fit-Score
+          - name: Gpu-Share-Frag-L2-Norm-Ratio-Score
+          - name: Gpu-Share-Frag-Packing-Score
           - name: Gpu-Frag-Sim-Score
         enabled:
       score:
@@ -339,8 +343,8 @@ def generate_scheduler_config(args, outdir):
                     s['enabled'].append({'name': policy_name, 'weight': args.__dict__.get(policy_abbr, 0)})
 
                     # for fragsharesim, add PreScore
-                    if policy_name in SCORE_PLUGINS_WITH_PRE_SCORE:
-                        prescore = v[0]['plugins']['preScore']
+                    if policy_name in SCORE_PLUGINS_WITH_PRE_FILTER:
+                        prescore = v[0]['plugins']['preFilter']
                         if 'enabled' not in prescore or type(prescore['enabled']) != list:
                             prescore['enabled'] = []
                         prescore['enabled'].append({'name': policy_name})

@@ -1022,11 +1022,8 @@ func ExportNodeStatusToCsv(nodeStatus []simontype.NodeStatus, filePath string) e
 	return nil
 }
 
-func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeRes *simontype.NodeResource) {
-	nodeInfo, err := handle.SnapshotSharedLister().NodeInfos().Get(node.Name)
-	if err != nil {
-		return nil
-	}
+func GetNodeResourceViaNodeInfo(nodeInfo *framework.NodeInfo) (nodeRes *simontype.NodeResource) {
+	node := nodeInfo.Node()
 	milliCpuLeft := node.Status.Allocatable.Cpu().MilliValue() - nodeInfo.Requested.MilliCPU
 	nodeGpuAffinity := map[string]int{}
 	for i := 0; i < len(nodeInfo.Pods); i++ {
@@ -1044,6 +1041,14 @@ func GetNodeResourceViaHandle(handle framework.Handle, node *corev1.Node) (nodeR
 		GpuType:          gpushareutils.GetGpuModelOfNode(node),
 		GpuAffinity:      nodeGpuAffinity,
 	}
+}
+
+func GetNodeResourceViaHandleAndName(handle framework.Handle, nodeName string) (nodeRes *simontype.NodeResource) {
+	nodeInfo, err := handle.SnapshotSharedLister().NodeInfos().Get(nodeName)
+	if err != nil {
+		return nil
+	}
+	return GetNodeResourceViaNodeInfo(nodeInfo)
 }
 
 func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRes *simontype.NodeResource) {
@@ -1068,12 +1073,7 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 }
 
 func GetNodeResourceAndPodResourceViaHandle(p *corev1.Pod, nodeName string, handle framework.Handle) (nodeResPtr *simontype.NodeResource, podResPtr *simontype.PodResource) {
-	node, err := handle.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
-	if err != nil {
-		return nil, nil
-	}
-
-	nodeResPtr = GetNodeResourceViaHandle(handle, node)
+	nodeResPtr = GetNodeResourceViaHandleAndName(handle, nodeName)
 	if nodeResPtr == nil {
 		return nil, nil
 	}

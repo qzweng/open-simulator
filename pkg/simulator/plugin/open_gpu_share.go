@@ -231,12 +231,7 @@ func (plugin *GpuSharePlugin) updatePodGpuAnno(pod *v1.Pod, nodeName string) (*v
 }
 
 func (plugin *GpuSharePlugin) allocateGpuId(pod *v1.Pod, nodeName string) string {
-	node, err := plugin.NodeGet(nodeName)
-	if err != nil {
-		return ""
-	}
-
-	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	nodeResPtr := utils.GetNodeResourceViaHandleAndName(plugin.handle, nodeName)
 	if nodeResPtr == nil {
 		return ""
 	}

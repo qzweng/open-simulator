@@ -7,7 +7,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 	frameworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
@@ -45,14 +44,8 @@ func (plugin *DotProductScorePlugin) Name() string {
 
 func (plugin *DotProductScorePlugin) Score(ctx context.Context, state *framework.CycleState,
 	p *v1.Pod, nodeName string) (int64, *framework.Status) {
-
-	node, err := plugin.handle.ClientSet().CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
-	if err != nil {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error,
-			fmt.Sprintf("failed to get node(%s): %v", nodeName, err))
-	}
-
-	nodeResPtr := utils.GetNodeResourceViaHandle(plugin.handle, node)
+	
+	nodeResPtr := utils.GetNodeResourceViaHandleAndName(plugin.handle, nodeName)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error,
 			fmt.Sprintf("failed to get nodeRes(%s)\n", nodeName))

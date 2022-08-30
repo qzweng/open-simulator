@@ -230,7 +230,7 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 	if kcfg.Profiles[0].Plugins == nil {
 		kcfg.Profiles[0].Plugins = &kubeschedulerconfig.Plugins{}
 	}
-	kcfg.Profiles[0].Plugins.PreScore = &kubeschedulerconfig.PluginSet{
+	kcfg.Profiles[0].Plugins.PreFilter = &kubeschedulerconfig.PluginSet{
 		Enabled: []kubeschedulerconfig.Plugin{
 			{
 				Name: simontype.GpuShareFragSimScorePluginName,
