@@ -44,7 +44,7 @@ func (plugin *DotProductScorePlugin) Name() string {
 
 func (plugin *DotProductScorePlugin) Score(ctx context.Context, state *framework.CycleState,
 	p *v1.Pod, nodeName string) (int64, *framework.Status) {
-	
+
 	nodeResPtr := utils.GetNodeResourceViaHandleAndName(plugin.handle, nodeName)
 	if nodeResPtr == nil {
 		return framework.MinNodeScore, framework.NewStatus(framework.Error,
@@ -73,12 +73,11 @@ func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 		if curScore == -1 {
 			continue
 		}
-
 		if cfg.NormMethod == simontype.NormByNode || cfg.NormMethod == simontype.NormByMax {
 			curScore /= float64(len(matchGroup.PodResourceVec)) // normalize to [0, 1]
 		} else if cfg.NormMethod == simontype.NormByPod {
 			curScore /= float64(len(matchGroup.PodResourceVec))
-			curScore = math.Tanh(curScore) // normalize to [0, 1]
+			curScore = math.Tanh(curScore / 10) // normalize to [0, 1], tanh(0.1) = 9.6% as min score (precisely 1 Pod), tanh(2.0) = 96.4% as saturated score (20 Pods available)
 		} else {
 			panic(fmt.Sprintf("undefined normalization for dot product: %v", cfg.NormMethod))
 		}

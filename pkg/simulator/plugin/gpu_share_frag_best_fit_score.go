@@ -88,16 +88,15 @@ func (plugin *GpuShareFragBestFitScorePlugin) Score(ctx context.Context, state *
 	// < frag score>
 	nodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(nodeRes, *plugin.typicalPods)
 	newNodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(newNodeRes, *plugin.typicalPods)
-	fragScore := nodeGpuShareFragScore - newNodeGpuShareFragScore // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
+	fragScore := nodeGpuShareFragScore - newNodeGpuShareFragScore         // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
+	fragScore = sigmoid(fragScore/1000) * float64(framework.MaxNodeScore) // Sigmoid Norm: [-8000, +8000] => [0, 100]
 	// </frag score>
 
 	// < best fit score>
 	bestFitScore := getBestFitScore(nodeRes, podRes)
 	if bestFitScore == -1 {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error,
-			fmt.Sprintf("the score between node(%s) and pod(%s) is negative, should not happen\n", nodeName, utils.GeneratePodKey(pod)))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("the score between node(%s) and pod(%s) is negative, should not happen\n", nodeName, utils.GeneratePodKey(pod)))
 	}
-	bestFitScore = -bestFitScore // switch from "lower is better" to "higher is better"
 	// </best fit score>
 
 	score := int64(fragScore*plugin.fragGpuRatio + float64(bestFitScore)*(1.0-plugin.fragGpuRatio))

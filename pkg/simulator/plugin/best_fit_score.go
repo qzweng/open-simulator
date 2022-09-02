@@ -10,6 +10,7 @@ import (
 	"k8s.io/kubernetes/pkg/scheduler/framework"
 
 	simontype "github.com/alibaba/open-simulator/pkg/type"
+	gpushareutils "github.com/alibaba/open-simulator/pkg/type/open-gpu-share/utils"
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
@@ -46,10 +47,9 @@ func (plugin *BestFitScorePlugin) Score(ctx context.Context, state *framework.Cy
 
 	score := getBestFitScore(nodeRes, podRes)
 	if score == -1 {
-		return framework.MinNodeScore, framework.NewStatus(framework.Error,
-			fmt.Sprintf("the score between node(%s) and pod(%s) is negative, should not happen\n", nodeName, utils.GeneratePodKey(pod)))
+		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("the score between node(%s) and pod(%s) is negative, should not happen\n", nodeName, utils.GeneratePodKey(pod)))
 	}
-	return -score, framework.NewStatus(framework.Success)
+	return score, framework.NewStatus(framework.Success)
 }
 
 func (plugin *BestFitScorePlugin) ScoreExtensions() framework.ScoreExtensions {
@@ -60,14 +60,16 @@ func (plugin *BestFitScorePlugin) NormalizeScore(ctx context.Context, state *fra
 	return NormalizeScore(scores)
 }
 
-// BestFit assigns a score Σ_{i} weights_{i} (free_{i} - request_{i}),
-// where i corresponds to one kind of resource, lower is better
+// BestFit originally assigns a score Σ_{i} weights_{i} (free_{i} - request_{i}) / maxSpec_{i},
+//   where i corresponds to one kind of resource, lower is better
+// After revision, it scales to [MinNodeScore(0), MaxNodeScore(100)], higher is better
 func getBestFitScore(nodeRes simontype.NodeResource, podRes simontype.PodResource) int64 {
 	freeVec := nodeRes.ToResourceVec()
 	reqVec := podRes.ToResourceVec()
-	weights := []float64{1, 100} // cpu, gpu memory
-	if len(freeVec) != len(weights) || len(reqVec) != len(weights) {
-		log.Errorf("length not equal, freeVec(%v), reqVec(%v), weights(%v)\n", freeVec, reqVec, weights)
+	maxSpecVec := []float64{gpushareutils.MaxSpecCpu, gpushareutils.MaxSpecGpu} // to normalize score
+	weights := []float64{0.01, 0.99}                                            // cpu, gpu
+	if len(freeVec) != len(weights) || len(reqVec) != len(weights) || len(maxSpecVec) != len(weights) {
+		log.Errorf("length not equal, freeVec(%v), reqVec(%v), maxSpecVec(%v), weights(%v)\n", freeVec, reqVec, maxSpecVec, weights)
 		return -1
 	}
 
@@ -77,9 +79,11 @@ func getBestFitScore(nodeRes simontype.NodeResource, podRes simontype.PodResourc
 			log.Errorf("free resource not enough, freeVec(%v), reqVec(%v), weights(%v)\n", freeVec, reqVec, weights)
 			return -1
 		}
-		score += (freeVec[i] - reqVec[i]) * weights[i]
+		score += (freeVec[i] - reqVec[i]) / maxSpecVec[i] * weights[i] // score range: [0, 1], lower is better
 	}
-	log.Debugf("[BestFitScore] score(%.4f), freeVec(%v), reqVec(%v), weights(%v)\n",
-		score, freeVec, reqVec, weights)
+
+	// Given the score in [0, 1], scale it to [0, 100] and take reverse (lower better -> higher better)
+	score = (1.0 - score) * float64(framework.MaxNodeScore)
+	log.Debugf("[BestFitScore] score(%.4f), freeVec(%v), reqVec(%v), weights(%v)\n", score, freeVec, reqVec, weights)
 	return int64(score)
 }

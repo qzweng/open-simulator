@@ -143,17 +143,20 @@ func New(opts ...Option) (Interface, error) {
 		simontype.GpuFragScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuFragScorePlugin(configuration, handle, &sim.typicalPods)
 		},
-		simontype.GpuFragScoreBellmanPluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-			return simonplugin.NewGpuFragScoreBellmanPlugin(configuration, handle, &sim.typicalPods, &sim.fragMemo)
+		simontype.GpuFragBellmanScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuFragBellmanScorePlugin(configuration, handle, &sim.typicalPods, &sim.fragMemo)
 		},
 		simontype.GpuShareFragScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragScorePlugin(configuration, handle, &sim.typicalPods)
 		},
+		simontype.GpuShareFragLinearNormScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragLinearNormScorePlugin(configuration, handle, &sim.typicalPods)
+		},
 		simontype.GpuShareFragSimScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragSimScorePlugin(configuration, handle, &sim.typicalPods)
 		},
-		simontype.GpuShareFragSimNormScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-			return simonplugin.NewGpuShareFragSimNormScorePlugin(configuration, handle, &sim.typicalPods)
+		simontype.GpuShareFragSimLinearNormScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragSimLinearNormScorePlugin(configuration, handle, &sim.typicalPods)
 		},
 		simontype.GpuShareFragDotProductScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragDotProductScorePlugin(configuration, handle, &sim.typicalPods)

@@ -12,15 +12,11 @@ const (
 	DevIdSep     = "-"
 	MILLI        = 1000
 
-	MaxSpecCpu  = 104000 // CPU MILLI
-	MaxSpecMem  = 773405 // Mem MiB
-	MaxSpecGpu  = 8000   // GPU MILLI
+	MaxSpecCpu  = 128000  // CPU MILLI
+	MaxSpecMem  = 1048576 // Mem MiB
+	MaxSpecGpu  = 8000    // GPU MILLI
 	NoGpuTag    = "no-gpu"
 	ShareGpuTag = "share-gpu"
-	// OneGpuTag   = "one-gpu"
-	// TwoGpuTag   = "two-gpu"
-	// FourGpuTag  = "four-gpu"
-	// EightGpuTag = "eight-gpu"
 )
 
 var MapGpuTypeMemoryMiB = map[string]int{
@@ -36,16 +32,3 @@ var MapGpuTypeMemoryMiB = map[string]int{
 	"V100M32": int(34089205760 / 1024 / 1024), // 32510 MiB, "Tesla-V100-SXM2-32GB", "Tesla-V100S-PCIE-32GB"
 	"A100":    int(85198045184 / 1024 / 1024), // 81251 MiB, "A100", "A100-SXM4-80GB"
 }
-
-/*
-| model                | num_gpu | num_node | gpu_mem_each |
-| -------------------- | ------- | -------- | ------------ |
-| CPU                  | 0       | 727      | 0            |
-| GeForce-RTX-2080-Ti  | 3248    | 406      | 11019        |
-| GeForce-GTX-1080-Ti  | 16      | 2        | 11178        |
-| Tesla-T4             | 802     | 382      | 15109        |
-| Tesla-V100-SXM2-16GB | 201     | 61       | 16130        |
-| Tesla-V100-SXM2-16GB | 201     | 61       | 16160        |
-| Tesla-P100-PCIE-16GB | 382     | 200      | 16280        |
-| Tesla-V100-SXM2-32GB | 284     | 40       | 32510        |
-*/

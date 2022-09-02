@@ -97,8 +97,9 @@ func (plugin *GpuShareFragSimScorePlugin) Score(ctx context.Context, state *fram
 	// < frag score>
 	nodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(nodeRes, *plugin.typicalPods)
 	newNodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(newNodeRes, *plugin.typicalPods)
-	fragScore := nodeGpuShareFragScore - newNodeGpuShareFragScore // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
-	// log.Infof("[GSFSSP] %.2f=%.2f-%.2f\n", fragScore, nodeGpuShareFragScore, newNodeGpuShareFragScore)
+	fragScore := nodeGpuShareFragScore - newNodeGpuShareFragScore         // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
+	fragScore = sigmoid(fragScore/1000) * float64(framework.MaxNodeScore) // Sigmoid Norm: [-8000, +8000] => [0, 100]
+	log.Debugf("[GSFSSP] node(%s) || %.2f=%.2f-%.2f\n", nodeRes.Repr(), fragScore, nodeGpuShareFragScore, newNodeGpuShareFragScore)
 	// </frag score>
 
 	// < cosine similarity score>

@@ -71,3 +71,7 @@ func NormalizeScore(scores framework.NodeScoreList) *framework.Status {
 	}
 	return framework.NewStatus(framework.Success)
 }
+
+func sigmoid(x float64) float64 { //Sigmoid Activation
+	return 1.0 / (1.0 + math.Exp(-x))
+}

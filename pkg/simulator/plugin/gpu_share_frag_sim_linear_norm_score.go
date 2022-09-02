@@ -17,8 +17,8 @@ import (
 
 // Key idea: use cosine similarity to schedule at beginning while switch to frag later.
 
-// GpuShareFragSimNormScorePlugin is a plugin for scheduling framework, scoring pods by GPU fragmentation amount
-type GpuShareFragSimNormScorePlugin struct {
+// GpuShareFragSimLinearNormScorePlugin is a plugin for scheduling framework, scoring pods by GPU fragmentation amount
+type GpuShareFragSimLinearNormScorePlugin struct {
 	cfg          *simontype.GpuPluginCfg
 	handle       framework.Handle
 	typicalPods  *simontype.TargetPodList
@@ -26,15 +26,15 @@ type GpuShareFragSimNormScorePlugin struct {
 }
 
 // Just to check whether the implemented struct fits the interface
-var _ framework.ScorePlugin = &GpuShareFragSimNormScorePlugin{}
+var _ framework.ScorePlugin = &GpuShareFragSimLinearNormScorePlugin{}
 
-func NewGpuShareFragSimNormScorePlugin(configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList) (framework.Plugin, error) {
+func NewGpuShareFragSimLinearNormScorePlugin(configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList) (framework.Plugin, error) {
 	var cfg *simontype.GpuPluginCfg
 	if err := frameworkruntime.DecodeInto(configuration, &cfg); err != nil {
 		return nil, err
 	}
 
-	gpuFragScorePlugin := &GpuShareFragSimNormScorePlugin{
+	gpuFragScorePlugin := &GpuShareFragSimLinearNormScorePlugin{
 		cfg:          cfg,
 		handle:       handle,
 		typicalPods:  typicalPods,
@@ -45,11 +45,11 @@ func NewGpuShareFragSimNormScorePlugin(configuration runtime.Object, handle fram
 }
 
 // Name returns name of the plugin. It is used in logs, etc.
-func (plugin *GpuShareFragSimNormScorePlugin) Name() string {
-	return simontype.GpuShareFragSimNormScorePluginName
+func (plugin *GpuShareFragSimLinearNormScorePlugin) Name() string {
+	return simontype.GpuShareFragSimLinearNormScorePluginName
 }
 
-func (plugin *GpuShareFragSimNormScorePlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
+func (plugin *GpuShareFragSimLinearNormScorePlugin) PreFilter(ctx context.Context, state *framework.CycleState, pod *corev1.Pod) *framework.Status {
 	var frameworkStatus *framework.Status
 	nodeInfoList, err := plugin.handle.SnapshotSharedLister().NodeInfos().List()
 	if err != nil {
@@ -59,12 +59,12 @@ func (plugin *GpuShareFragSimNormScorePlugin) PreFilter(ctx context.Context, sta
 	return frameworkStatus
 }
 
-func (plugin *GpuShareFragSimNormScorePlugin) PreFilterExtensions() framework.PreFilterExtensions {
+func (plugin *GpuShareFragSimLinearNormScorePlugin) PreFilterExtensions() framework.PreFilterExtensions {
 	return nil
 }
 
 // Score invoked at the score extension point.
-func (plugin *GpuShareFragSimNormScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+func (plugin *GpuShareFragSimLinearNormScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
 	// < common procedure that prepares podRes, nodeRes, newNodeRes for Frag related score plugins>
 	if podReq, _ := resourcehelper.PodRequestsAndLimits(pod); len(podReq) == 0 {
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
@@ -98,9 +98,7 @@ func (plugin *GpuShareFragSimNormScorePlugin) Score(ctx context.Context, state *
 	nodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(nodeRes, *plugin.typicalPods)
 	newNodeGpuShareFragScore := utils.NodeGpuShareFragAmountScore(newNodeRes, *plugin.typicalPods)
 	fragScore := nodeGpuShareFragScore - newNodeGpuShareFragScore // The higher, the better. Negative means fragment amount increases, which is among the worst cases.
-
-	//[-8000, +8000] => [-50, +50] => [0, 100]
-	fragScore = fragScore*50/8000 + 50
+	fragScore = fragScore*50/8000 + 50                            // Linear Norm: [-8000, +8000] -> [-50, +50]
 	// </frag score>
 
 	// < cosine similarity score>
@@ -114,11 +112,11 @@ func (plugin *GpuShareFragSimNormScorePlugin) Score(ctx context.Context, state *
 }
 
 // ScoreExtensions of the Score plugin.
-func (plugin *GpuShareFragSimNormScorePlugin) ScoreExtensions() framework.ScoreExtensions {
+func (plugin *GpuShareFragSimLinearNormScorePlugin) ScoreExtensions() framework.ScoreExtensions {
 	return plugin
 }
 
 // NormalizeScore invoked after scoring all nodes.
-func (plugin *GpuShareFragSimNormScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
+func (plugin *GpuShareFragSimLinearNormScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
 	return NormalizeScore(scores)
 }

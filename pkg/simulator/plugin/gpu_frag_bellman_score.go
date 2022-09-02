@@ -15,8 +15,8 @@ import (
 	"github.com/alibaba/open-simulator/pkg/utils"
 )
 
-// GpuFragScoreBellmanPlugin is a plugin for scheduling framework, scoring pods by GPU fragmentation amount
-type GpuFragScoreBellmanPlugin struct {
+// GpuFragBellmanScorePlugin is a plugin for scheduling framework, scoring pods by GPU fragmentation amount
+type GpuFragBellmanScorePlugin struct {
 	handle        framework.Handle
 	typicalPods   *simontype.TargetPodList
 	fragRatioMemo *sync.Map
@@ -24,10 +24,10 @@ type GpuFragScoreBellmanPlugin struct {
 }
 
 // Just to check whether the implemented struct fits the interface
-var _ framework.ScorePlugin = &GpuFragScoreBellmanPlugin{}
+var _ framework.ScorePlugin = &GpuFragBellmanScorePlugin{}
 
-func NewGpuFragScoreBellmanPlugin(configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList, fragRatioMemo *sync.Map) (framework.Plugin, error) {
-	gpuFragScorePlugin := &GpuFragScoreBellmanPlugin{
+func NewGpuFragBellmanScorePlugin(configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList, fragRatioMemo *sync.Map) (framework.Plugin, error) {
+	gpuFragScorePlugin := &GpuFragBellmanScorePlugin{
 		handle:        handle,
 		typicalPods:   typicalPods,
 		fragRatioMemo: fragRatioMemo,
@@ -36,12 +36,12 @@ func NewGpuFragScoreBellmanPlugin(configuration runtime.Object, handle framework
 }
 
 // Name returns name of the plugin. It is used in logs, etc.
-func (plugin *GpuFragScoreBellmanPlugin) Name() string {
-	return simontype.GpuFragScoreBellmanPluginName
+func (plugin *GpuFragBellmanScorePlugin) Name() string {
+	return simontype.GpuFragBellmanScorePluginName
 }
 
 // Score invoked at the score extension point.
-func (plugin *GpuFragScoreBellmanPlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+func (plugin *GpuFragBellmanScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
 	// < common procedure that prepares podRes, nodeRes, newNodeRes for Frag related score plugins>
 	if podReq, _ := resourcehelper.PodRequestsAndLimits(pod); len(podReq) == 0 {
 		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
@@ -86,11 +86,11 @@ func (plugin *GpuFragScoreBellmanPlugin) Score(ctx context.Context, state *frame
 }
 
 // ScoreExtensions of the Score plugin.
-func (plugin *GpuFragScoreBellmanPlugin) ScoreExtensions() framework.ScoreExtensions {
+func (plugin *GpuFragBellmanScorePlugin) ScoreExtensions() framework.ScoreExtensions {
 	return plugin
 }
 
 // NormalizeScore invoked after scoring all nodes.
-func (plugin *GpuFragScoreBellmanPlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
+func (plugin *GpuFragBellmanScorePlugin) NormalizeScore(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, scores framework.NodeScoreList) *framework.Status {
 	return NormalizeScore(scores)
 }

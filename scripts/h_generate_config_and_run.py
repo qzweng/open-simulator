@@ -1,4 +1,3 @@
-from lib2to3.pgen2.literals import simple_escapes
 import os
 import yaml
 import shutil
@@ -69,46 +68,48 @@ python3 scripts/analysis.py experiments/exp0516_1
 
 # Add new scheduler policy here
 SCORE_POLICY_ABBR = {
-    "Gpu-Frag-Score":                     "frag",
-    "Gpu-Frag-Score-Bellman":             "bellman",
-    "Gpu-Share-Frag-Score":               "fragshare",
-    "Gpu-Share-Frag-Sim-Score":           "fragsharesim",
-    "Gpu-Share-Frag-Sim-Norm-Score":      "fragsharesimnorm",
-    "Gpu-Share-Frag-Dot-Product-Score":   "fragsharedotprod",
-    "Gpu-Share-Frag-Best-Fit-Score":      "fragsharebestfit",
-    "Gpu-Share-Frag-L2-Norm-Ratio-Score": "fragsharel2normratio",
-    "Gpu-Share-Frag-Packing-Score":       "fragsharepack",
-    "Gpu-Frag-Sim-Score":                 "fragsim",
-    "Gpu-Packing-Score":                  "pack",
-    "Gpu-Packing-Sim-Score":              "packsim",
-    "CosineSimilarityScore":              "sim",
-    "CosineSimPackingScore":              "simpack",
-    "BestFitScore":                       "bestfit",
-    "WorstFitScore":                      "worstfit",
-    "DotProductScore":                    "dotprod",
-    "L2NormDiffScore":                    "l2diff",
-    "L2NormRatioScore":                   "l2ratio",
-    "GandivaScore":                       "gandiva",
-    "SynergyScore":                       "synergy",
+    "GpuFragScore":                   "Frag",
+    "GpuFragBellmanScore":            "FragBellman",
+    "GpuFragSimScore":                "FragSim",
+    "GpuShareFragScore":              "FragShare",
+    "GpuShareFragLinearNormScore":    "FragShareLinearNorm",
+    "GpuShareFragSimScore":           "FragShareSim",
+    "GpuShareFragSimLinearNormScore": "FragShareSimLinearNorm",
+    "GpuShareFragDotProductScore":    "FragShareDotProd",
+    "GpuShareFragBestFitScore":       "FragShareBestFit",
+    "GpuShareFragL2NormRatioScore":   "FragShareL2NormRatio",
+    "GpuShareFragPackingScore":       "FragSharePacking",
+    "CosineSimilarityScore":          "Sim",
+    "GpuPackingScore":                "Packing",
+    "CosineSimPackingScore":          "SimPacking",
+    "GpuPackingSimScore":             "PackingSim",
+    "BestFitScore":                   "BestFit",
+    "WorstFitScore":                  "WorstFit",
+    "DotProductScore":                "DotProd",
+    "L2NormDiffScore":                "L2Diff",
+    "L2NormRatioScore":               "L2Ratio",
+    "GandivaScore":                   "Gandiva",
+    "SynergyScore":                   "Synergy",
 }
+
 SCORE_PLUGINS_WITH_DIM_NORM_GPU_METHOD = [
-    "DotProductScore",                  # dot product
-    "Gpu-Share-Frag-Dot-Product-Score", # dot product
-    "CosineSimPackingScore",            # cosine similarity
-    "CosineSimilarityScore",            # cosine similarity
-    "Gpu-Packing-Sim-Score",            # cosine similarity
-    "Gpu-Frag-Sim-Score",               # cosine similarity
-    "Gpu-Share-Frag-Sim-Norm-Score",    # cosine similarity
-    "Gpu-Share-Frag-Sim-Score",         # cosine similarity
+    "DotProductScore",                # dot product
+    "GpuShareFragDotProductScore",    # dot product
+    "GpuFragSimScore",                # cosine similarity
+    "GpuShareFragSimScore",           # cosine similarity
+    "GpuShareFragSimLinearNormScore", # cosine similarity
+    "CosineSimilarityScore",          # cosine similarity
+    "CosineSimPackingScore",          # cosine similarity
+    "GpuPackingSimScore",             # cosine similarity
 ]
 SCORE_PLUGINS_WITH_PRE_FILTER = [
-    "Gpu-Share-Frag-Sim-Score",
-    "Gpu-Share-Frag-Sim-Norm-Score",
-    "Gpu-Share-Frag-Dot-Product-Score",
-    "Gpu-Share-Frag-Best-Fit-Score",
-    "Gpu-Share-Frag-L2-Norm-Ratio-Score",
-    "Gpu-Share-Frag-Packing-Score",
-    "Gpu-Frag-Sim-Score"
+    "GpuShareFragSimScore",
+    "GpuShareFragSimLinearNormScore",
+    "GpuShareFragDotProductScore",
+    "GpuShareFragBestFitScore",
+    "GpuShareFragL2NormRatioScore",
+    "GpuShareFragPackingScore",
+    "GpuFragSimScore",
 ]
 
 def get_args():
@@ -283,26 +284,32 @@ profiles:
           - name: Open-Gpu-Share
       preFilter:
         disabled:
-          - name: Gpu-Share-Frag-Sim-Score
-          - name: Gpu-Share-Frag-Sim-Norm-Score
-          - name: Gpu-Share-Frag-Dot-Product-Score
-          - name: Gpu-Share-Frag-Best-Fit-Score
-          - name: Gpu-Share-Frag-L2-Norm-Ratio-Score
-          - name: Gpu-Share-Frag-Packing-Score
-          - name: Gpu-Frag-Sim-Score
+          - name: GpuShareFragSimScore
+          - name: GpuShareFragSimLinearNormScore
+          - name: GpuShareFragDotProductScore
+          - name: GpuShareFragBestFitScore
+          - name: GpuShareFragL2NormRatioScore
+          - name: GpuShareFragPackingScore
+          - name: GpuFragSimScore
         enabled:
       score:
         disabled:
-          - name: Gpu-Frag-Score
-          - name: Gpu-Frag-Score-Bellman
-          - name: Gpu-Share-Frag-Score
-          - name: Gpu-Share-Frag-Sim-Score
-          - name: Gpu-Packing-Score
-          - name: Gpu-Packing-Sim-Score
+          - name: GpuFragScore
+          - name: GpuFragBellmanScore
+          - name: GpuFragSimScore
+          - name: GpuShareFragScore
+          - name: GpuShareFragLinearNormScore
+          - name: GpuShareFragSimScore
+          - name: GpuShareFragSimLinearNormScore
+          - name: GpuShareFragDotProductScore
+          - name: GpuShareFragBestFitScore
+          - name: GpuShareFragL2NormRatioScore
+          - name: GpuShareFragPackingScore
           - name: CosineSimilarityScore
+          - name: GpuPackingScore
           - name: CosineSimPackingScore
+          - name: GpuPackingSimScore
           - name: BestFitScore
-          - name: Simon
           - name: WorstFitScore
           - name: DotProductScore
           - name: L2NormDiffScore
@@ -342,12 +349,12 @@ def generate_scheduler_config(args, outdir):
                 if args.__dict__.get(policy_abbr, 0) > 0:
                     s['enabled'].append({'name': policy_name, 'weight': args.__dict__.get(policy_abbr, 0)})
 
-                    # for fragsharesim, add PreScore
+                    # for fragsharesim, add prefilter
                     if policy_name in SCORE_PLUGINS_WITH_PRE_FILTER:
-                        prescore = v[0]['plugins']['preFilter']
-                        if 'enabled' not in prescore or type(prescore['enabled']) != list:
-                            prescore['enabled'] = []
-                        prescore['enabled'].append({'name': policy_name})
+                        prefilter = v[0]['plugins']['preFilter']
+                        if 'enabled' not in prefilter or type(prefilter['enabled']) != list:
+                            prefilter['enabled'] = []
+                        prefilter['enabled'].append({'name': policy_name})
 
             # if args.gpu_frag_score > 0:
             #     s['enabled'].append({'name': "Gpu-Frag-Score", 'weight': args.gpu_frag_score})
