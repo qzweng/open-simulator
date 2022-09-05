@@ -142,12 +142,14 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
 def log_to_csv(log_path: Path, outfile: Path):
     out_frag_path = outfile.parent / (outfile.stem + '_frag.csv')
     out_allo_path = outfile.parent / (outfile.stem + '_allo.csv')
+    out_cdol_path = outfile.parent / (outfile.stem + '_cdol.csv')
     # print("Handling logs under  :", log_path)
     
     NUM_CLUSTER_ANALYSIS_LINE = 16
     out_row_list = []
     out_frag_col_dict = {}
     out_allo_col_dict = {}
+    out_cdol_col_dict = {}
     log_file_counter = 0
     for file in log_path.glob("*.log"):
         log = file.name
@@ -155,7 +157,7 @@ def log_to_csv(log_path: Path, outfile: Path):
             try:
                 meta_dict = get_meta_dict_from_logname(log=log, log_dir=log_path)
             except Exception as e:
-                print("[Error] file(%s) failed in get_meta_dict_from_logname(): %s" % (log, e))
+                print("[Error] %s file failed in get_meta_dict_from_logname: %s" % (log, e))
                 meta_dict = {}
             
             try:
@@ -169,6 +171,8 @@ def log_to_csv(log_path: Path, outfile: Path):
                 totl_dict = {}
                 frag_list_dict = {}
                 allo_list_dict = {}
+                cdol_list_dict = {'id':[], 'event':[], 'pod_name':[], 'cum_pod':[0]}
+                cdol_pod_dict = {}
 
                 counter = 0
                 tag = ""
@@ -260,6 +264,47 @@ def log_to_csv(log_path: Path, outfile: Path):
                                 else:
                                     allo_list_dict[key] = [val]
 
+                    # out_cdol_col_dict -- for online create/delete logs, extract their cumulative pod number
+                    if "attempt to" in line:
+                        cdol_meat = line.split()
+                        if cdol_meat[0] == "[deletePod]": # last create failed
+                            try:
+                                cdol_list_dict['event'][-1] = 'failed'
+                                cdol_list_dict['cum_pod'][-1] -= 1
+                                pod_name = cdol_meat[6][4:-3] # pod(paib-gpu/paib-pod-0008) -> paib-gpu/paib-pod-0008
+                                del cdol_pod_dict[pod_name]
+                            except Exception as e:
+                                print("[ERROR] cdol: probably empty cdol_list_dict(%s) encounters [deletePod], error: %s" % (cdol_list_dict, e))
+                                continue
+                        else:
+                            event_id = int(cdol_meat[0][1:-1]) # [8] -> 8
+                            event = cdol_meat[3] # create/delete
+                            pod_name = cdol_meat[4][4:-3] # pod(paib-gpu/paib-pod-0008) -> paib-gpu/paib-pod-0008
+                            cum_sum = cdol_list_dict['cum_pod'][-1]
+
+                            if event == 'create':
+                                if pod_name in cdol_pod_dict:
+                                    print("[ERROR] cdol: Duplicated pod creation: %s" % cdol_meat) 
+                                    continue
+                                cdol_pod_dict[pod_name] = [event_id, None] # created at event_id=8
+                                cum_sum += 1
+
+                            elif event == "delete":
+                                if pod_name in cdol_pod_dict:
+                                    cdol_pod_dict[pod_name][1] = event_id # deleted at event_id=9
+                                    cum_sum -= 1
+                                else:
+                                    event = 'skipped' # if the pod failed in creation, then no reduction in cumsum, and rename the delete event as "skipped", so as to align the total number of events
+                            else:
+                                print("[ERROR] cdol: Unrecognized event: %s" % cdol_meat)
+                                continue
+
+                            cdol_list_dict['id'].append(event_id)
+                            cdol_list_dict['event'].append(event)
+                            cdol_list_dict['pod_name'].append(pod_name)
+                            cdol_list_dict['cum_pod'].append(cum_sum)
+
+
                 out_dict = {}
                 out_dict.update(meta_dict)
                 out_dict.update(fail_dict)
@@ -275,8 +320,12 @@ def log_to_csv(log_path: Path, outfile: Path):
                     out_frag_col_dict[meta_as_key+"-"+k] = v
                 for k, v in allo_list_dict.items():
                     out_allo_col_dict[meta_as_key+"-"+k] = v
+                cdol_list_dict['cum_pod'] = cdol_list_dict['cum_pod'][1:]
+                if len(cdol_list_dict['cum_pod']) > 0:
+                    for k, v in cdol_list_dict.items():
+                        out_cdol_col_dict[meta_as_key+"-"+k] = v
             except Exception as e:
-                print("[Error] log_to_csv() Failed at", file, " with error:", e)
+                print("[Error] Failed at", file, " with error:", e)
 
     outdf = pd.concat(out_row_list)
     outdf.to_csv(outfile, index=False)
@@ -289,10 +338,13 @@ def log_to_csv(log_path: Path, outfile: Path):
     if len(out_allo_col_dict) > 0:
         df = pd.DataFrame().from_dict(out_allo_col_dict, orient='index').T
         df.to_csv(out_allo_path, index=None)
+    if len(out_cdol_col_dict) > 0:
+        df = pd.DataFrame().from_dict(out_cdol_col_dict, orient='index').T
+        df.to_csv(out_cdol_path, index=None)
+    
 
-
-def failed_pods_in_detail(log_path):
-    outfilepath = Path(log_path) / "analysis_fail.out"
+def failed_pods_in_detail(log_path, outfile=None):
+    outfilepath = outfile if outfile is not None else Path(log_path) / "analysis_fail.out"
     # print("Handling logs under:", log_path)
     print("Failed pods:", outfilepath)
     outfile = open(outfilepath, 'w')
@@ -305,6 +357,7 @@ def failed_pods_in_detail(log_path):
         with open(file, 'r') as f:
             try:
                 log_file_counter += 1
+
                 outfile.write("\n===\n%s\n" % log)
 
                 counter = 0
@@ -350,11 +403,13 @@ def failed_pods_in_detail(log_path):
                             counter = 1
 
             except Exception as e:
-                print("[Error] failed_pods_in_detail() Failed at", file, " with error:", e)
+                print("[Error] Failed at", file, " with error:", e)
 
-def grep_log_cluster_analysis(log_path):
-    outfile = Path(log_path) / "analysis_grep.out"
+def grep_log_cluster_analysis(log_path, outfile=None):
+    outfile = Path(log_path) / "analysis_grep.out" if outfile is None else outfile
     print("Log grep:", outfile)
+    if outfile.is_file():
+        subprocess.call(["rm", "-f", outfile])
     for i, file in enumerate(log_path.glob("*.log")):
         # print('[%4d] %s'% (i + 1, file))
         with open(outfile, 'ab') as out:
@@ -374,19 +429,25 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--outfile", type=str, help="output csv file", default=None)
     parser.add_argument("-g", "--grep", dest='grep', action='store_true', help="output grepped results")
     parser.add_argument("-f", "--failed", dest='failed', action='store_true', help='output failed pods')
+    parser.add_argument("-s", "--skipped", dest='skipped', action='store_true', help='skip log_to_csv')
     parser.set_defaults(failed=False)
     args = parser.parse_args()
 
+    ANAL_FILE = "analysis.csv"
+    FAIL_FILE = ANAL_FILE.split('.csv')[0] + "_fail.out"
+    GREP_FILE = ANAL_FILE.split('.csv')[0] + "_grep.out"
+
     # script_path = Path(os.path.dirname(os.path.realpath(__file__)))
-    script_path = Path(__file__).parent
+    script_path = Path(__file__).parent # analysis.py is under "scripts/", so it needs to go to the root
     log_path = script_path.parent / args.logfile
 
     if args.failed:
-        failed_pods_in_detail(log_path)
+        failed_pods_in_detail(log_path, log_path / FAIL_FILE)
 
     if args.grep:
-        grep_log_cluster_analysis(log_path)
+        grep_log_cluster_analysis(log_path, log_path / GREP_FILE)
 
-    outfile = log_path / "analysis.csv" if not args.outfile else Path(args.outfile)
-    print("In: ", log_path, "\nOut:", outfile)
-    log_to_csv(log_path, outfile)
+    if not args.skipped:
+        outfile = log_path / "analysis.csv" if not args.outfile else Path(args.outfile)
+        print("In: ", log_path, "\nOut:", outfile)
+        log_to_csv(log_path, outfile)
