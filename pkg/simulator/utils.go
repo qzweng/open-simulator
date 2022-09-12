@@ -239,6 +239,9 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 				Name: simontype.GpuShareFragSimLinearNormScorePluginName,
 			},
 			{
+				Name: simontype.GpuShareFragSimTuneScorePluginName,
+			},
+			{
 				Name: simontype.GpuShareFragDotProductScorePluginName,
 			},
 			{
@@ -280,6 +283,9 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 			},
 			{
 				Name: simontype.GpuShareFragSimLinearNormScorePluginName,
+			},
+			{
+				Name: simontype.GpuShareFragSimTuneScorePluginName,
 			},
 			{
 				Name: simontype.GpuShareFragDotProductScorePluginName,

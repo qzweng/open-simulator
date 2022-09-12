@@ -158,6 +158,9 @@ func New(opts ...Option) (Interface, error) {
 		simontype.GpuShareFragSimLinearNormScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragSimLinearNormScorePlugin(configuration, handle, &sim.typicalPods)
 		},
+		simontype.GpuShareFragSimTuneScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragSimTuneScorePlugin(configuration, handle, &sim.typicalPods)
+		},
 		simontype.GpuShareFragDotProductScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragDotProductScorePlugin(configuration, handle, &sim.typicalPods)
 		},
