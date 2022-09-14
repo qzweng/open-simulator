@@ -230,7 +230,7 @@ func New(opts ...Option) (Interface, error) {
 	return sim, nil
 }
 
-// RunCluster
+// RunCluster switch between real client and fake clients.
 func (sim *Simulator) RunCluster(cluster ResourceTypes) ([]simontype.UnscheduledPod, error) {
 	// start scheduler
 	sim.runScheduler()
@@ -522,6 +522,7 @@ func (sim *Simulator) syncNodeCreate(name string, d time.Duration) {
 	time.Sleep(d) // sleep for a while to avoid event channel full
 }
 
+// syncClusterResourceList: 1) load Pods into creation and deletion events. 2) schedule and delete these existing Pods.
 func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]simontype.UnscheduledPod, error) {
 	//sync node
 	sort.Slice(resourceList.Nodes, func(i, j int) bool {
@@ -978,7 +979,7 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 				podRes.MilliGpu*int64(podRes.GpuNumber)+podTotalMilliGpuReq <= sim.nodeTotalMilliGpu {
 
 				podTotalMilliCpuReq += podRes.MilliCpu
-				podTotalMilliGpuReq += podRes.MilliGpu * int64(podRes.GpuNumber)
+				podTotalMilliGpuReq += podRes.TotalMilliGpu()
 			} else {
 				log.Infof("Stop early during workload inflation, "+
 					"because the total resource requests for pods(milli cpu %d, milli gpu %d) have exceeded "+
@@ -1087,4 +1088,81 @@ func displaySchedulerConfig(config *config.CompletedConfig) {
 		}
 		log.Infoln()
 	}
+}
+
+// TunePodsByNodeTotalResource prune or append pods to match the cfg.Ratio * (cluster_GPU_capacity)
+func (sim *Simulator) TunePodsByNodeTotalResource(pods []*corev1.Pod, cfg v1alpha1.WorkloadTuningConfig) []*corev1.Pod {
+	if sim.podTotalMilliCpuReq <= 0 {
+		panic("sim.podTotalMilliCpuReq <= 0")
+	} else if sim.podTotalMilliGpuReq <= 0 {
+		panic("sim.podTotalMilliGpuReq <= 0")
+	} else if sim.nodeTotalMilliCpu <= 0 {
+		panic("sim.nodeTotalMilliCpuReq <= 0")
+	} else if sim.nodeTotalMilliGpu <= 0 {
+		panic("sim.nodeTotalMilliGpuReq <= 0")
+	}
+
+	tuneRatio := cfg.Ratio
+	tgtTotalMilliGpu := tuneRatio * float64(sim.nodeTotalMilliGpu)
+	log.Infof("[Tune] Num of Pods before Tuning: %d\n", len(pods))
+	log.Infof("[Tune] %d vs %.2f (%.2f * %d)\n", sim.podTotalMilliGpuReq, tgtTotalMilliGpu, tuneRatio, sim.nodeTotalMilliGpu)
+	if tuneRatio <= 0 {
+		log.Infof("[Tune] Num of Pods after Tuning: %d\n", len(pods))
+		return pods
+	} else if float64(sim.podTotalMilliGpuReq) == tgtTotalMilliGpu {
+		log.Infof("[Tune] Num of Pods after Tuning: %d\n", len(pods))
+		return pods
+	} else if float64(sim.podTotalMilliGpuReq) > tgtTotalMilliGpu {
+		pods = sim.tuneDownPods(pods, cfg)
+		log.Infof("[Tune] Num of Pods after Tuning: %d\n", len(pods))
+		return pods
+	} else if float64(sim.podTotalMilliGpuReq) < tgtTotalMilliGpu {
+		pods = sim.tuneUpPods(pods, cfg)
+		log.Infof("[Tune] Num of Pods after Tuning: %d\n", len(pods))
+		return pods
+	} else {
+		panic(fmt.Sprintf("%d ?= %.2f (%.2f * %d)", sim.podTotalMilliGpuReq, tgtTotalMilliGpu, tuneRatio, sim.nodeTotalMilliGpu))
+	}
+}
+
+func RemovePodsByIndex(s []*corev1.Pod, index int) []*corev1.Pod {
+	return append(s[:index], s[index+1:]...)
+}
+
+func (sim *Simulator) tuneDownPods(pods []*corev1.Pod, cfg v1alpha1.WorkloadTuningConfig) []*corev1.Pod {
+	tuneRatio := cfg.Ratio
+	rand.Seed(cfg.Seed + 1)
+	for float64(sim.podTotalMilliGpuReq) > tuneRatio*float64(sim.nodeTotalMilliGpu) {
+		if numPods := len(pods); numPods > 0 {
+			idx := rand.Intn(numPods)
+			podToRm := pods[idx]
+			podRes := utils.GetPodResource(podToRm)
+			pods = RemovePodsByIndex(pods, idx)
+			sim.podTotalMilliGpuReq -= podRes.TotalMilliGpu()
+		} else {
+			panic(fmt.Sprintf("Empty pods list while podTotalMilliGpuReq(%d) > tuneRatio(%.2f) * nodeTotalMilliGpu(%d)", sim.podTotalMilliGpuReq, tuneRatio, sim.nodeTotalMilliGpu))
+		}
+	}
+	return pods
+}
+
+func (sim *Simulator) tuneUpPods(pods []*corev1.Pod, cfg v1alpha1.WorkloadTuningConfig) []*corev1.Pod {
+	tuneRatio := cfg.Ratio
+	rand.Seed(cfg.Seed + 1)
+	n := len(sim.workloadPods)
+	i := 0
+	for { // do-while style
+		idx := rand.Intn(n)
+		podTuned, _ := utils.MakeValidPodByPod(sim.workloadPods[idx].DeepCopy())
+		podTuned.Name = fmt.Sprintf("%s-tuned-%d", podTuned.Name, i)
+		podRes := utils.GetPodResource(podTuned)
+		if float64(sim.podTotalMilliGpuReq+podRes.MilliGpu) > tuneRatio*float64(sim.nodeTotalMilliGpu) {
+			break
+		} else {
+			sim.podTotalMilliGpuReq += podRes.TotalMilliGpu()
+			pods = append(pods, podTuned)
+			i += 1
+		}
+	}
+	return pods
 }

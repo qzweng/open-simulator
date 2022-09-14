@@ -140,8 +140,10 @@ def get_args():
     parser.add_argument('--applist-name', type=str, default=None, help='name of the app list')
     parser.add_argument('--new-node', type=str, default="example/newnode/gpushare")
     parser.add_argument('--shuffle-pod', type=str, default="false", help='whether to shuffle pod. true is to shuffle, false (default) respect the submission order')
-    parser.add_argument('--workload-inflation-ratio', type=int, default=100, help='workload inflation ratio')
+    parser.add_argument('--workload-inflation-ratio', type=float, default=1, help='workload inflation ratio, <= 1 takes no effects')
     parser.add_argument('-seed','--workload-inflation-seed', type=int, default=233, help='workload inflation seed')
+    parser.add_argument('-tune', '--workload-tuning-ratio', type=float, default=0, help='workload tuning ratio, <= 0 takes no effects')
+    parser.add_argument('-tuneseed','--workload-tuning-seed', type=int, default=233, help='workload tuning seed')
 
     # scheduler config
     for policy_name, policy_abbr in SCORE_POLICY_ABBR.items():
@@ -196,7 +198,10 @@ spec:
       # podSnapshotYamlFilePrefix: "snapshot/pod_snapshot"
       # nodeSnapshotCSVFilePrefix: "snapshot/node_snapshot"
     workloadInflationConfig:
-      ratio: 100
+      ratio: 1
+      seed: 233
+    workloadTuningConfig:
+      ratio: 0
       seed: 233
     descheduleConfig:
       ratio: 0.1
@@ -232,6 +237,8 @@ def generate_cluster_config(args, outdir):
             v['customConfig']['exportConfig']['nodeSnapshotCSVFilePrefix'] = args.export_node_snapshot_csv_file_prefix
             v['customConfig']['workloadInflationConfig']['ratio'] = args.workload_inflation_ratio
             v['customConfig']['workloadInflationConfig']['seed'] = args.workload_inflation_seed
+            v['customConfig']['workloadTuningConfig']['ratio'] = args.workload_tuning_ratio
+            v['customConfig']['workloadTuningConfig']['seed'] = args.workload_tuning_seed
             v['customConfig']['descheduleConfig']['ratio'] = args.deschedule_ratio
             if args.deschedule_policy is not None:
                 v['customConfig']['descheduleConfig']['policy'] = args.deschedule_policy
@@ -267,6 +274,8 @@ def generate_cluster_config(args, outdir):
     filename += FILESEP + "dr%.1f" % args.deschedule_ratio # deschedule-ratio
     filename += FILESEP + "dp%s" % args.deschedule_policy if args.deschedule_policy is not None else "" # deschedule-policy
     filename += FILESEP + "pe" if args.export_pod_snapshot_yaml_file_prefix is not None else "" # pod-export
+    filename += FILESEP + "tn%.1f" % args.workload_tuning_ratio # workload-tuning-ratio
+    filename += FILESEP + "if%.1f" % args.workload_inflation_ratio # workload-inflation-ratio
     filename += FILESEP + "md" + md.hexdigest()[:4] # md5
     filename += ".yaml"
     outfile = outdir / filename

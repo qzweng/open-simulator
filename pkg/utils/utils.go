@@ -1282,7 +1282,7 @@ func GenerateSchedulingMatchGroups(nodeRes simontype.NodeResource, podRes simont
 						podRequest = append(podRequest, float64(podRes.MilliGpu*int64(podRes.GpuNumber)))
 					}
 				} else {
-					podRequest = []float64{float64(podRes.MilliCpu), float64(podRes.MilliGpu * int64(podRes.GpuNumber))}
+					podRequest = []float64{float64(podRes.MilliCpu), float64(podRes.TotalMilliGpu())}
 				}
 				matchGroup.NodeResourceVec = NormalizeVector(matchGroup.NodeResourceVec, podRequest)
 				matchGroup.PodResourceVec = NormalizeVector(matchGroup.PodResourceVec, podRequest)

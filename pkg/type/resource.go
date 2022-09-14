@@ -105,6 +105,10 @@ func (tpr PodResource) Repr() string {
 	return outStr
 }
 
+func (tpr PodResource) TotalMilliGpu() int64 {
+	return tpr.MilliGpu * int64(tpr.GpuNumber)
+}
+
 func (tnr NodeResource) Repr() string {
 	outStr := fmt.Sprintf("%s<", tnr.NodeName)
 	outStr += fmt.Sprintf("CPU: %6.2f/%6.2f", float64(tnr.MilliCpuLeft)/1000, float64(tnr.MilliCpuCapacity)/1000)
@@ -258,7 +262,7 @@ func (tnr NodeResource) ToVirtualNodeResourceList(method GpuDimExtMethod, podRes
 		return nil
 	}
 
-	podMilliGpuReq := podRes.MilliGpu * int64(podRes.GpuNumber)
+	podMilliGpuReq := podRes.TotalMilliGpu()
 	nodeTotalMilliGpuLeft := tnr.GetTotalMilliGpuLeft()
 
 	if method == MergeGpuDim {
@@ -340,7 +344,7 @@ func (tnr NodeResource) ToVirtualNodeResourceList(method GpuDimExtMethod, podRes
 }
 
 func AllocateExclusiveGpuId(nodeRes NodeResource, podRes PodResource) (gpuId string) {
-	podGpuReq := podRes.MilliGpu * int64(podRes.GpuNumber)
+	podGpuReq := podRes.TotalMilliGpu()
 	for id, milliGpuLeft := range nodeRes.MilliGpuLeftList {
 		if podGpuReq <= 0 {
 			break

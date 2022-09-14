@@ -174,7 +174,7 @@ func (sim *Simulator) RecordPodTotalResourceReq(pods []*corev1.Pod) (int64, int6
 	for _, p := range pods {
 		podRes := utils.GetPodResource(p)
 		sim.podTotalMilliCpuReq += podRes.MilliCpu
-		sim.podTotalMilliGpuReq += podRes.MilliGpu * int64(podRes.GpuNumber)
+		sim.podTotalMilliGpuReq += podRes.TotalMilliGpu()
 	}
 	log.Infof("Total milli cpu request of all pods: %d, milli gpu request: %d\n",
 		sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq)

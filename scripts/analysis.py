@@ -111,6 +111,10 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
                     meta_dict["ccmd"] = item.split("md")[1]
                 if item.startswith("dp"): # deschedule policy
                     meta_dict["dp"] = item.split("dp")[1]
+                if item.startswith("tn"): # workload-tuning-ratio
+                    meta_dict["tn"] = item.split("tn")[1]
+                if item.startswith("if"): # workload-inflation-ratio
+                    meta_dict["if"] = item.split("if")[1]
 
             meta_dict["policy"] = ""
             for item in sconfig.split('_'):

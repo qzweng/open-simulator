@@ -51,6 +51,8 @@ type Interface interface {
 	SetTypicalPods()
 	RecordPodTotalResourceReq(pods []*corev1.Pod) (int64, int64)
 	RecordNodeTotalResource(nodes []*corev1.Node) (int64, int64)
+	TunePodsByNodeTotalResource(pods []*corev1.Pod, config v1alpha1.WorkloadTuningConfig) []*corev1.Pod
+
 	ExportPodSnapshotInYaml(unschedulePods []simontype.UnscheduledPod, filePath string)
 	ExportNodeSnapshotInCSV(filePath string)
 
@@ -104,6 +106,13 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	sim.SortClusterPods(cluster.Pods)
 	sim.RecordPodTotalResourceReq(cluster.Pods)
 	sim.RecordNodeTotalResource(cluster.Nodes)
+
+	customConfig := sim.GetCustomConfig()
+	if customConfig.WorkloadTuningConfig.Ratio > 0 {
+		// <= 0 means no tuning, keeping the cluster.Pods == sim.workloadPods
+		cluster.Pods = sim.TunePodsByNodeTotalResource(cluster.Pods, customConfig.WorkloadTuningConfig)
+	}
+
 	unscheduledPods, err := sim.RunCluster(cluster) // Existing pods in the cluster are scheduled here.
 	if err != nil {
 		return nil, err
@@ -112,7 +121,6 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	utils.ReportFailedPods(failedPods)
 	sim.ClusterAnalysis(TagInitSchedule)
 
-	customConfig := sim.GetCustomConfig()
 	if customConfig.ExportConfig.PodSnapshotYamlFilePrefix != "" {
 		// filePath: prefix/InitSchedule/pod-snapshot.yaml
 		prefix := customConfig.ExportConfig.PodSnapshotYamlFilePrefix
