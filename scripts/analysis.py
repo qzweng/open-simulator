@@ -113,6 +113,8 @@ def get_meta_dict_from_logname(log: str, log_dir: Path=None):
                     meta_dict["dp"] = item.split("dp")[1]
                 if item.startswith("tn"): # workload-tuning-ratio
                     meta_dict["tn"] = item.split("tn")[1]
+                if item.startswith("ts"): # workload-tuning-seed
+                    meta_dict["ts"] = item.split("ts")[1]
                 if item.startswith("if"): # workload-inflation-ratio
                     meta_dict["if"] = item.split("if")[1]
 
