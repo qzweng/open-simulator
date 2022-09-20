@@ -55,6 +55,7 @@ type Interface interface {
 
 	ExportPodSnapshotInYaml(unschedulePods []simontype.UnscheduledPod, filePath string)
 	ExportNodeSnapshotInCSV(filePath string)
+	ExportPodSnapshotInCSV(filePath string)
 
 	SortClusterPods(pods []*corev1.Pod)
 
@@ -141,6 +142,8 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 		} else {
 			filePath := fmt.Sprintf("%s/%s", fileDir, "node-snapshot.csv")
 			sim.ExportNodeSnapshotInCSV(filePath)
+			podFilePath := fmt.Sprintf("%s/%s", fileDir, "pod-snapshot.csv")
+			sim.ExportPodSnapshotInCSV(podFilePath)
 		}
 	}
 
@@ -188,6 +191,8 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 			} else {
 				filePath := fmt.Sprintf("%s/%s", fileDir, "node-snapshot.csv")
 				sim.ExportNodeSnapshotInCSV(filePath)
+				podFilePath := fmt.Sprintf("%s/%s", fileDir, "pod-snapshot.csv")
+				sim.ExportNodeSnapshotInCSV(podFilePath)
 			}
 		}
 	}

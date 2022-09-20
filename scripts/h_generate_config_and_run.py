@@ -275,7 +275,7 @@ def generate_cluster_config(args, outdir):
     filename += FILESEP + "dp%s" % args.deschedule_policy if args.deschedule_policy is not None else "" # deschedule-policy
     filename += FILESEP + "pe" if args.export_pod_snapshot_yaml_file_prefix is not None else "" # pod-export
     filename += FILESEP + "tn%.1f" % args.workload_tuning_ratio # workload-tuning-ratio
-    filename += FILESEP + "ts%df" % args.workload_tuning_seed # workload-tuning-ratio
+    filename += FILESEP + "ts%d" % args.workload_tuning_seed # workload-tuning-ratio
     filename += FILESEP + "if%.1f" % args.workload_inflation_ratio # workload-inflation-ratio
     filename += FILESEP + "md" + md.hexdigest()[:4] # md5
     filename += ".yaml"
