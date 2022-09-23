@@ -194,6 +194,9 @@ func New(opts ...Option) (Interface, error) {
 		simontype.WorstFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewWorstFitScorePlugin(configuration, handle)
 		},
+		simontype.FirstFitScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewFirstFitScorePlugin(configuration, handle)
+		},
 		simontype.DotProductScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewDotProductScorePlugin(configuration, handle)
 		},

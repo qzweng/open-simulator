@@ -26,6 +26,7 @@ const (
 	GpuPackingSimScorePluginName             = "GpuPackingSimScore"
 	BestFitScorePluginName                   = "BestFitScore"
 	WorstFitScorePluginName                  = "WorstFitScore"
+	FirstFitScorePluginName                  = "FirstFitScore"
 	DotProductScorePluginName                = "DotProductScore"
 	L2NormDiffScorePluginName                = "L2NormDiffScore"
 	L2NormRatioScorePluginName               = "L2NormRatioScore"

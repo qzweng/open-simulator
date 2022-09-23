@@ -86,6 +86,7 @@ SCORE_POLICY_ABBR = {
     "GpuPackingSimScore":             "PackingSim",
     "BestFitScore":                   "BestFit",
     "WorstFitScore":                  "WorstFit",
+    "FirstFitScore":                  "FirstFit",
     "DotProductScore":                "DotProd",
     "L2NormDiffScore":                "L2Diff",
     "L2NormRatioScore":               "L2Ratio",
@@ -324,6 +325,7 @@ profiles:
           - name: GpuPackingSimScore
           - name: BestFitScore
           - name: WorstFitScore
+          - name: FirstFitScore
           - name: DotProductScore
           - name: L2NormDiffScore
           - name: L2NormRatioScore

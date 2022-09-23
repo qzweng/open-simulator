@@ -321,6 +321,9 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 				Name: simontype.WorstFitScorePluginName,
 			},
 			{
+				Name: simontype.FirstFitScorePluginName,
+			},
+			{
 				Name: simontype.DotProductScorePluginName,
 			},
 			{
