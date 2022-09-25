@@ -30,6 +30,9 @@ func (plugin *FirstFitScorePlugin) Name() string {
 }
 
 func (plugin *FirstFitScorePlugin) Score(ctx context.Context, state *framework.CycleState, pod *corev1.Pod, nodeName string) (int64, *framework.Status) {
+	// Use the Kubernetes default node list order as FirstFit
+	return 100, framework.NewStatus(framework.Success)
+
 	strSlice := strings.Split(nodeName, "-") // e.g., "paib-node-0001"
 	var score int64
 	if nodeId, err := strconv.ParseInt(strSlice[len(strSlice)-1], 10, 64); err == nil {

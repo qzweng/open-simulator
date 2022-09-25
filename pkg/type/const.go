@@ -27,6 +27,7 @@ const (
 	BestFitScorePluginName                   = "BestFitScore"
 	WorstFitScorePluginName                  = "WorstFitScore"
 	FirstFitScorePluginName                  = "FirstFitScore"
+	RandomScorePluginName                    = "RandomScore"
 	DotProductScorePluginName                = "DotProductScore"
 	L2NormDiffScorePluginName                = "L2NormDiffScore"
 	L2NormRatioScorePluginName               = "L2NormRatioScore"

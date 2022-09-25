@@ -87,6 +87,7 @@ SCORE_POLICY_ABBR = {
     "BestFitScore":                   "BestFit",
     "WorstFitScore":                  "WorstFit",
     "FirstFitScore":                  "FirstFit",
+    "RandomScore":                    "Random",
     "DotProductScore":                "DotProd",
     "L2NormDiffScore":                "L2Diff",
     "L2NormRatioScore":               "L2Ratio",
@@ -326,6 +327,7 @@ profiles:
           - name: BestFitScore
           - name: WorstFitScore
           - name: FirstFitScore
+          - name: RandomScore
           - name: DotProductScore
           - name: L2NormDiffScore
           - name: L2NormRatioScore
