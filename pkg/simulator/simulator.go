@@ -534,6 +534,12 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]sim
 	sort.Slice(resourceList.Nodes, func(i, j int) bool {
 		return resourceList.Nodes[i].Name < resourceList.Nodes[j].Name
 	})
+
+	rand.Seed(sim.customConfig.WorkloadTuningConfig.Seed)
+	rand.Shuffle(len(resourceList.Nodes), func(i, j int) {
+		resourceList.Nodes[i], resourceList.Nodes[j] = resourceList.Nodes[j], resourceList.Nodes[i]
+	})
+
 	for i, item := range resourceList.Nodes {
 		log.Debugf("[%d] attempt to create node(%s)\n", i, item.Name)
 		if _, err := sim.client.CoreV1().Nodes().Create(sim.ctx, item, metav1.CreateOptions{}); err != nil {
