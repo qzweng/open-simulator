@@ -269,6 +269,20 @@ def log_to_csv(log_path: Path, outfile: Path):
                                     allo_list_dict[key].append(val)
                                 else:
                                     allo_list_dict[key] = [val]
+                        elif len(line.split(';')) == 6: # e.g., "[Alloc]; Used nodes: 91; Used GPUs: 183; Used GPU Milli: 173250; Total GPUs: 2099; Arrived GPU Milli: 173250\n" # 0927-
+                            _, un, ug, um, tg, ag = line.split(';')
+                            un = int(un.split(':')[1].strip())
+                            ug = int(ug.split(':')[1].strip())
+                            um = int(um.split(':')[1].strip())
+                            tg = int(tg.split(':')[1].strip())
+                            ag = int(ag.split(':')[1].strip()[:-2])
+                            keys = ["used_nodes","used_gpus","used_gpu_milli","total_gpus","arrived_gpu_milli"]
+                            values = [un, ug, um, tg, ag]
+                            for key, val in zip(keys, values):
+                                if key in allo_list_dict:
+                                    allo_list_dict[key].append(val)
+                                else:
+                                    allo_list_dict[key] = [val]
 
                     # out_cdol_col_dict -- for online create/delete logs, extract their cumulative pod number
                     if "attempt to" in line:

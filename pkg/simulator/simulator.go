@@ -55,6 +55,7 @@ type Simulator struct {
 	nodeResourceMap map[string]simontype.NodeResource
 	customConfig    v1alpha1.CustomConfig
 	fragMemo        sync.Map
+	arrPodGpuMilli  int64
 
 	podTotalMilliCpuReq int64
 	podTotalMilliGpuReq int64
@@ -374,6 +375,7 @@ func (sim *Simulator) assumePod(pod *corev1.Pod) *simontype.UnscheduledPod {
 
 func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPod {
 	var failedPods []simontype.UnscheduledPod
+	sim.arrPodGpuMilli = 0
 	for i, pod := range pods {
 		if IsPodMarkedUnscheduledAnno(pod) {
 			log.Infof("[%d] pod(%s) has unscheduled annotation\n", i, utils.GeneratePodKey(pod))
@@ -386,6 +388,8 @@ func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPo
 
 		deletionTime := gpushareutils.GetDeletionTimeFromPodAnnotation(pod)
 		if deletionTime == nil {
+			podRes := utils.GetPodResource(pod)
+			sim.arrPodGpuMilli += podRes.TotalMilliGpu()
 			log.Infof("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
 			if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
 				log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))

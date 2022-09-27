@@ -74,6 +74,7 @@ SCORE_POLICY_ABBR = {
     "GpuShareFragScore":              "FragShare",
     "GpuShareFragLinearNormScore":    "FragShareLinearNorm",
     "GpuShareFragSimScore":           "FragShareSim",
+    "GpuShareFragExtendScore":        "FragShareExtend",
     "GpuShareFragSimLinearNormScore": "FragShareSimLinearNorm",
     "GpuShareFragSimTuneScore":       "FragShareSimTune",
     "GpuShareFragDotProductScore":    "FragShareDotProd",
@@ -105,6 +106,7 @@ SCORE_PLUGINS_WITH_DIM_NORM_GPU_METHOD = [
     "CosineSimilarityScore",          # cosine similarity
     "CosineSimPackingScore",          # cosine similarity
     "GpuPackingSimScore",             # cosine similarity
+    "GpuShareFragExtendScore",        # GpuShareFragExtendScore
 ]
 SCORE_PLUGINS_WITH_PRE_FILTER = [
     "GpuShareFragSimScore",
@@ -313,6 +315,7 @@ profiles:
           - name: GpuFragBellmanScore
           - name: GpuFragSimScore
           - name: GpuShareFragScore
+          - name: GpuShareFragExtendScore
           - name: GpuShareFragLinearNormScore
           - name: GpuShareFragSimScore
           - name: GpuShareFragSimLinearNormScore

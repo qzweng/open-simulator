@@ -71,7 +71,7 @@ func (sim *Simulator) ClusterGpuFragReport() {
 	//if clusterTotalGpus*gpushareutils.MILLI-int(idleGpuMilli) != int(clusterUsedGpuMilli) { // this prints unnecessary logs due to the int rounding error
 	//	log.Errorf("totalGpuMilli (%d) - idleGpuMilli (%d) != usedGpuMilli (%d)", clusterTotalGpus*gpushareutils.MILLI, idleGpuMilli, clusterUsedGpuMilli)
 	//}
-	log.Infof("[Alloc]; Used nodes: %d; Used GPUs: %d; Used GPU Milli: %d; Total GPUs: %d\n", clusterUsedNodes, clusterUsedGpus, clusterUsedGpuMilli, clusterTotalGpus)
+	log.Infof("[Alloc]; Used nodes: %d; Used GPUs: %d; Used GPU Milli: %d; Total GPUs: %d; Arrived GPU Milli: %d\n", clusterUsedNodes, clusterUsedGpus, clusterUsedGpuMilli, clusterTotalGpus, sim.arrPodGpuMilli)
 }
 
 func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.ResourceSummary) {
