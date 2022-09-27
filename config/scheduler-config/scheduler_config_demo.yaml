@@ -8,31 +8,41 @@ profiles:
         enabled:
           - name: Open-Local
           - name: Open-Gpu-Share
-      preScore:
+      preFilter:
         disabled:
-          - name: Gpu-Share-Frag-Sim-Score
-          - name: Gpu-Share-Frag-Sim-Norm-Score
-          - name: Gpu-Frag-Sim-Score
+          - name: GpuShareFragSimScore
+          - name: GpuShareFragSimLinearNormScore
+          - name: GpuShareFragDotProductScore
+          - name: GpuShareFragBestFitScore
+          - name: GpuShareFragL2NormRatioScore
+          - name: GpuShareFragPackingScore
+          - name: GpuFragSimScore
         enabled:
       score:
         disabled:
-          - name: Gpu-Frag-Score
-          - name: Gpu-Frag-Score-Bellman
-          - name: Gpu-Share-Frag-Score
-          - name: Gpu-Share-Frag-Sim-Score
-          - name: Gpu-Packing-Score
-          - name: Gpu-Packing-Sim-Score
+          - name: GpuFragScore
+          - name: GpuFragBellmanScore
+          - name: GpuFragSimScore
+          - name: GpuShareFragScore
+          - name: GpuShareFragExtendScore
+          - name: GpuShareFragLinearNormScore
+          - name: GpuShareFragSimScore
+          - name: GpuShareFragSimLinearNormScore
+          - name: GpuShareFragDotProductScore
+          - name: GpuShareFragBestFitScore
+          - name: GpuShareFragL2NormRatioScore
+          - name: GpuShareFragPackingScore
           - name: CosineSimilarityScore
+          - name: GpuPackingScore
           - name: CosineSimPackingScore
+          - name: GpuPackingSimScore
           - name: BestFitScore
-          - name: Simon
           - name: WorstFitScore
           - name: DotProductScore
           - name: L2NormDiffScore
           - name: L2NormRatioScore
           - name: GandivaScore
           - name: SynergyScore
-
           - name: ImageLocality
           - name: NodeAffinity
           - name: PodTopologySpread
@@ -42,6 +52,7 @@ profiles:
           - name: NodeResourcesLeastAllocated
           - name: NodePreferAvoidPods
         enabled:
+#          - name: GpuShareFragExtendScore
           - name: GandivaScore
             weight: 1000
       reserve:
@@ -54,15 +65,16 @@ profiles:
         enabled:
           - name: Simon
     pluginConfig:
-      - name: DotProductScore
-        args:
-          dimExtMethod: divide
-      - name: CosineSimilarityScore
-        args:
-          dimExtMethod: divide
-          normMethod: node
+#      - name: DotProductScore
+#        args:
+#          dimExtMethod: divide
+#      - name: CosineSimilarityScore
+#        args:
+#          dimExtMethod: divide
+#          normMethod: node
       - name: Open-Gpu-Share
         args:
 #          dimExtMethod: divide
 #          normMethod: node
+#          gpuSelMethod: GpuShareFragExtendScore
           gpuSelMethod: best

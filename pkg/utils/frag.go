@@ -131,7 +131,6 @@ func NodeGpuFragAmount(nodeRes simontype.NodeResource, typicalPods simontype.Tar
 	return GetFragAmountByNodeResAndFragRatio(nodeRes, fragRatio)
 }
 
-// NodeGpuShareFragAmount: used in GpuShareFragScorePlugin
 func NodeGpuShareFragAmountScore(nodeRes simontype.NodeResource, typicalPods simontype.TargetPodList) float64 {
 	fragAmountScore := 0.0
 	for _, pod := range typicalPods {

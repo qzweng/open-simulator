@@ -12,6 +12,7 @@ const (
 	GpuFragBellmanScorePluginName            = "GpuFragBellmanScore"
 	GpuFragSimScorePluginName                = "GpuFragSimScore"
 	GpuShareFragScorePluginName              = "GpuShareFragScore"
+	GpuShareFragExtendScorePluginName        = "GpuShareFragExtendScore"
 	GpuShareFragLinearNormScorePluginName    = "GpuShareFragLinearNormScore"
 	GpuShareFragSimScorePluginName           = "GpuShareFragSimScore"
 	GpuShareFragSimLinearNormScorePluginName = "GpuShareFragSimLinearNormScore"

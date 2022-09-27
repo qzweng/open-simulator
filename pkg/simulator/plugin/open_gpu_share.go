@@ -26,18 +26,19 @@ import (
 // GpuSharePlugin is a plugin for scheduling framework
 type GpuSharePlugin struct {
 	sync.RWMutex
-	cache  *gpusharecache.SchedulerCache
-	cfg    *simontype.OpenGpuSharePluginCfg
-	handle framework.Handle
+	cache       *gpusharecache.SchedulerCache
+	cfg         *simontype.OpenGpuSharePluginCfg
+	handle      framework.Handle
+	typicalPods *simontype.TargetPodList
 }
 
 // Just to check whether the implemented struct fits the interface
 var _ framework.FilterPlugin = &GpuSharePlugin{}
 var _ framework.ReservePlugin = &GpuSharePlugin{}
 
-var allocateGpuIdFunc = map[string]func(nodeRes simontype.NodeResource, podRes simontype.PodResource, cfg simontype.GpuPluginCfg) (gpuId string){}
+var allocateGpuIdFunc = map[string]func(nodeRes simontype.NodeResource, podRes simontype.PodResource, cfg simontype.GpuPluginCfg, typicalPods *simontype.TargetPodList) (gpuId string){}
 
-func NewGpuSharePlugin(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+func NewGpuSharePlugin(configuration runtime.Object, handle framework.Handle, typicalPods *simontype.TargetPodList) (framework.Plugin, error) {
 	var cfg *simontype.OpenGpuSharePluginCfg
 	if err := frameworkruntime.DecodeInto(configuration, &cfg); err != nil {
 		return nil, err
@@ -49,8 +50,9 @@ func NewGpuSharePlugin(configuration runtime.Object, handle framework.Handle) (f
 	allocateGpuIdFunc[string(simontype.SelRandomGpu)] = allocateGpuIdBasedOnRandomFit
 
 	gpuSharePlugin := &GpuSharePlugin{
-		cfg:    cfg,
-		handle: handle,
+		cfg:         cfg,
+		handle:      handle,
+		typicalPods: typicalPods,
 	}
 	gpuSharePlugin.initSchedulerCache()
 	handle.SharedInformerFactory().Core().V1().Pods().Informer().AddEventHandler(
@@ -242,14 +244,14 @@ func (plugin *GpuSharePlugin) allocateGpuId(pod *v1.Pod, nodeName string) string
 		if podRes.MilliGpu < gpushareutils.MILLI && podRes.GpuNumber > 1 {
 			panic("the pod requests more than one share gpu, should not happen")
 		}
-		gpuId := f(nodeRes, podRes, plugin.cfg.GpuPluginCfg)
+		gpuId := f(nodeRes, podRes, plugin.cfg.GpuPluginCfg, plugin.typicalPods)
 		return gpuId
 	} else {
 		panic("undefined allocate gpu id function")
 	}
 }
 
-func allocateGpuIdBasedOnBestFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg) (gpuId string) {
+func allocateGpuIdBasedOnBestFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg, _ *simontype.TargetPodList) (gpuId string) {
 	gpuId = ""
 
 	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
@@ -269,7 +271,7 @@ func allocateGpuIdBasedOnBestFit(nodeRes simontype.NodeResource, podRes simontyp
 	return gpuId
 }
 
-func allocateGpuIdBasedOnWorstFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg) (gpuId string) {
+func allocateGpuIdBasedOnWorstFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg, _ *simontype.TargetPodList) (gpuId string) {
 	gpuId = ""
 
 	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod
@@ -289,7 +291,7 @@ func allocateGpuIdBasedOnWorstFit(nodeRes simontype.NodeResource, podRes simonty
 	return gpuId
 }
 
-func allocateGpuIdBasedOnRandomFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg) (gpuId string) {
+func allocateGpuIdBasedOnRandomFit(nodeRes simontype.NodeResource, podRes simontype.PodResource, _ simontype.GpuPluginCfg, _ *simontype.TargetPodList) (gpuId string) {
 	gpuId = ""
 
 	if podRes.MilliGpu < gpushareutils.MILLI { // share-gpu pod

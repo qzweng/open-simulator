@@ -67,7 +67,7 @@ func getBestFitScore(nodeRes simontype.NodeResource, podRes simontype.PodResourc
 	freeVec := nodeRes.ToResourceVec()
 	reqVec := podRes.ToResourceVec()
 	maxSpecVec := []float64{gpushareutils.MaxSpecCpu, gpushareutils.MaxSpecGpu} // to normalize score
-	weights := []float64{0.01, 0.99}                                            // cpu, gpu
+	weights := []float64{0.5, 0.5}                                              // cpu, gpu
 	if len(freeVec) != len(weights) || len(reqVec) != len(weights) || len(maxSpecVec) != len(weights) {
 		log.Errorf("length not equal, freeVec(%v), reqVec(%v), maxSpecVec(%v), weights(%v)\n", freeVec, reqVec, maxSpecVec, weights)
 		return -1

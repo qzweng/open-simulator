@@ -100,7 +100,7 @@ func calculateDotProductScore(nodeRes simontype.NodeResource, podRes simontype.P
 }
 
 func allocateGpuIdBasedOnDotProduct(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	cfg simontype.GpuPluginCfg) (gpuId string) {
+	cfg simontype.GpuPluginCfg, _ *simontype.TargetPodList) (gpuId string) {
 
 	_, gpuId = calculateDotProductScore(nodeRes, podRes, cfg)
 	return gpuId

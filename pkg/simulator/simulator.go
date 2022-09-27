@@ -138,7 +138,7 @@ func New(opts ...Option) (Interface, error) {
 			return simonplugin.NewLocalPlugin(client, storagev1Informers, configuration, handle)
 		},
 		simontype.OpenGpuSharePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
-			return simonplugin.NewGpuSharePlugin(configuration, handle)
+			return simonplugin.NewGpuSharePlugin(configuration, handle, &sim.typicalPods)
 		},
 		simontype.GpuFragScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuFragScorePlugin(configuration, handle, &sim.typicalPods)
@@ -148,6 +148,9 @@ func New(opts ...Option) (Interface, error) {
 		},
 		simontype.GpuShareFragScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragScorePlugin(configuration, handle, &sim.typicalPods)
+		},
+		simontype.GpuShareFragExtendScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
+			return simonplugin.NewGpuShareFragExtendScorePlugin(configuration, handle, &sim.typicalPods)
 		},
 		simontype.GpuShareFragLinearNormScorePluginName: func(configuration runtime.Object, handle framework.Handle) (framework.Plugin, error) {
 			return simonplugin.NewGpuShareFragLinearNormScorePlugin(configuration, handle, &sim.typicalPods)
@@ -534,12 +537,12 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]sim
 	sort.Slice(resourceList.Nodes, func(i, j int) bool {
 		return resourceList.Nodes[i].Name < resourceList.Nodes[j].Name
 	})
-
 	rand.Seed(sim.customConfig.WorkloadTuningConfig.Seed)
-	rand.Shuffle(len(resourceList.Nodes), func(i, j int) {
-		resourceList.Nodes[i], resourceList.Nodes[j] = resourceList.Nodes[j], resourceList.Nodes[i]
-	})
-
+	randomIndex := rand.Perm(len(resourceList.Nodes))
+	for i := 0; i < len(randomIndex); i++ {
+		idx := randomIndex[i]
+		resourceList.Nodes[i].Name = fmt.Sprintf("%04d-", idx) + resourceList.Nodes[i].Name
+	}
 	for i, item := range resourceList.Nodes {
 		log.Debugf("[%d] attempt to create node(%s)\n", i, item.Name)
 		if _, err := sim.client.CoreV1().Nodes().Create(sim.ctx, item, metav1.CreateOptions{}); err != nil {
@@ -1062,35 +1065,45 @@ func displaySchedulerConfig(config *config.CompletedConfig) {
 	for _, profile := range profiles {
 		log.Infof("Scheduler Config: %s\n", profile.SchedulerName)
 		// PreFilter
-		log.Infof("  PreFilter Plugin")
-		for _, plugin := range profile.Plugins.PreFilter.Enabled {
-			log.Infof("    %s\n", plugin.Name)
+		if profile.Plugins.PreFilter != nil {
+			log.Infof("  PreFilter Plugin")
+			for _, plugin := range profile.Plugins.PreFilter.Enabled {
+				log.Infof("    %s\n", plugin.Name)
+			}
+			log.Infoln()
 		}
-		log.Infoln()
 		// Filter
-		log.Infof("  Filter Plugin")
-		for _, plugin := range profile.Plugins.Filter.Enabled {
-			log.Infof("    %s\n", plugin.Name)
+		if profile.Plugins.Filter != nil {
+			log.Infof("  Filter Plugin")
+			for _, plugin := range profile.Plugins.Filter.Enabled {
+				log.Infof("    %s\n", plugin.Name)
+			}
+			log.Infoln()
 		}
-		log.Infoln()
 		// Score
-		log.Infof("  Score Plugin")
-		for _, plugin := range profile.Plugins.Score.Enabled {
-			log.Infof("    %s: %d\n", plugin.Name, plugin.Weight)
+		if profile.Plugins.Score != nil {
+			log.Infof("  Score Plugin")
+			for _, plugin := range profile.Plugins.Score.Enabled {
+				log.Infof("    %s: %d\n", plugin.Name, plugin.Weight)
+			}
+			log.Infoln()
 		}
-		log.Infoln()
 		// Reserve
-		log.Infof("  Reserve Plugin")
-		for _, plugin := range profile.Plugins.Reserve.Enabled {
-			log.Infof("    %s\n", plugin.Name)
+		if profile.Plugins.Reserve != nil {
+			log.Infof("  Reserve Plugin")
+			for _, plugin := range profile.Plugins.Reserve.Enabled {
+				log.Infof("    %s\n", plugin.Name)
+			}
+			log.Infoln()
 		}
-		log.Infoln()
 		// Bind
-		log.Infof("  Bind Plugin")
-		for _, plugin := range profile.Plugins.Bind.Enabled {
-			log.Infof("    %s\n", plugin.Name)
+		if profile.Plugins.Bind != nil {
+			log.Infof("  Bind Plugin")
+			for _, plugin := range profile.Plugins.Bind.Enabled {
+				log.Infof("    %s\n", plugin.Name)
+			}
+			log.Infoln()
 		}
-		log.Infoln()
 		// Plugin Config
 		log.Infof("  pluginConfig")
 		for _, pc := range profile.PluginConfig {

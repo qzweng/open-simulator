@@ -1029,7 +1029,9 @@ func GetNodeResourceViaNodeInfo(nodeInfo *framework.NodeInfo) (nodeRes *simontyp
 	for i := 0; i < len(nodeInfo.Pods); i++ {
 		p := nodeInfo.Pods[i].Pod
 		affinity := gpushareutils.GetGpuAffinityFromPodAnnotation(p)
-		nodeGpuAffinity[affinity] += 1
+		if affinity != gpushareutils.NoGpuTag {
+			nodeGpuAffinity[affinity] += 1
+		}
 	}
 
 	return &simontype.NodeResource{
@@ -1058,7 +1060,9 @@ func GetNodeResourceViaPodList(podList []*corev1.Pod, node *corev1.Node) (nodeRe
 	nodeGpuAffinity := map[string]int{}
 	for _, p := range podList {
 		affinity := gpushareutils.GetGpuAffinityFromPodAnnotation(p)
-		nodeGpuAffinity[affinity] += 1
+		if affinity != gpushareutils.NoGpuTag {
+			nodeGpuAffinity[affinity] += 1
+		}
 	}
 
 	return &simontype.NodeResource{

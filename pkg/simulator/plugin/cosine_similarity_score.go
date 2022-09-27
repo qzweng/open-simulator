@@ -94,7 +94,7 @@ func calculateCosineSimilarityScore(nodeRes simontype.NodeResource, podRes simon
 }
 
 func allocateGpuIdBasedOnCosineSimilarity(nodeRes simontype.NodeResource, podRes simontype.PodResource,
-	cfg simontype.GpuPluginCfg) (gpuId string) {
+	cfg simontype.GpuPluginCfg, _ *simontype.TargetPodList) (gpuId string) {
 
 	_, gpuId = calculateCosineSimilarityScore(nodeRes, podRes, cfg)
 	return gpuId

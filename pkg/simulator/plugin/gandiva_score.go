@@ -35,17 +35,24 @@ func (plugin *GandivaScorePlugin) Score(_ context.Context, _ *framework.CycleSta
 		return framework.MinNodeScore, framework.NewStatus(framework.Error, fmt.Sprintf("failed to get nodeRes or podRes"))
 	}
 
-	// 100: Allocated machine with sufficient GPUs and same affinity
 	podGpuAffinity := gpushareutils.GetGpuAffinityFromPodAnnotation(p)
-	if nodeResPtr.GpuAffinity[podGpuAffinity] > 0 {
-		return framework.MaxNodeScore, framework.NewStatus(framework.Success)
+	if podGpuAffinity != gpushareutils.NoGpuTag { // (0, 100]: request GPU
+		if nodeResPtr.GpuAffinity[podGpuAffinity] > 0 {
+			if len(nodeResPtr.GpuAffinity) == 1 { // (75, 100]: node with the only same affinity
+				return framework.MaxNodeScore/4*(gpushareutils.MaxSpecGpu-nodeResPtr.GetTotalMilliGpuLeft())/gpushareutils.MaxSpecGpu + framework.MaxNodeScore*3/4, framework.NewStatus(framework.Success)
+			} else { // (50, 75]: node with multiple affinities including the pod affinity
+				return framework.MaxNodeScore/4*(gpushareutils.MaxSpecGpu-nodeResPtr.GetTotalMilliGpuLeft())/gpushareutils.MaxSpecGpu + framework.MaxNodeScore*2/4, framework.NewStatus(framework.Success)
+			}
+		} else {
+			if len(nodeResPtr.GpuAffinity) == 0 { // (25, 50]: idle machine with no affinity
+				return framework.MaxNodeScore/4*(gpushareutils.MaxSpecGpu-nodeResPtr.GetTotalMilliGpuLeft())/gpushareutils.MaxSpecGpu + framework.MaxNodeScore/4, framework.NewStatus(framework.Success)
+			} else { // (0, 25]: node with different affinities
+				return framework.MaxNodeScore / 4 * (gpushareutils.MaxSpecGpu - nodeResPtr.GetTotalMilliGpuLeft()) / gpushareutils.MaxSpecGpu, framework.NewStatus(framework.Success)
+			}
+		}
+	} else { // 0: request no GPU
+		return framework.MinNodeScore, framework.NewStatus(framework.Success)
 	}
-	// 50: Idle machine with no affinity
-	if len(nodeResPtr.GpuAffinity) == 0 {
-		return framework.MaxNodeScore / 2, framework.NewStatus(framework.Success)
-	}
-	// 0: Allocated machine with sufficient GPUs and different affinity
-	return framework.MinNodeScore, framework.NewStatus(framework.Success)
 }
 
 func (plugin *GandivaScorePlugin) ScoreExtensions() framework.ScoreExtensions {
