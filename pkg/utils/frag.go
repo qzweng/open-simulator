@@ -363,8 +363,10 @@ func GetTypicalPods(allPods []*v1.Pod, config v1alpha1.TypicalPodsConfig) simont
 		}
 
 		var weightedCnt float64 = 1
-		if config.IsConsideredGpuResWeight {
-			weightedCnt = float64(int64(tgtPodRes.GpuNumber) * tgtPodRes.MilliGpu)
+		if config.GpuResWeight > 0 {
+			if tgtPodRes.MilliGpu == gpushareutils.MILLI {
+				weightedCnt = 1 + float64(tgtPodRes.GpuNumber)*config.GpuResWeight
+			}
 		}
 		if cnt, ok := tgtPodResCntMap[tgtPodRes]; ok {
 			tgtPodResCntMap[tgtPodRes] = cnt + weightedCnt

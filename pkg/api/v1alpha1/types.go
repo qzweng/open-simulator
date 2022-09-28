@@ -53,10 +53,10 @@ type DescheduleConfig struct {
 }
 
 type TypicalPodsConfig struct {
-	IsInvolvedCpuPods        bool `json:"isInvolvedCpuPods,omitempty"`
-	PodPopularityThreshold   int  `json:"podPopularityThreshold,omitempty"` // [0-100]
-	PodIncreaseStep          int  `json:"podIncreaseStep,omitempty"`
-	IsConsideredGpuResWeight bool `json:"isConsideredGpuResWeight,omitempty"`
+	IsInvolvedCpuPods      bool    `json:"isInvolvedCpuPods,omitempty"`
+	PodPopularityThreshold int     `json:"podPopularityThreshold,omitempty"` // [0-100]
+	PodIncreaseStep        int     `json:"podIncreaseStep,omitempty"`
+	GpuResWeight           float64 `json:"gpuResWeight,omitempty"`
 }
 
 type Simon struct {

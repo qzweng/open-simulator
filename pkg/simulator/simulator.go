@@ -392,7 +392,7 @@ func (sim *Simulator) SchedulePods(pods []*corev1.Pod) []simontype.UnscheduledPo
 			sim.arrPodGpuMilli += podRes.TotalMilliGpu()
 			log.Infof("[%d] attempt to create pod(%s)\n", i, utils.GeneratePodKey(pod))
 			if unscheduledPod := sim.assumePod(pod); unscheduledPod != nil {
-				log.Infof("failed to schedule pod(%s)\n", utils.GeneratePodKey(pod))
+				log.Infof("[%d] failed to schedule pod(%s): %s\n", i, utils.GeneratePodKey(pod), utils.GetPodResource(pod).Repr())
 				failedPods = append(failedPods, *unscheduledPod)
 			}
 		} else {

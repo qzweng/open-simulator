@@ -137,7 +137,7 @@ def get_args():
     parser.add_argument('--is-involved-cpu-pods', type=str, default="true", help='whether to consider CPU pods in typical pods (default: true)')
     parser.add_argument('--pod-popularity-threshold', type=int, default=95, help='pod popularity threshold (default: 95)')
     parser.add_argument('--pod-increase-step', type=int, default=1, help='pod increase step (default: 1)')
-    parser.add_argument('--is-consider-gpu-res-weight', type=str, default="false", help='whether to consider GPU resource weight (default: false)')
+    parser.add_argument('--gpu-res-weight', type=float, default=0, help='GPU resource weight (default: 0)')
 
     parser.add_argument('--cluster-name', type=str, default='simon-paib-config', help='name of the cluster config')
     parser.add_argument('-a', '--applist-path', type=str, default=None, help='path to the app list')
@@ -217,7 +217,7 @@ spec:
       isInvolvedCpuPods: true
       podPopularityThreshold: 95
       podIncreaseStep: 1
-      isConsideredGpuResWeight: false
+      gpuResWeight: 0
 """
 
 def generate_cluster_config(args, outdir):
@@ -252,7 +252,7 @@ def generate_cluster_config(args, outdir):
             v['customConfig']['typicalPodsConfig']['isInvolvedCpuPods'] = True if args.is_involved_cpu_pods.lower() == "true" else False
             v['customConfig']['typicalPodsConfig']['podPopularityThreshold'] = args.pod_popularity_threshold
             v['customConfig']['typicalPodsConfig']['podIncreaseStep'] = args.pod_increase_step
-            v['customConfig']['typicalPodsConfig']['isConsideredGpuResWeight'] = True if args.is_consider_gpu_res_weight.lower() == "true" else False
+            v['customConfig']['typicalPodsConfig']['gpuResWeight'] = args.gpu_res_weight
     
     # print(template)
     content = yaml.dump(template)
