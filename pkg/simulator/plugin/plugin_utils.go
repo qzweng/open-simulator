@@ -22,9 +22,9 @@ func PreFilterFragGpuRatio(nodeInfoList []*framework.NodeInfo, typicalPods simon
 	var nodeCnt int = 0
 	for _, nodeInfo := range nodeInfoList {
 		nodeResPtr := utils.GetNodeResourceViaNodeInfo(nodeInfo)
-		nodeFragAmount := utils.NodeGpuFragAmount(*nodeResPtr, typicalPods)
+		nodeFragAmount := utils.NodeGpuShareFragAmount(*nodeResPtr, typicalPods)
 		log.Debugf("[DEBUG][plugin.PreFilterFragGpuRatio] calc [%d] node(%s) frag (%.2f): %s\n", nodeCnt, nodeInfo.Node().Name, nodeFragAmount.FragAmountSumExceptQ3(), nodeFragAmount.Repr())
-		if err := clusterFragAmount.Add(nodeFragAmount); err != nil {
+		if err := clusterFragAmount.AddFragAmount(nodeFragAmount); err != nil {
 			return 0.0, framework.NewStatus(framework.Error, fmt.Sprintf("[ClusterAnalysis] %s\n", err.Error()))
 		}
 		nodeCnt += 1

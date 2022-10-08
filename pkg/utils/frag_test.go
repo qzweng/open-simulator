@@ -1,10 +1,13 @@
 package utils
 
 import (
-	simontype "github.com/alibaba/open-simulator/pkg/type"
-	"github.com/stretchr/testify/assert"
+	"fmt"
 	"sync"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	simontype "github.com/alibaba/open-simulator/pkg/type"
 )
 
 func TestingGenerateGetTypicalPods() simontype.TargetPodList {
@@ -47,6 +50,42 @@ func TestingGenerateGetTypicalPods() simontype.TargetPodList {
 	return typicalPods
 }
 
+func TestingGenerateGetTypicalPodsWithNonGpu() simontype.TargetPodList {
+	typicalPods := simontype.TargetPodList{}
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 15700, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 28.69 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 11900, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 18.93 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 11400, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 12.27 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 1000, MilliGpu: 0, GpuNumber: 0, GpuType: ""}, Percentage: 7.36 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 18710, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 4.85 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 8200, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 3.79 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 16400, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 3.31 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 9810, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 1.97 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 15200, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 1.87 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 11200, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 1.81 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 14200, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 1.76 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 12000, MilliGpu: 0, GpuNumber: 0, GpuType: ""}, Percentage: 1.65 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 14900, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 1.39 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 60200, MilliGpu: 1000, GpuNumber: 4, GpuType: ""}, Percentage: 1.23 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 64200, MilliGpu: 1000, GpuNumber: 8, GpuType: ""}, Percentage: 1.07 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 32200, MilliGpu: 1000, GpuNumber: 4, GpuType: ""}, Percentage: 1.01 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 17400, MilliGpu: 1000, GpuNumber: 2, GpuType: ""}, Percentage: 0.91 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 30200, MilliGpu: 1000, GpuNumber: 2, GpuType: ""}, Percentage: 0.69 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 16000, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.64 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 15000, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.59 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 64000, MilliGpu: 1000, GpuNumber: 8, GpuType: ""}, Percentage: 0.53 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 15000, MilliGpu: 0, GpuNumber: 0, GpuType: ""}, Percentage: 0.53 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 11910, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.53 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 120200, MilliGpu: 1000, GpuNumber: 8, GpuType: ""}, Percentage: 0.48 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 11300, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.37 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 30000, MilliGpu: 1000, GpuNumber: 2, GpuType: ""}, Percentage: 0.32 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 9800, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.32 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 8000, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.32 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 2000, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.27 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 2000, MilliGpu: 80, GpuNumber: 1, GpuType: ""}, Percentage: 0.27 / 100})
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 1000, MilliGpu: 1000, GpuNumber: 1, GpuType: ""}, Percentage: 0.27 / 100})
+	return typicalPods
+}
+
 func TestNodeGpuFragAmountBellman_EightGpu(t *testing.T) {
 	nodeRes := simontype.NodeResource{NodeName: "node_2C_4x1080", MilliCpuLeft: 78000, MilliCpuCapacity: 64000,
 		MilliGpuLeftList: []int64{1000, 1000, 1000, 1000, 1000, 1000, 535, 70}, GpuNumber: 8, GpuType: "V100M32"} // GpuType: See MapGpuTypeMemoryMiB
@@ -79,6 +118,48 @@ func TestNodeGpuShareFragAmountScore(t *testing.T) {
 	assert.Equal(t, int64(2700), GetGpuMilliLeftTotal(nodeRes))
 	score = NodeGpuShareFragAmountScore(nodeRes, typicalPods)
 	assert.InDelta(t, 251.91, score, 0.01)
+}
+
+func TestNodeGpuShareFragAmountWithNonGpu(t *testing.T) {
+	fmt.Println(FragRatioDataMap)
+	typicalPods := TestingGenerateGetTypicalPodsWithNonGpu()
+	nodeRes := simontype.NodeResource{NodeName: "8xP100_empty", MilliCpuLeft: 64000, MilliCpuCapacity: 64000, MilliGpuLeftList: []int64{1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000}, GpuNumber: 8, GpuType: "P100"}
+	fragAmount := NodeGpuShareFragAmount(nodeRes, typicalPods)
+	assert.InDelta(t, 887.20, fragAmount.FragAmountSumExceptQ3(), 0.01)
+	fmt.Println(fragAmount.Repr())
+
+	nodeRes = simontype.NodeResource{NodeName: "8xP100_halved", MilliCpuLeft: 32000, MilliCpuCapacity: 64000, MilliGpuLeftList: []int64{1000, 1000, 1000, 1000, 0, 0, 0, 0}, GpuNumber: 8, GpuType: "P100"}
+	fragAmount = NodeGpuShareFragAmount(nodeRes, typicalPods)
+	assert.InDelta(t, 554.4, fragAmount.FragAmountSumExceptQ3(), 0.01)
+	fmt.Println(fragAmount.Repr())
+
+	nodeRes = simontype.NodeResource{NodeName: "8xP100_nocpu", MilliCpuLeft: 0, MilliCpuCapacity: 64000, MilliGpuLeftList: []int64{1000, 1000, 1000, 1000, 0, 0, 0, 0}, GpuNumber: 8, GpuType: "P100"}
+	fragAmount = NodeGpuShareFragAmount(nodeRes, typicalPods)
+	fmt.Println(fragAmount.Repr())
+	assert.InDelta(t, 4000, fragAmount.FragAmountSumExceptQ3(), 0.01)
+}
+
+func TestNodeGpuShareFragAmount(t *testing.T) {
+	typicalPods := TestingGenerateGetTypicalPods()
+	nodeRes := simontype.NodeResource{NodeName: "4x1080_used", MilliCpuLeft: 1000, MilliCpuCapacity: 64000, MilliGpuLeftList: []int64{200, 1000, 1000, 500}, GpuNumber: 4, GpuType: "1080"}
+	fragAmount := NodeGpuShareFragAmount(nodeRes, typicalPods)
+	assert.InDelta(t, 2566.62, fragAmount.FragAmountSumExceptQ3(), 0.01)
+
+	nodeRes = simontype.NodeResource{NodeName: "4x1080_full", MilliCpuLeft: 1000, MilliCpuCapacity: 64000, MilliGpuLeftList: []int64{1000, 1000, 1000, 1000}, GpuNumber: 4, GpuType: "1080"}
+	fragAmount = NodeGpuShareFragAmount(nodeRes, typicalPods)
+	assert.InDelta(t, 3802.40, fragAmount.FragAmountSumExceptQ3(), 0.01)
+
+	nodeRes = simontype.NodeResource{NodeName: "8x1080_full", MilliCpuLeft: 1000, MilliCpuCapacity: 64000, MilliGpuLeftList: []int64{1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000}, GpuNumber: 8, GpuType: "1080"}
+	fragAmount = NodeGpuShareFragAmount(nodeRes, typicalPods)
+	assert.InDelta(t, 7604.80, fragAmount.FragAmountSumExceptQ3(), 0.01)
+
+	typicalPods = simontype.TargetPodList{}
+	typicalPods = append(typicalPods, simontype.TargetPod{TargetPodResource: simontype.PodResource{MilliCpu: 6000, MilliGpu: 465, GpuNumber: 1, GpuType: ""}, Percentage: 9.33 / 100})
+	nodeRes = simontype.NodeResource{NodeName: "4x1080_used_lack_CPU", MilliCpuLeft: 1000, MilliCpuCapacity: 64000, MilliGpuLeftList: []int64{200, 1000, 1000, 500}, GpuNumber: 4, GpuType: "1080"}
+	assert.Equal(t, GetNodePodFrag(nodeRes, typicalPods[0].TargetPodResource), Q4LackCpu)
+	assert.Equal(t, int64(2700), GetGpuMilliLeftTotal(nodeRes))
+	fragAmount = NodeGpuShareFragAmount(nodeRes, typicalPods)
+	assert.InDelta(t, 251.91, fragAmount.FragAmountSumExceptQ3(), 0.01)
 }
 
 func TestGetGpuFragMilliByNodeResAndPodRes(t *testing.T) {

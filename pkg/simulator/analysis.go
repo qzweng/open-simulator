@@ -41,7 +41,7 @@ func (sim *Simulator) ClusterGpuFragReport() {
 	var nodeCnt int = 0
 	for _, ns := range nodeStatus {
 		if nodeRes, ok := sim.nodeResourceMap[ns.Node.Name]; ok {
-			clusterFragAmount.Add(sim.NodeGpuFragAmount(nodeRes)) // easy to calculate. The regular Frag definition
+			clusterFragAmount.AddFragAmount(sim.NodeGpuFragAmount(nodeRes)) // easy to calculate. The regular Frag definition
 			clusterFragBellman += utils.NodeGpuFragBellman(nodeRes, sim.typicalPods, &sim.fragMemo, 1.0)
 			log.Debugf("[DEBUG][sim.ClusterGpuFragReport] calc [%d] node(%s) frag (%.2f): %s\n", nodeCnt, nodeRes.NodeName, clusterFragAmount.FragAmountSumExceptQ3(), clusterFragAmount.Repr())
 
@@ -98,7 +98,7 @@ func (sim *Simulator) ClusterAnalysis(tag string) (utils.FragAmount, []utils.Res
 	data := make([]float64, len(utils.FragRatioDataMap))
 	clusterFragAmount := utils.NewFragAmount("cluster", data)
 	for nodeFragAmount := range ch {
-		if err := clusterFragAmount.Add(nodeFragAmount); err != nil {
+		if err := clusterFragAmount.AddFragAmount(nodeFragAmount); err != nil {
 			log.Errorf("[ClusterAnalysis] %s\n", err.Error())
 		}
 		log.Tracef("[%3d] Frag %s\n", chCount, nodeFragAmount.Repr())
@@ -154,7 +154,7 @@ func (sim *Simulator) NodeGpuFragAmount(nodeRes simontype.NodeResource) utils.Fr
 			return frag
 		}
 	} else {
-		frag := utils.NodeGpuFragAmount(nodeRes, sim.typicalPods)
+		frag := utils.NodeGpuShareFragAmount(nodeRes, sim.typicalPods)
 		sim.fragMemo.Store(nodeResKey, frag.Data)
 		log.Debugf("[DEBUG][sim.NodeGpuFragAmount] calc node(%s) frag (%.2f): %s\n", nodeRes.NodeName, frag.FragAmountSumExceptQ3(), frag.Repr())
 		return frag
