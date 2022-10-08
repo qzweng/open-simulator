@@ -2,8 +2,10 @@ package simulator
 
 import (
 	"encoding/csv"
+	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	log "github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
@@ -46,6 +48,10 @@ func (sim *Simulator) ExportPodSnapshotInYaml(unschedulePods []simontype.Unsched
 		if pod.Spec.NodeName == "" {
 			MarkPodUnscheduledAnno(pod)
 		} else {
+			strSlice := strings.Split(pod.Spec.NodeName, "-")
+			if len(strSlice) == 4 { // e.g., "0001-paib-node-0100" after commit bd22d0c63350cde0e76201812f7288268cd4cba0, see #L544 in simulator/simulator.go
+				pod.Spec.NodeName = fmt.Sprintf("%s-%s-%s", strSlice[1], strSlice[2], strSlice[3]) // e.g., "paib-node-0100"
+			}
 			pod.Spec.NodeSelector[simontype.HostName] = pod.Spec.NodeName
 			pod.Spec.NodeName = ""
 			pod.Status = corev1.PodStatus{}
