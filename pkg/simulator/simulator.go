@@ -1084,6 +1084,14 @@ func displaySchedulerConfig(config *config.CompletedConfig) {
 			}
 			log.Infoln()
 		}
+		// PreScore
+		if profile.Plugins.PreScore != nil {
+			log.Infof("  PreScore Plugin")
+			for _, plugin := range profile.Plugins.PreScore.Enabled {
+				log.Infof("    %s\n", plugin.Name)
+			}
+			log.Infoln()
+		}
 		// Score
 		if profile.Plugins.Score != nil {
 			log.Infof("  Score Plugin")

@@ -118,6 +118,9 @@ SCORE_PLUGINS_WITH_PRE_FILTER = [
     "GpuShareFragPackingScore",
     "GpuFragSimScore",
 ]
+SCORE_PLUGINS_WITH_PRE_SCORE = [
+    "RandomScore",
+]
 
 def get_args():
     parser = argparse.ArgumentParser(description='generate cluster configuration yaml')
@@ -299,6 +302,10 @@ profiles:
         enabled:
           - name: Open-Local
           - name: Open-Gpu-Share
+      preScore:
+        disabled:
+          - name: RandomScore
+        enabled:
       preFilter:
         disabled:
           - name: GpuShareFragSimScore
@@ -375,6 +382,12 @@ def generate_scheduler_config(args, outdir):
                         if 'enabled' not in prefilter or type(prefilter['enabled']) != list:
                             prefilter['enabled'] = []
                         prefilter['enabled'].append({'name': policy_name})
+                    
+                    if policy_name in SCORE_PLUGINS_WITH_PRE_SCORE:
+                        prescore = v[0]['plugins']['preScore']
+                        if 'enabled' not in prescore or type(prescore['enabled']) != list:
+                            prescore['enabled'] = []
+                        prescore['enabled'].append({'name': policy_name})
 
             # if args.gpu_frag_score > 0:
             #     s['enabled'].append({'name': "Gpu-Frag-Score", 'weight': args.gpu_frag_score})

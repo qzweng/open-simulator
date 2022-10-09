@@ -258,6 +258,13 @@ func GetAndSetSchedulerConfig(schedulerConfig string) (*config.CompletedConfig, 
 			},
 		},
 	}
+	kcfg.Profiles[0].Plugins.PreScore = &kubeschedulerconfig.PluginSet{
+		Enabled: []kubeschedulerconfig.Plugin{
+			{
+				Name: simontype.RandomScorePluginName,
+			},
+		},
+	}
 	kcfg.Profiles[0].Plugins.Score = &kubeschedulerconfig.PluginSet{
 		Enabled: []kubeschedulerconfig.Plugin{
 			{
