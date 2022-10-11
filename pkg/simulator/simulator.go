@@ -908,7 +908,8 @@ func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
 	var err error
 	shufflePod := sim.customConfig.ShufflePod
 	if shufflePod {
-		rand.Seed(time.Now().UnixNano())
+		//rand.Seed(time.Now().UnixNano())
+		rand.Seed(sim.customConfig.WorkloadTuningConfig.Seed)
 		rand.Shuffle(len(pods), func(i, j int) {
 			pods[i], pods[j] = pods[j], pods[i]
 		})
