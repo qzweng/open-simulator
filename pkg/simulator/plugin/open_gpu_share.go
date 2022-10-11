@@ -240,6 +240,20 @@ func (plugin *GpuSharePlugin) allocateGpuId(pod *v1.Pod, nodeName string) string
 	nodeRes := *nodeResPtr
 	podRes := utils.GetPodResource(pod)
 
+	if id := gpushareutils.GetGpuIdFromAnnotation(pod); len(id) > 0 {
+		if idl, err := gpushareutils.GpuIdStrToIntList(id); err == nil && len(idl) > 0 { // just to validate id; not return idl.
+			for _, devId := range idl {
+				idleGpuMilli := nodeRes.MilliGpuLeftList[devId]
+				if idleGpuMilli < podRes.MilliGpu {
+					panic("idleGpuMilli >= podRes.MilliGpu")
+				}
+			}
+		} else {
+			panic(fmt.Sprintf("warn: pod (%s) %s has invalid GPU ID in Annotation %s: %s", pod.Namespace, pod.Name, gpushareutils.DeviceIndex, id))
+		}
+		return id
+	}
+
 	if f, ok := allocateGpuIdFunc[string(plugin.cfg.GpuSelMethod)]; ok {
 		if podRes.MilliGpu < gpushareutils.MILLI && podRes.GpuNumber > 1 {
 			panic("the pod requests more than one share gpu, should not happen")
