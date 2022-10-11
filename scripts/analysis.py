@@ -377,31 +377,28 @@ def failed_pods_in_detail(log_path, outfile=None):
         with open(file, 'r') as f:
             try:
                 log_file_counter += 1
-
                 outfile.write("\n===\n%s\n" % log)
-
-                counter = 0
-                done = 0
+                fail_line_counter = 0
                 rsrc_dict = {}
                 for i, line in enumerate(f.readlines()):
-                    if counter > 0:
+                    if fail_line_counter == 0:
+                        if "Failed Pods in detail" in line:
+                            fail_line_counter = 1
+                            # print("[DEBUG] start at #L", i)
+                    else:
                         INFOMSG="level=info msg="
-                        if INFOMSG not in line:
-                            counter = 0
+                        if INFOMSG not in line: # stop sign
+                            # print("[DEBUG]  stop at #L", i, "total", fail_line_counter, "lines")
+                            fail_line_counter = 0
                             sort_rsrc_dict = {k: v for k, v in sorted(rsrc_dict.items(), key=lambda item: -item[1])}
-                            # if done == 0:
-                            #     # print("Schedule Inflation:")
-                            #     outfile.write("Schedule Inflation\n")
-                            # else:
-                            #     # print("Deschedule Inflation:")
-                            #     outfile.write("Deschedule Inflation\n")
-                            done += 1
-                            outfile.write("Failed No.: %d" % done)
+                            num_failed_pods = 0
                             for k, v in sort_rsrc_dict.items():
-                                # print("%2d; <%s>" % (v, k))
                                 outfile.write("%2d; <%s>\n" % (v, k))
+                                num_failed_pods += v
+                            outfile.write("Failed No.: %d\n" % num_failed_pods)
                             rsrc_dict = {}
                             continue
+                        fail_line_counter += 1
                         line = line.split(INFOMSG)[1]
                         line = line[1:-2] # get rid of " and \n"
 
@@ -410,17 +407,6 @@ def failed_pods_in_detail(log_path, outfile=None):
                             rsrc_dict[rsrc] = 1
                         else :
                             rsrc_dict[rsrc] += 1
-
-                    else:
-                        INFOMSG="level=info msg="
-                        if INFOMSG not in line:
-                            continue
-                        line = line.split(INFOMSG)[1]
-                        line = line[1:-2] # get rid of " and \n"
-
-
-                        if "Failed Pods in detail" in line:
-                            counter = 1
 
             except Exception as e:
                 print("[Error] Failed at", file, " with error:", e)
