@@ -25,7 +25,7 @@ func TestGenerateWorkloadInflationPods(t *testing.T) {
 		customConfig:    options.customConfig,
 	}
 
-	sim.customConfig.TypicalPodsConfig = v1alpha1.TypicalPodsConfig{IsInvolvedCpuPods: true, PodPopularityThreshold: 95, PodIncreaseStep: 1, IsConsideredGpuResWeight: false}
+	sim.customConfig.TypicalPodsConfig = v1alpha1.TypicalPodsConfig{IsInvolvedCpuPods: true, PodPopularityThreshold: 95, PodIncreaseStep: 1, GpuResWeight: 0}
 	customConfig := sim.GetCustomConfig()
 	resources, _ := CreateClusterResourceFromClusterConfig(customConfig.NewWorkloadConfig)
 	pods, _ := GetValidPodExcludeDaemonSet(resources)
@@ -51,4 +51,8 @@ func TestSortPodsByTimestamp(t *testing.T) {
 	assert.Equal(t, false, ci.Before(tj))
 	assert.Equal(t, true, tj.Before(di))
 	assert.Equal(t, false, di.Before(tj))
+
+	var ti time.Time // undefined
+	assert.Equal(t, false, tj.Before(ti))
+	assert.Equal(t, false, ti.Before(tj))
 }
