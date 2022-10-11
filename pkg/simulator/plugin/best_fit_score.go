@@ -84,6 +84,14 @@ func getBestFitScore(nodeRes simontype.NodeResource, podRes simontype.PodResourc
 
 	// Given the score in [0, 1], scale it to [0, 100] and take reverse (lower better -> higher better)
 	score = (1.0 - score) * float64(framework.MaxNodeScore)
+	//if podRes.GpuNumber == 0 {
+	//	if nodeRes.GpuNumber == 0 {
+	//		return int64(score/2) + framework.MaxNodeScore/2
+	//	} else {
+	//		return int64(score / 2)
+	//	}
+	//}
+
 	log.Debugf("[BestFitScore] score(%.4f), freeVec(%v), reqVec(%v), weights(%v)\n", score, freeVec, reqVec, weights)
 	return int64(score)
 }
