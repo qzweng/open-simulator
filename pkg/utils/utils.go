@@ -961,22 +961,37 @@ func IsNodeAccessibleToPodByType(nodeGpuType string, podGpuType string) bool {
 		return false // i.e., CPU node
 	}
 
-	pm, ok := gpushareutils.MapGpuTypeMemoryMiB[podGpuType]
-	if !ok {
-		log.Errorf("Pod GPU Type: %s not in Map", podGpuType)
-		return false
+	//pm, ok := gpushareutils.MapGpuTypeMemoryMiB[podGpuType]
+	//if !ok {
+	//	log.Errorf("Pod GPU Type: %s not in Map", podGpuType)
+	//	return false
+	//}
+	//
+	//nm, ok := gpushareutils.MapGpuTypeMemoryMiB[nodeGpuType]
+	//if !ok {
+	//	log.Errorf("Node GPU Type: %s not in Map", nodeGpuType)
+	//	return false
+	//}
+	//
+	//if pm > nm {
+	//	return false
+	//}
+	podGpuTypeList := strings.Split(podGpuType, "|")
+	cnt := 0
+	for _, gpuType := range podGpuTypeList {
+		if len(gpuType) == 0 {
+			continue
+		}
+		cnt++
+		if gpuType == nodeGpuType {
+			return true
+		}
 	}
-
-	nm, ok := gpushareutils.MapGpuTypeMemoryMiB[nodeGpuType]
-	if !ok {
-		log.Errorf("Node GPU Type: %s not in Map", nodeGpuType)
+	if cnt > 0 { // pod requests at least one specific GPU type but node doesn't match
 		return false
+	} else { // pod actually doesn't request any specific GPU type
+		return true
 	}
-
-	if pm > nm {
-		return false
-	}
-	return true
 }
 
 func GetPodResource(pod *corev1.Pod) simontype.PodResource {

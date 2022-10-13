@@ -18,6 +18,7 @@ profiles:
           - name: GpuShareFragPackingScore
           - name: GpuFragSimScore
         enabled:
+          - name: GpuShareFragExtendSimScore
       score:
         disabled:
           - name: GpuFragScore
@@ -53,7 +54,8 @@ profiles:
           - name: NodePreferAvoidPods
         enabled:
 #          - name: GpuShareFragExtendScore
-          - name: GandivaScore
+#          - name: CosineSimilarityScore
+          - name: GpuShareFragExtendSimScore
             weight: 1000
       reserve:
         enabled:
@@ -68,13 +70,18 @@ profiles:
 #      - name: DotProductScore
 #        args:
 #          dimExtMethod: divide
-#      - name: CosineSimilarityScore
-#        args:
-#          dimExtMethod: divide
-#          normMethod: node
+      - name: CosineSimilarityScore
+        args:
+          dimExtMethod: merge
+          normMethod: max
+      - name: GpuShareFragExtendSimScore
+        args:
+          dimExtMethod: merge
+          normMethod: max
       - name: Open-Gpu-Share
         args:
-#          dimExtMethod: divide
-#          normMethod: node
+          dimExtMethod: merge
+          normMethod: max
 #          gpuSelMethod: GpuShareFragExtendScore
-          gpuSelMethod: best
+#          gpuSelMethod: best
+          gpuSelMethod: GpuShareFragExtendSimScore
