@@ -544,7 +544,6 @@ func (sim *Simulator) syncClusterResourceList(resourceList ResourceTypes) ([]sim
 	sort.Slice(resourceList.Nodes, func(i, j int) bool {
 		return resourceList.Nodes[i].Name < resourceList.Nodes[j].Name
 	})
-	rand.Seed(sim.customConfig.WorkloadTuningConfig.Seed)
 	randomIndex := rand.Perm(len(resourceList.Nodes))
 	for i := 0; i < len(randomIndex); i++ {
 		idx := randomIndex[i]
@@ -911,11 +910,9 @@ func (sim *Simulator) SortClusterPods(pods []*corev1.Pod) {
 	var err error
 	shufflePod := sim.customConfig.ShufflePod
 	if shufflePod {
-		//rand.Seed(time.Now().UnixNano())
 		sort.Slice(pods, func(i, j int) bool {
 			return pods[i].Name < pods[j].Name
 		})
-		rand.Seed(sim.customConfig.WorkloadTuningConfig.Seed)
 		rand.Shuffle(len(pods), func(i, j int) {
 			pods[i], pods[j] = pods[j], pods[i]
 		})
@@ -987,8 +984,6 @@ func (sim *Simulator) generateWorkloadInflationPods() []*corev1.Pod {
 	if ratio > 1 {
 		var inflationPods []*corev1.Pod
 		inflationNum := int(math.Ceil(float64(n)*ratio)) - n
-		seed := sim.customConfig.WorkloadInflationConfig.Seed + 1
-		rand.Seed(seed)
 		podTotalMilliCpuReq, podTotalMilliGpuReq := sim.podTotalMilliCpuReq, sim.podTotalMilliGpuReq
 		for i := 0; i < inflationNum; i++ {
 			idx := rand.Intn(n)
@@ -1175,7 +1170,6 @@ func RemovePodsByIndex(s []*corev1.Pod, index int) []*corev1.Pod {
 
 func (sim *Simulator) tuneDownPods(pods []*corev1.Pod, cfg v1alpha1.WorkloadTuningConfig) []*corev1.Pod {
 	tuneRatio := cfg.Ratio
-	rand.Seed(cfg.Seed + 1)
 	for float64(sim.podTotalMilliGpuReq) > tuneRatio*float64(sim.nodeTotalMilliGpu) {
 		if numPods := len(pods); numPods > 0 {
 			idx := rand.Intn(numPods)
@@ -1192,7 +1186,6 @@ func (sim *Simulator) tuneDownPods(pods []*corev1.Pod, cfg v1alpha1.WorkloadTuni
 
 func (sim *Simulator) tuneUpPods(pods []*corev1.Pod, cfg v1alpha1.WorkloadTuningConfig) []*corev1.Pod {
 	tuneRatio := cfg.Ratio
-	rand.Seed(cfg.Seed + 1)
 	n := len(sim.workloadPods)
 	i := 0
 	for { // do-while style

@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 
 	log "github.com/sirupsen/logrus"
@@ -93,6 +94,9 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	sim.SetTypicalPods()
 	sim.ClusterGpuFragReport()
 
+	customConfig := sim.GetCustomConfig()
+	rand.Seed(customConfig.WorkloadTuningConfig.Seed)
+	log.Debugf("Random Seed: %d, Random Int: %d", customConfig.WorkloadTuningConfig.Seed, rand.Int())
 	for _, item := range cluster.DaemonSets {
 		validPods, err := utils.MakeValidPodsByDaemonset(item, cluster.Nodes)
 		if err != nil {
@@ -108,7 +112,6 @@ func Simulate(cluster ResourceTypes, apps []AppResource, opts ...Option) (*simon
 	sim.RecordPodTotalResourceReq(cluster.Pods)
 	sim.RecordNodeTotalResource(cluster.Nodes)
 
-	customConfig := sim.GetCustomConfig()
 	if customConfig.WorkloadTuningConfig.Ratio > 0 {
 		// <= 0 means no tuning, keeping the cluster.Pods == sim.workloadPods
 		cluster.Pods = sim.TunePodsByNodeTotalResource(cluster.Pods, customConfig.WorkloadTuningConfig)

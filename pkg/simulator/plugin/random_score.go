@@ -3,8 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"time"
-
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/kubernetes/pkg/scheduler/framework"
@@ -42,7 +40,6 @@ func (plugin *RandomScorePlugin) Name() string {
 }
 
 func (plugin *RandomScorePlugin) PreScore(ctx context.Context, cycleState *framework.CycleState, pod *corev1.Pod, nodes []*corev1.Node) *framework.Status {
-	rand.Seed(time.Now().UnixNano())
 	n := len(nodes)
 	idx := rand.Intn(n)
 	nodeName := nodes[idx].Name
